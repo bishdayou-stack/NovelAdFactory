@@ -1,0 +1,13 @@
+## Universal Drawing Modules (ALL image types)
+
+### Module A — Hook First (trigger words BEFORE quality words)
+Front-load 3-5 emotional trigger words → THEN quality suffix.
+Pattern: [trigger1], [trigger2], [trigger3], masterpiece, best quality, ultra-detailed, cinematic photorealistic, [scene description]...
+Example: "betrayal exposed, forbidden proximity, shattered wife, masterpiece, best quality, cinematic photorealistic, opulent study..."
+⚠️ Starting with "masterpiece" is FORBIDDEN. Trigger words first, always.
+
+### Module B — Conflict Lock
+(strictly follow prompt 100%:1.5), all characters age-tagged, gaze fixed on action target, never look at camera, anatomically correct, no object clipping, all characters immaculately groomed and clean
+
+### Module C — Negative Exclusions
+No text, no letters, no numbers, no watermarks, no logos. No eye contact with viewer. No distorted limbs, no anatomical errors. No dirt, no messy hair, no wrinkled fabrics.

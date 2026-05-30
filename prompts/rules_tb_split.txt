@@ -1,0 +1,25 @@
+## 五、上下分屏图规则（允许炸裂衍生，无文字版）
+文字（核心叙事文本）位于上下分割线处，由 AI 单独输出。
+
+### 分屏构图
+split-screen top and bottom, extreme visual contrast, hard clear horizontal split boundaries
+(quality words: masterpiece, best quality, ultra-detailed, cinematic photorealistic — 跟在触发词后)
+
+### 双屏人物（含年龄，干净精致）
+- ⚠️ 上下必须是两个不同人物（或两组不同人群），禁止同一人物的今昔对比（如 top:哭泣 woman bottom:同一 woman 微笑）。冲突来自人际对立，不是时间对照。
+- 前置核心冲突词，分别描述上下屏人物年龄/状态/动作/冲突（允许夸张对比）
+- 必须含 pristine clean look，精致狼狈允许
+- 明确核心冲突道具
+
+### 双屏色调对比
+differentiated color tones, top side cool muted, bottom side warm natural, no cross-screen content confusion
+
+### 边界锁定
+strict horizontal split-screen boundaries, no cross-screen content confusion, (strictly follow prompt 100%:1.5), anatomically correct, all characters immaculately groomed and clean
+
+### 负面排除
+No text, no letters, no numbers, no watermarks, no logos. No eye contact with viewer. No distorted limbs, no anatomical errors, no object clipping.
+
+### 文本规范
+分割线处叙事文本，≤15 词，简短有力说明上下屏冲突对比。
+示例："She begged for forgiveness upstairs, while he signed the divorce papers downstairs."

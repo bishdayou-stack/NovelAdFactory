@@ -1,0 +1,51 @@
+## 二、带文字单图规则 (1:1 square)
+单图创意延伸场景（炸裂衍生骨架，选其一注入小说人物）：
+1. 权力反转与羞辱仪式：强者低头/弱者登顶，跪地求饶、碎裂象征物、旁观者震惊
+2. 秘密当众爆破：铁证（投影/手机/信件）曝光，宴会中断，真相冻结表情
+3. 极致亲密与占有：掐腰禁锢、扯断珠宝、墙上手印、唇印，危险暧昧灯光
+4. 致命二选一：手枪、按钮、两份文件、即将关闭的门，眼部超强情绪
+5. 新生与毁灭同框：孩子天真眼神 vs 成人仇怨，暖冷光强烈对比
+6. 身份颠覆盛大登场：直升机/豪车/飞机，旧识崩溃，主角华丽刻薄造型
+
+### 强制多人冲突构图
+ALWAYS 2+ characters in frame, locked in confrontation/reaction dynamic.
+
+🚫 黑名单句式（绝对禁止，AI 100%不得生成）：
+- "man in background" / "man walking away in background" / "woman in background"
+- "blurred figure" / "blurred man" / "blurred couple" / "blurred [anything]"
+- "sitting alone at table" / "standing alone" / "clutching hands alone"
+→ 冲突双方必须同为画面焦点，占有相等视觉权重。不准把冲突人物藏进背景、远景、虚化。
+
+构图模式：
+- Power dynamic: one dominates (standing/towering), one crumbles (kneeling/crying/on floor) — BOTH visually prominent in same focal plane
+- Reaction shot: one delivers the blow, one reels from impact, optional crowd gasps — ALL faces visible
+- Forbidden touch: two bodies close but one pulls away, third watches from shadow
+- Confrontation: two women face to face, one man between them, tension visible in body language
+
+### 模块化提示词结构
+模块1 固定爆款参数与构图（跟在触发词之后）
+masterpiece, best quality, ultra-detailed, cinematic photorealistic, [具体镜头类型如 wide-angle full-body shot]
+
+模块2 核心情节与人物画面（冲突前置，含年龄，清晰叙事）
+- 前置核心冲突词（如 power reversal, explosive confrontation, secret exposure）
+- 描述包含具体年龄的无姓名人物形象 + 动作（强叙事指向性）
+- 必须含干净精致关键词：pristine white silk dress, sharp flawless tailoring, immaculate hair, clean polished skin
+- 精确情绪：triumphant smirk with tears, cold detached stare, raw panic, defiant glare
+- 必须 2+ 人物同时在焦点内
+
+模块3 环境、光影与氛围（自然光影，真实质感）
+natural soft lighting, balanced exposure, natural skin tones, moderate directional shadows, clean polished surfaces, rich but natural contrast, subtle color accents, cinematic depth, soft highlights
+→ 画面要求自然真实，光影柔和但有层次。避免过曝、惨白、大面积高亮。保留适度的阴影细节（不黑死）。
+
+模块4 逻辑零冲突强制锁定
+(strictly follow prompt 100%:1.5), [年龄标签] gaze firmly fixed on [目标], never look at camera, anatomically correct, normal human body structure, correct number of limbs, strict spatial hierarchy, fixed camera perspective
+
+模块5 画面处理
+single frame composition, sharp focus on core narrative moment, storytelling image, frozen cinematic climax, explosive dramatic tension, clean polished aesthetic
+
+模块6 负面排除词
+No text, no letters, no numbers, no watermarks, no logos. No eye contact with viewer. No distorted limbs, no anatomical errors, no object clipping. No dirt on skin or clothing, no messy hair, no wrinkled fabrics.
+
+### 文本规范（后期合成）
+底部居中，核心叙事 ≤15 词。交代人物关系/关键冲突/反转。
+示例："My water broke on the bathroom floor while my husband slow-danced with another woman at his birthday party downstairs."

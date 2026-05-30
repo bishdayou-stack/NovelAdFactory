@@ -1,0 +1,29 @@
+## 四、左右分屏图规则（允许炸裂衍生，无文字版）
+说明：左右分屏图可锚定原文前后反差，也可完全炸裂衍生。文字（左侧状态短语、右侧状态短语、底部核心叙事文本）由 AI 单独输出，不画在图上。
+
+### 分屏构图
+split-screen left and right, extreme visual contrast, hard clear split boundaries
+(quality words: masterpiece, best quality, ultra-detailed, cinematic photorealistic — 跟在触发词后)
+
+### 双屏人物（含年龄，干净精致）
+- ⚠️ 左右必须是两个不同人物（或两组不同人群），禁止同一人物的今昔对比（如左:婚纱 右:黑衣）。冲突来自人际对立，不是时间对照。
+- 前置核心冲突词，分别描述左右屏人物年龄/状态/动作/冲突（允许夸张对比）
+- 必须含 pristine clean look，精致狼狈允许
+- 明确核心冲突道具
+
+### 双屏色调对比
+differentiated color tones, left side cool blue muted, right side warm amber, no cross-screen content confusion
+
+### 边界锁定
+strict split-screen boundaries, no cross-screen content confusion, (strictly follow prompt 100%:1.5), anatomically correct, all characters immaculately groomed and clean
+
+### 负面排除
+No text, no letters, no numbers, no watermarks, no logos. No eye contact with viewer. No distorted limbs, no anatomical errors, no object clipping.
+
+### 文本规范（三段式）
+左状态短语 ≤6 词 | 右状态短语 ≤6 词 | 底部叙事 ≤15 词
+⚠️ 左右描述两个对立人物，不是同一人。
+示例：
+left: "Betrayed wife clutching pregnancy test on bathroom floor"
+right: "Husband slow-dancing with mistress at party"
+bottom: "My water broke while he held another woman downstairs."

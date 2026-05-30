@@ -1,0 +1,2931 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Novel Ad Factory - 小说广告素材工厂</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    .loading-spin { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .sidebar-icon { width: 18px; height: 18px; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .card { background: #fff; border-radius: 16px; border: 1px solid #f1f5f9; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+    .input-focus { transition: all .15s; }
+    .input-focus:focus { outline: none; border-color: #818cf8; box-shadow: 0 0 0 3px rgba(99,102,241,.1); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 flex">
+  <!-- ====== 左侧边栏 ====== -->
+  <aside class="w-56 bg-slate-900 text-slate-300 flex flex-col shrink-0 min-h-screen sticky top-0">
+    <div class="px-4 py-5 border-b border-white/5">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-indigo-500/20">NA</div>
+        <div>
+          <div class="text-white font-semibold text-sm tracking-tight">Novel Ad Factory</div>
+          <div class="text-[10px] text-slate-500 mt-0.5">素材生产控制台 v2.0</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="flex-1 px-3 py-4 space-y-0.5">
+      <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium px-3 mb-2 mt-1">主菜单</div>
+      <button type="button" id="nav-generate" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white bg-white/5 font-medium transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <span class="truncate">生产中心</span>
+      </button>
+      <button type="button" id="nav-history" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span class="truncate">历史记录</span>
+      </button>
+      <button type="button" id="nav-assets" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span class="truncate">素材浏览</span>
+      </button>
+
+      <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium px-3 mb-2 mt-5">设置</div>
+      <button type="button" id="nav-video-style" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+        <span class="truncate">视频样式</span>
+      </button>
+
+      <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium px-3 mb-2 mt-5">工具</div>
+      <button type="button" id="nav-prompt-generate" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        <span class="truncate">提示词生图</span>
+      </button>
+      <button type="button" id="nav-novel-analyze" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span class="truncate">小说分析</span>
+      </button>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium px-3 mb-2 mt-5">数据</div>
+      <button type="button" id="nav-dashboard" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span class="truncate">数据看板</span>
+      </button>
+      <button type="button" id="nav-novel-mgr" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        <span class="truncate">小说管理</span>
+      </button>
+    </nav>
+
+    <div class="p-4 border-t border-white/5">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-white font-semibold text-[11px] shadow-inner">A</div>
+        <div class="min-w-0">
+          <div class="text-slate-300 font-medium text-xs">Admin</div>
+          <div id="outputRootDisplay" class="text-[10px] text-slate-500 truncate max-w-[130px]">-</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ====== 主内容区 ====== -->
+  <main class="flex-1 flex flex-col min-h-screen min-w-0 overflow-hidden">
+    <header class="bg-white border-b border-slate-100 px-6 py-3.5 flex items-center justify-between shrink-0">
+      <div>
+        <div class="flex items-center gap-1.5 text-[11px] text-slate-400 mb-0.5">
+          <span>控制台</span><span class="text-slate-300">/</span><span id="breadcrumb" class="text-slate-600 font-medium">生产中心</span>
+        </div>
+        <h2 id="pageTitle" class="text-base font-bold text-slate-800 tracking-tight">生产中心</h2>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <button type="button" id="btnRefreshStats" class="px-3 py-1.5 text-[11px] rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all font-medium">刷新统计</button>
+        <button type="button" id="btnNewTask" class="px-4 py-2 text-[13px] rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-all shadow-sm shadow-indigo-500/10">新建生产任务</button>
+      </div>
+    </header>
+
+    <!-- Stats 卡片 -->
+    <div class="px-6 py-4 grid grid-cols-4 gap-4 shrink-0">
+      <div class="card p-4 flex items-center gap-4"><div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center"><svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div><div><div class="text-[11px] text-slate-500 font-medium">总任务数</div><div class="text-xl font-bold text-slate-800" id="statJobs">-</div></div></div>
+      <div class="card p-4 flex items-center gap-4"><div class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center"><svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div><div class="text-[11px] text-slate-500 font-medium">成功率</div><div class="text-xl font-bold text-emerald-600" id="statRate">-</div></div></div>
+      <div class="card p-4 flex items-center gap-4"><div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center"><svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div><div><div class="text-[11px] text-slate-500 font-medium">总出图数</div><div class="text-xl font-bold text-indigo-600" id="statImages">-</div></div></div>
+      <div class="card p-4 flex items-center gap-4"><div class="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center"><svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></div><div><div class="text-[11px] text-slate-500 font-medium">总视频数</div><div class="text-xl font-bold text-violet-600" id="statVideos">-</div></div></div>
+    </div>
+
+    <!-- ====== Tab: 生产中心 ====== -->
+    <div id="tab-generate" class="flex-1 px-6 pb-6 overflow-y-auto">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="space-y-4">
+          <!-- 小说内容 -->
+          <div class="card p-5 space-y-4">
+            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">小说内容</h3>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] font-medium text-slate-500 shrink-0">或输入小说ID</span>
+              <input id="novelIdInput" type="text" class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" placeholder="输入小说ID自动获取内容..." />
+            </div>
+            <div class="relative">
+              <textarea id="novelContent" rows="5" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm input-focus resize-none bg-slate-50/50" placeholder="在此粘贴小说原文内容..."></textarea>
+              <button id="clearNovelBtn" type="button" class="clear-novel-btn absolute top-2 right-2 w-6 h-6 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-500 hover:text-slate-700 items-center justify-center text-xs leading-none transition-all border-0 cursor-pointer" style="display:none" title="清空内容">&times;</button>
+            </div>
+            <details>
+              <summary class="text-[11px] font-medium text-slate-400 cursor-pointer hover:text-slate-600 select-none">API 配置 (点击展开)</summary>
+              <div class="mt-3 space-y-3">
+                <div><label class="mb-1 block text-[11px] font-medium text-slate-500">API 密钥</label><input id="apiKey" type="password" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" placeholder="sk-..." /></div>
+                <div><label class="mb-1 block text-[11px] font-medium text-slate-500">API 地址</label><input id="apiUrl" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="https://api.geeknow.top/v1" /></div>
+                <div class="grid grid-cols-3 gap-2">
+                  <div><label class="mb-1 block text-[11px] font-medium text-slate-500">对话模型</label><input id="chatModel" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" value="gpt-4o-mini" /></div>
+                  <div><label class="mb-1 block text-[11px] font-medium text-slate-500">出图模型</label><input id="imageModel" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" value="gpt-image-1" /></div>
+                  <div><label class="mb-1 block text-[11px] font-medium text-slate-500">并发数</label><input id="concurrencySlider" type="number" min="1" max="16" value="2" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" /></div>
+                </div>
+              </div>
+            </details>
+            <div class="flex items-center gap-3 pt-1">
+              <span class="text-[11px] font-medium text-slate-500">出图模式</span>
+              <div class="flex rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+                <button id="modePrompt" type="button" class="px-3 py-1.5 text-[11px] font-medium bg-indigo-600 text-white transition-colors">不参考模版</button>
+                <button id="modeTemplate" type="button" class="px-3 py-1.5 text-[11px] font-medium bg-white text-slate-500 hover:bg-slate-50 transition-colors">参考爆款</button>
+              </div>
+              <span id="templateStatus" class="text-[11px] text-slate-400 hidden"></span>
+            </div>
+          </div>
+
+          <!-- 生产配置 -->
+          <div class="card p-5 space-y-4">
+            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">生产配置</h3>
+            <!-- 产出图片 -->
+            <div>
+              <div class="text-[11px] font-medium text-slate-500 mb-2">产出图片</div>
+              <div class="grid grid-cols-3 gap-3">
+                <div><label class="mb-1 block text-[11px] text-slate-500">单帧图 (1:1)</label><input id="textSingleCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /><label class="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer"><input id="textSingleTextToggle" type="checkbox" checked class="accent-indigo-600" />叠加文字</label></div>
+                <div><label class="mb-1 block text-[11px] text-slate-500">左右分屏 (1:1)</label><input id="lrSplitCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /><label class="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer"><input id="lrSplitTextToggle" type="checkbox" checked class="accent-indigo-600" />叠加文字</label></div>
+                <div><label class="mb-1 block text-[11px] text-slate-500">上下分屏 (1:1)</label><input id="tbSplitCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /><label class="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer"><input id="tbSplitTextToggle" type="checkbox" checked class="accent-indigo-600" />叠加文字</label></div>
+              </div>
+            </div>
+            <!-- 视频产出 -->
+            <div class="border-t border-slate-100 pt-3">
+              <div class="text-[11px] font-medium text-slate-500 mb-2">视频产出</div>
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="mb-1 block text-[11px] text-slate-500">弹屏视频</label><input id="popupCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="1" /></div>
+                <div><label class="mb-1 block text-[11px] text-slate-500">滚屏视频</label><input id="scrollCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
+                <div><label class="mb-1 block text-[11px] text-slate-500">AI 滚屏</label><input id="aiScrollCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
+                <div><label class="mb-1 block text-[11px] text-slate-500">AI 弹屏</label><input id="aiPopupCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
+              </div>
+            </div>
+          </div>
+
+          <textarea id="videoText" hidden></textarea>
+          <textarea id="globalPrompt" hidden></textarea>
+
+          <div class="space-y-2.5">
+            <button id="startBtn" type="button" class="w-full rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:from-indigo-700 hover:to-indigo-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">
+              <span class="flex items-center justify-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>开始全自动生产</span>
+            </button>
+            <button id="cancelBtn" type="button" class="w-full rounded-xl border-2 border-red-300 py-2.5 text-sm font-bold text-red-500 transition-all hover:bg-red-50 active:scale-[0.98]" hidden>取消当前生成任务</button>
+          </div>
+        </div>
+
+        <!-- 结果面板 -->
+        <div id="resultPanel" class="card p-5 flex flex-col min-h-[600px]">
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-50">
+            <h3 class="text-sm font-semibold text-slate-800">生产结果</h3>
+            <div class="flex items-center gap-2">
+              <span id="batchTag" class="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] text-slate-500 font-mono font-medium" hidden></span>
+              <button type="button" id="downloadAllBtn" class="rounded-xl bg-slate-800 px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-900 transition-all shadow-sm" hidden>下载全部</button>
+            </div>
+          </div>
+          <div id="resultEmpty" class="flex-1 flex flex-col items-center justify-center text-slate-300">
+            <div class="w-20 h-20 rounded-2xl bg-slate-50 flex items-center justify-center mb-5">
+              <svg class="w-10 h-10 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            </div>
+            <p class="text-sm text-slate-400 font-medium">配置参数后点击"开始全自动生产"</p>
+            <p class="text-xs mt-1.5 text-slate-300">生成的图片和视频将显示在此处</p>
+          </div>
+          <div id="statusNotice" class="rounded-xl bg-blue-50 p-3.5 text-sm font-medium text-blue-800 whitespace-pre-wrap border border-blue-100" hidden></div>
+          <div id="warnBox" class="rounded-xl bg-amber-50 p-3 text-xs text-amber-800 whitespace-pre-wrap border border-amber-100" hidden></div>
+          <div id="debugBox" class="rounded-xl bg-slate-50 p-3.5 text-xs text-slate-600 whitespace-pre-wrap font-mono max-h-48 overflow-y-auto border border-slate-100" hidden></div>
+          <div id="imageGallery" class="grid grid-cols-2 gap-3 sm:grid-cols-3"></div>
+          <div id="videoList" class="space-y-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Tab: 历史记录 ====== -->
+    <div id="tab-history" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <div class="card overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-50 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-slate-800">生成历史</h3>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btnBatchDeleteHistory" class="rounded-lg border border-red-200 px-3 py-1.5 text-[11px] font-semibold text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer" hidden onclick="showBatchDeleteConfirm()">批量删除</button>
+            <button type="button" id="btnRefreshHistory" class="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium transition-colors">刷新</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-50 text-left bg-slate-50/50"><th class="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-8"><input type="checkbox" id="historySelectAll" class="accent-indigo-600 w-3.5 h-3.5 cursor-pointer" onchange="toggleSelectAllHistory(this)" title="全选" /></th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">批次 ID</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">小说 ID</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">状态</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">进度</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Chat API</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">图片</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">视频</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">详情</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">操作</th></tr></thead>
+            <tbody id="historyTableBody"><tr><td colspan="8" class="px-5 py-16 text-center text-slate-400"><div class="flex flex-col items-center gap-2"><svg class="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-sm">点击刷新加载...</span></div></td></tr></tbody>
+          </table>
+        </div>
+        <div id="historyPagination" class="px-5 py-3 border-t border-slate-50 flex items-center justify-between gap-4 flex-wrap" hidden>
+          <div class="flex items-center gap-2 text-xs text-slate-500">
+            <span>每页</span>
+            <select id="historyPerPage" class="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 bg-white cursor-pointer">
+              <option value="10">10条</option>
+              <option value="20" selected>20条</option>
+              <option value="50">50条</option>
+            </select>
+            <span id="historyTotalLabel"></span>
+          </div>
+          <div class="flex items-center gap-1" id="historyPageButtons"></div>
+        </div>
+      </div>
+
+      <!-- 批次详情面板 -->
+      <div id="batchDetailPanel" class="mt-4 card p-5" hidden>
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-3">
+            <h3 class="text-sm font-bold text-slate-700">批次详情 #<span id="detailBatchId">-</span></h3>
+            <span id="detailStatusBadge" class="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-600">-</span>
+          </div>
+          <button type="button" onclick="document.getElementById('batchDetailPanel').hidden=true" class="rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-500 hover:bg-slate-50 transition-colors">关闭</button>
+        </div>
+
+        <div id="detailInfo" class="mb-4 text-xs text-slate-500 space-y-1"></div>
+
+        <div id="detailWarnings" class="mb-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-900 whitespace-pre-wrap" hidden></div>
+        <div id="detailErrors" class="mb-4 rounded-lg bg-red-50 p-3 text-xs text-red-800 whitespace-pre-wrap" hidden></div>
+
+        <div id="detailImages" class="mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-semibold text-slate-600">生成图片</h4>
+            <button type="button" id="downloadAllImagesBtn" class="rounded-xl bg-indigo-600 px-3 py-1 text-[10px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm" hidden>下载全部图片</button>
+          </div>
+          <div id="detailImageGrid" class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4"></div>
+        </div>
+
+        <div id="detailVideos" class="mb-4">
+          <h4 class="text-xs font-semibold text-slate-600 mb-2">生成视频</h4>
+          <div id="detailVideoList" class="space-y-3"></div>
+        </div>
+
+        <div id="detailPrompts" class="mb-4">
+          <h4 class="text-xs font-semibold text-slate-600 mb-2">使用的提示词</h4>
+          <div id="detailPromptList" class="space-y-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Tab: 素材浏览 ====== -->
+    <div id="tab-assets" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <!-- 筛选栏 -->
+      <div class="card p-4 mb-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="text-[11px] font-medium text-slate-500">筛选：</span>
+          <select id="assetFilterType" class="rounded-xl border border-slate-200 px-3 py-2 text-xs input-focus bg-slate-50/50">
+            <option value="all">全部类型</option>
+            <option value="image">仅图片</option>
+            <option value="video">仅视频</option>
+          </select>
+          <select id="assetFilterStatus" class="rounded-xl border border-slate-200 px-3 py-2 text-xs input-focus bg-slate-50/50">
+            <option value="all">全部状态</option>
+            <option value="success">成功</option>
+            <option value="partial">部分成功</option>
+            <option value="failed">失败</option>
+          </select>
+          <input id="assetFilterDate" type="date" class="rounded-xl border border-slate-200 px-3 py-2 text-xs input-focus bg-slate-50/50" />
+          <input id="assetFilterNovelId" type="text" class="rounded-xl border border-slate-200 px-3 py-2 text-xs input-focus bg-slate-50/50 w-40" placeholder="小说ID筛选..." />
+          <span class="text-[10px] text-slate-400">快选：</span>
+          <button type="button" class="date-quick-btn rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all bg-white cursor-pointer" data-days="0">今天</button>
+          <button type="button" class="date-quick-btn rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all bg-white cursor-pointer" data-days="1">昨天</button>
+          <button type="button" class="date-quick-btn rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all bg-white cursor-pointer" data-days="2">前天</button>
+          <button type="button" class="date-quick-btn rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all bg-white cursor-pointer" data-days="3">前3天</button>
+          <button type="button" class="date-quick-btn rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all bg-white cursor-pointer" data-days="7">前7天</button>
+          <button id="btnApplyFilter" type="button" class="rounded-xl bg-indigo-600 px-4 py-2 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm border-0 cursor-pointer">应用筛选</button>
+          <button id="btnClearFilter" type="button" class="rounded-xl border border-slate-200 px-3 py-2 text-[11px] text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer">清除</button>
+          <button type="button" id="btnRefreshAssets" class="rounded-xl border border-slate-200 px-3 py-2 text-[11px] text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer ml-auto">刷新</button>
+        </div>
+      </div>
+
+      <!-- 素材列表 -->
+      <div id="assetsLoading" class="text-center py-16 text-slate-400">点击刷新加载素材...</div>
+      <div id="assetsGallery" class="space-y-4"></div>
+    </div>
+
+    <!-- ====== Tab: 视频样式 ====== -->
+    <div id="tab-video-style" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <div class="flex gap-6 h-full">
+        <!-- 左侧：样式列表 -->
+        <div class="w-72 shrink-0 card p-4 flex flex-col">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-slate-800">样式库</h3>
+            <button id="btnAddStyle" type="button" class="rounded-xl bg-indigo-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm shadow-indigo-500/10 border-0 cursor-pointer">+ 新建</button>
+          </div>
+          <div id="styleListContainer" class="flex-1 overflow-y-auto space-y-0.5 pr-1"></div>
+        </div>
+        <!-- 右侧：样式编辑器 -->
+        <div class="flex-1 card p-5 max-w-lg">
+          <h3 class="text-sm font-semibold text-slate-800 mb-5 pb-2 border-b border-slate-50" id="styleEditorTitle">编辑样式</h3>
+          <div id="styleEditorEmpty" class="text-center py-16 text-slate-300">
+            <div class="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+            </div>
+            <p class="text-sm text-slate-400">从左侧列表选择一个样式进行编辑</p>
+          </div>
+          <div id="styleEditorForm" class="space-y-4" hidden>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="mb-1 block text-[11px] font-medium text-slate-500">样式名称</label><input id="styleName" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" placeholder="我的样式" /></div>
+              <div><label class="mb-1 block text-[11px] font-medium text-slate-500">样式类型</label><select id="styleType" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50"><option value="scroll">滚屏</option><option value="popup">弹屏</option></select></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="mb-1 block text-[11px] font-medium text-slate-500">权重</label><input id="styleWeight" type="number" min="0" max="100" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="1" /></div>
+              <div><label class="mb-1 block text-[11px] font-medium text-slate-500">字体</label><select id="styleFont" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50"></select></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="mb-1 block text-[11px] font-medium text-slate-500">字号</label><input id="styleFontSize" type="number" min="8" max="200" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" /></div>
+              <div><label class="mb-1 block text-[11px] font-medium text-slate-500">字颜色</label><div class="flex items-center gap-2"><input id="styleTextColor" type="color" class="w-10 h-10 rounded-xl border border-slate-200 cursor-pointer p-0.5" /><input id="styleTextColorHex" type="text" class="flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-mono input-focus bg-slate-50/50" placeholder="#FFFFFF" /></div></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="mb-1 block text-[11px] font-medium text-slate-500">背景类型</label><select id="styleBgType" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50"><option value="full_bar">全幅横条</option><option value="hug_text">贴字背景</option></select></div>
+              <div><label class="mb-1 block text-[11px] font-medium text-slate-500">背景颜色</label><div class="flex items-center gap-2"><input id="styleBgColor" type="color" class="w-10 h-10 rounded-xl border border-slate-200 cursor-pointer p-0.5" /><input id="styleBgColorHex" type="text" class="flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-mono input-focus bg-slate-50/50" placeholder="#000000" /></div></div>
+            </div>
+            <div><label class="mb-1 block text-[11px] font-medium text-slate-500">背景透明度 <span id="styleBgOpacityLabel" class="text-slate-400 font-mono">(150)</span></label><input id="styleBgOpacity" type="range" min="0" max="255" value="150" class="w-full accent-indigo-500" /></div>
+            <div><label class="mb-1 block text-[11px] font-medium text-slate-500">播放速度 <span id="styleSpeedLabel" class="text-slate-400 font-mono">(1.0x)</span></label><input id="styleSpeed" type="range" min="0.1" max="2.0" step="0.01" value="1.0" class="w-full accent-indigo-500" /></div>
+            <div class="flex gap-2 pt-2">
+              <button id="saveStyleBtn" type="button" class="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm shadow-indigo-500/10">保存样式</button>
+              <button id="deleteStyleBtn" type="button" class="rounded-xl border-2 border-red-200 px-4 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50 transition-all">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Tab: 提示词生图 ====== -->
+    <div id="tab-prompt-generate" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <div class="card p-5 space-y-4 max-w-3xl">
+        <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">提示词生图</h3>
+        <div>
+          <label class="mb-1 flex justify-between text-[11px] font-medium text-slate-500">
+            <span>提示词</span>
+            <span id="pgPromptCount" class="text-indigo-500">1 条</span>
+          </label>
+          <div id="pgCards" class="space-y-2 max-h-[400px] overflow-y-auto">
+            <div class="pg-card flex gap-2">
+              <textarea rows="3" class="pg-prompt flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm input-focus resize-none bg-slate-50/50" placeholder="提示词 #1"></textarea>
+              <button type="button" class="pg-del shrink-0 w-7 h-7 mt-1 rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 transition-all border-0 cursor-pointer text-lg leading-none" title="删除">&times;</button>
+            </div>
+          </div>
+          <button id="pgAddCard" type="button" class="mt-2 w-full rounded-xl border border-dashed border-slate-300 py-2 text-xs text-slate-400 hover:border-indigo-400 hover:text-indigo-500 transition-all bg-transparent cursor-pointer">
+            + 添加提示词
+          </button>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="mb-1 block text-[11px] font-medium text-slate-500">图片尺寸</label>
+            <select id="pgSize" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50">
+              <option value="1024x1024">1024x1024 (1:1)</option>
+              <option value="768x1344">768x1344 (9:16)</option>
+              <option value="1024x1792">1024x1792 (9:16)</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-[11px] font-medium text-slate-500">每条生成</label>
+            <input id="pgCount" type="number" min="1" max="10" value="1" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" />
+          </div>
+          <div class="flex items-end">
+            <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer pb-2.5">
+              <input id="pgTextToggle" type="checkbox" class="accent-indigo-600" /> 叠加文字
+            </label>
+          </div>
+        </div>
+        <div id="pgTextFields" class="grid grid-cols-3 gap-3" hidden>
+          <div><label class="mb-1 block text-[10px] text-slate-500">底部文字</label><input id="pgTextBottom" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm input-focus bg-slate-50/50" placeholder="可选" /></div>
+          <div><label class="mb-1 block text-[10px] text-slate-500">左侧文字</label><input id="pgTextLeft" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm input-focus bg-slate-50/50" placeholder="可选" /></div>
+          <div><label class="mb-1 block text-[10px] text-slate-500">右侧文字</label><input id="pgTextRight" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm input-focus bg-slate-50/50" placeholder="可选" /></div>
+        </div>
+        <button id="pgStartBtn" type="button" class="w-full rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-indigo-500/20 hover:from-indigo-700 hover:to-indigo-800 transition-all active:scale-[0.98] disabled:opacity-50 border-0 cursor-pointer">
+          <span class="flex items-center justify-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>生成图片</span>
+        </button>
+        <div id="pgStatus" class="rounded-xl bg-blue-50 p-3.5 text-sm font-medium text-blue-800 border border-blue-100" hidden></div>
+        <div id="pgGallery" class="grid grid-cols-2 gap-3 sm:grid-cols-3"></div>
+      </div>
+    </div>
+
+    <!-- ====== Tab: 小说分析 ====== -->
+    <div id="tab-novel-analyze" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="space-y-4">
+          <div class="card p-5 space-y-4">
+            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">小说分析</h3>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] font-medium text-slate-500 shrink-0">或输入小说ID</span>
+              <input id="naNovelIdInput" type="text" class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" placeholder="输入小说ID自动获取内容..." />
+            </div>
+            <div class="relative">
+              <textarea id="naNovelContent" rows="5" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm input-focus resize-none bg-slate-50/50" placeholder="在此粘贴小说原文内容..."></textarea>
+              <button id="naClearNovelBtn" type="button" class="clear-novel-btn absolute top-2 right-2 w-6 h-6 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-500 hover:text-slate-700 items-center justify-center text-xs leading-none transition-all border-0 cursor-pointer" style="display:none" title="清空内容">&times;</button>
+            </div>
+            <div>
+              <label class="mb-1 block text-[11px] font-medium text-slate-500">分析提示词（描述你想要的出图风格和方向）</label>
+              <textarea id="naAnalysisPrompt" rows="3" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm input-focus resize-none bg-slate-50/50" placeholder="例如：暗黑浪漫风格，强调权力反转和禁忌关系，使用电影级光影..."></textarea>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-[11px] font-medium text-slate-500">参考爆款模板</span>
+              <div class="flex rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+                <button id="naModePrompt" type="button" class="px-3 py-1.5 text-[11px] font-medium bg-indigo-600 text-white transition-colors border-0 cursor-pointer">不参考</button>
+                <button id="naModeTemplate" type="button" class="px-3 py-1.5 text-[11px] font-medium bg-white text-slate-500 hover:bg-slate-50 transition-colors border-0 cursor-pointer">参考</button>
+              </div>
+            </div>
+          </div>
+          <div class="card p-5 space-y-4">
+            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">生产配置</h3>
+            <div class="grid grid-cols-3 gap-3">
+              <div><label class="mb-1 block text-[11px] text-slate-500">单帧图</label><input id="naTextSingle" type="number" min="0" value="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" /><label class="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer"><input id="naTextSingleText" type="checkbox" checked class="accent-indigo-600" />叠加文字</label></div>
+              <div><label class="mb-1 block text-[11px] text-slate-500">左右分屏</label><input id="naLrSplit" type="number" min="0" value="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" /><label class="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer"><input id="naLrSplitText" type="checkbox" checked class="accent-indigo-600" />叠加文字</label></div>
+              <div><label class="mb-1 block text-[11px] text-slate-500">上下分屏</label><input id="naTbSplit" type="number" min="0" value="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" /><label class="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer"><input id="naTbSplitText" type="checkbox" checked class="accent-indigo-600" />叠加文字</label></div>
+            </div>
+          </div>
+          <button id="naAnalyzeBtn" type="button" class="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-purple-700 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-violet-500/20 hover:from-violet-700 hover:to-purple-800 transition-all active:scale-[0.98] disabled:opacity-50 border-0 cursor-pointer">
+            分析小说 → 生成提示词
+          </button>
+        </div>
+        <div class="card p-5 flex flex-col min-h-[600px]">
+          <h3 class="text-sm font-semibold text-slate-800 mb-4 pb-2 border-b border-slate-50">分析结果</h3>
+          <div id="naResultEmpty" class="flex-1 flex flex-col items-center justify-center text-slate-300">
+            <p class="text-sm text-slate-400">粘贴小说并配置参数后点击"分析小说"</p>
+          </div>
+          <div id="naResultContent" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Tab: 数据看板 ====== -->
+    <div id="tab-dashboard" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <div class="flex items-center justify-between mb-4 mt-2">
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2">
+            <span id="dashSessionDot" class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+            <span id="dashSessionText" class="text-xs text-slate-500">检查中...</span>
+          </div>
+          <span id="dashLastSync" class="text-xs text-slate-400"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div id="dashDatePills" class="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+            <button data-range="today" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-white text-indigo-600 shadow-sm">今天</button>
+            <button data-range="yesterday" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">昨天</button>
+            <button data-range="7" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">近7天</button>
+            <button data-range="30" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">近30天</button>
+            <button data-range="custom" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">自定义</button>
+          </div>
+          <div id="dashCustomDate" class="flex items-center gap-1" hidden>
+            <input type="date" id="dashDateStart" class="rounded-lg border border-slate-200 px-2 py-1.5 text-xs input-focus bg-white w-32">
+            <span class="text-xs text-slate-400">至</span>
+            <input type="date" id="dashDateEnd" class="rounded-lg border border-slate-200 px-2 py-1.5 text-xs input-focus bg-white w-32">
+          </div>
+          <select id="dashAccountFilter" class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs input-focus bg-white">
+            <option value="">全部账户</option>
+          </select>
+          <button id="btnEditAlias" class="flex items-center gap-1 px-2 py-1.5 text-xs rounded-lg border border-dashed border-slate-300 text-slate-400 hover:border-indigo-400 hover:text-indigo-500 transition-all" title="编辑选中账户别名">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          </button>
+          <input type="text" id="dashKeyword" class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs input-focus bg-white w-40" placeholder="搜索广告/计划...">
+          <div class="flex items-center gap-1">
+            <span class="text-[10px] text-slate-400">自动更新</span>
+            <select id="dashSyncInterval" class="rounded-lg border border-slate-200 px-2 py-1.5 text-xs input-focus bg-white">
+              <option value="60">1分钟</option>
+              <option value="180" selected>3分钟</option>
+              <option value="600">10分钟</option>
+              <option value="1800">30分钟</option>
+              <option value="3600">1小时</option>
+            </select>
+            <span id="dashIntervalHint" class="text-[10px] text-slate-400">默认3分钟</span>
+          </div>
+          <button id="btnSyncData" class="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            同步数据
+          </button>
+          <span id="loginGroup" hidden>
+            <input id="loginUsername" type="text" placeholder="账号" class="w-28 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none transition-all">
+            <input id="loginPassword" type="password" placeholder="密码" class="w-28 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none transition-all ml-1">
+            <img id="captchaImg" alt="验证码" title="点击刷新" style="display:none;height:32px;border:1px solid #e2e8f0;border-radius:4px;margin-left:4px;cursor:pointer">
+            <input id="loginCaptcha" type="text" placeholder="验证码" class="w-16 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none transition-all ml-1" style="display:none">
+            <button id="btnLogin" class="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-all shadow-sm ml-1">
+              登录
+            </button>
+          </span>
+          <button id="btnLogout" class="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-xl border border-red-300 text-red-500 hover:bg-red-50 transition-all" hidden>
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            登出
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-4 gap-3 mb-4">
+        <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">总消耗</div><div id="kpiSpend" class="text-xl font-bold text-slate-800 mt-1">-</div></div>
+        <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">总收入</div><div id="kpiRevenue" class="text-xl font-bold text-emerald-600 mt-1">-</div></div>
+        <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">ROI</div><div id="kpiRoi" class="text-xl font-bold text-indigo-600 mt-1">-</div></div>
+        <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">成功订单</div><div id="kpiOrders" class="text-xl font-bold text-violet-600 mt-1">-</div></div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div class="card p-4"><h3 class="text-xs font-semibold text-slate-700 mb-3">消耗 & 收入趋势</h3><div style="height: 220px;"><canvas id="chartTrend"></canvas></div></div>
+        <div class="card p-4"><h3 class="text-xs font-semibold text-slate-700 mb-3">各账户消耗占比</h3><div style="height: 220px;"><canvas id="chartPie"></canvas></div></div>
+      </div>
+
+      <div class="card p-4 mb-4">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="text-xs font-semibold text-slate-700">按账户日报明细</h3>
+          <div id="dashTablePager" class="flex items-center gap-1"></div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead><tr class="border-b-2 border-slate-100 text-slate-500 text-left"><th class="pb-2 font-medium">日期</th><th class="pb-2 font-medium">账户</th><th class="pb-2 font-medium text-right">消耗</th><th class="pb-2 font-medium text-right">收入</th><th class="pb-2 font-medium text-right">ROI</th><th class="pb-2 font-medium text-right">广告数</th></tr></thead>
+            <tbody id="dashTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div class="card p-4">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-xs font-semibold text-slate-700">账户排名</h3>
+            <div id="dashRankPager" class="flex items-center gap-1"></div>
+          </div>
+          <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-100 text-slate-500 text-left"><th class="pb-1.5 font-medium">#</th><th class="pb-1.5 font-medium">账户</th><th class="pb-1.5 font-medium text-right">消耗</th><th class="pb-1.5 font-medium text-right">收入</th><th class="pb-1.5 font-medium text-right">ROI</th></tr></thead><tbody id="dashRankBody"></tbody></table></div>
+        </div>
+        <div class="card p-4">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-xs font-semibold text-slate-700">最近订单</h3>
+            <div id="dashOrderPager" class="flex items-center gap-1"></div>
+          </div>
+          <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-100 text-slate-500 text-left"><th class="pb-1.5 font-medium">订单号</th><th class="pb-1.5 font-medium">日期 <span class="text-[9px] text-slate-400">时区</span></th><th class="pb-1.5 font-medium">所属推广链接</th><th class="pb-1.5 font-medium">广告ID</th><th class="pb-1.5 font-medium text-right">金额</th><th class="pb-1.5 font-medium">状态</th></tr></thead><tbody id="dashOrderBody"></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="card p-4 mb-4">
+        <h3 class="text-xs font-semibold text-slate-700 mb-3">小说订单排行榜</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead><tr class="border-b-2 border-slate-100 text-slate-500 text-left"><th class="pb-2 font-medium">#</th><th class="pb-2 font-medium">书名</th><th class="pb-2 font-medium">书ID</th><th class="pb-2 font-medium text-right">订单量</th><th class="pb-2 font-medium text-right">订单金额</th></tr></thead>
+            <tbody id="dashNovelBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Tab: 小说管理 ====== -->
+    <div id="tab-novel-mgr" class="flex-1 px-6 pb-6 overflow-y-auto min-w-0" hidden>
+      <div class="flex items-center justify-between mb-4 mt-2">
+        <div class="flex items-center gap-3">
+          <h2 class="text-lg font-bold text-slate-800">小说管理</h2>
+          <span id="novelMgrCount" class="text-xs text-slate-400"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="novelMgrSearch" type="text" placeholder="搜索书名/作者..." class="w-40 px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none">
+          <select id="novelMgrStatus" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-indigo-400 outline-none bg-white">
+            <option value="">全部状态</option>
+            <option value="连载">连载</option>
+            <option value="完结">完结</option>
+          </select>
+          <button id="novelMgrSyncBooksBtn" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer">同步书籍列表</button>
+          <button id="novelMgrSyncContentBtn" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">同步全部内容</button>
+        </div>
+      </div>
+
+      <!-- 书籍列表表格 -->
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white mb-4">
+        <table class="w-full text-xs whitespace-nowrap">
+          <thead class="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+            <tr class="text-slate-500 text-left">
+              <th class="py-2.5 px-3 font-medium">创建日期</th>
+              <th class="py-2.5 px-3 font-medium">小说标题</th>
+              <th class="py-2.5 px-3 font-medium text-right">书籍消耗</th>
+              <th class="py-2.5 px-3 font-medium text-right">推广链接数</th>
+              <th class="py-2.5 px-3 font-medium">小说ID</th>
+              <th class="py-2.5 px-3 font-medium">小说来源</th>
+              <th class="py-2.5 px-3 font-medium">封面</th>
+              <th class="py-2.5 px-3 font-medium">作者</th>
+              <th class="py-2.5 px-3 font-medium max-w-[200px]">简介</th>
+              <th class="py-2.5 px-3 font-medium">地区</th>
+              <th class="py-2.5 px-3 font-medium">分类</th>
+              <th class="py-2.5 px-3 font-medium">标签</th>
+              <th class="py-2.5 px-3 font-medium">是否推荐</th>
+              <th class="py-2.5 px-3 font-medium">状态</th>
+              <th class="py-2.5 px-3 font-medium">独享状态</th>
+              <th class="py-2.5 px-3 font-medium">创建用户</th>
+              <th class="py-2.5 px-3 font-medium text-right">总字数</th>
+              <th class="py-2.5 px-3 font-medium text-right">章节数</th>
+              <th class="py-2.5 px-3 font-medium text-right">收藏数</th>
+            </tr>
+          </thead>
+          <tbody id="novelMgrBookBody"></tbody>
+        </table>
+      </div>
+      <div id="novelMgrBookPager" class="flex justify-center gap-1 mb-4"></div>
+
+    </div>
+
+    <!-- 章节弹窗（双视图：章节列表 / 内容） -->
+    <div id="chapterModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" hidden>
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col">
+        <!-- 头部 -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+          <div class="flex items-center gap-2 min-w-0">
+            <button id="chapterModalBack" class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all cursor-pointer hidden" title="返回章节列表">&larr;</button>
+            <h3 id="chapterModalTitle" class="text-base font-bold text-slate-800 truncate">章节列表</h3>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button id="chapterModalSyncBtn" class="px-3 py-1.5 text-[11px] font-medium rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer">同步内容</button>
+            <button id="chapterModalClose" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all cursor-pointer">&times;</button>
+          </div>
+        </div>
+        <!-- 章节列表视图 -->
+        <div id="chapterModalListView" class="flex-1 overflow-y-auto px-6 py-4">
+          <div id="chapterModalChapterList" class="grid grid-cols-2 gap-2"></div>
+          <div id="chapterModalChapterPager" class="flex justify-center gap-1 mt-3"></div>
+        </div>
+        <!-- 内容视图 -->
+        <div id="chapterModalContentView" class="flex-1 overflow-y-auto px-6 py-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap hidden">
+        </div>
+        <!-- 底部导航（内容视图） -->
+        <div id="chapterModalNav" class="flex items-center justify-between px-6 py-3 border-t border-slate-100 shrink-0 hidden">
+          <button id="chapterModalPrev" class="px-4 py-2 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all bg-white cursor-pointer">上一章</button>
+          <span id="chapterModalInfo" class="text-xs text-slate-400"></span>
+          <button id="chapterModalNext" class="px-4 py-2 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all bg-white cursor-pointer">下一章</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 确认弹窗模态框 -->
+    <div id="confirmModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" hidden>
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col p-6">
+        <h3 class="text-lg font-bold text-slate-800 mb-4 shrink-0">确认生成的提示词</h3>
+        <div class="flex-1 overflow-y-auto mb-4"><div id="confirmPromptList" class="space-y-3"></div></div>
+        <div class="flex gap-3 justify-end pt-4 border-t border-slate-100 shrink-0">
+          <button id="confirmCancelBtn" type="button" class="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all bg-white cursor-pointer">取消</button>
+          <button id="confirmGenerateBtn" type="button" class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">确认生成图片</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 删除确认弹窗 -->
+    <div id="deleteConfirmModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" hidden>
+      <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center"><svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg></div>
+          <h3 class="text-lg font-bold text-slate-800">确认删除</h3>
+        </div>
+        <div id="deleteConfirmMsg" class="text-sm text-slate-600 mb-2"></div>
+        <div id="deleteConfirmList" class="text-xs text-slate-500 mb-4 max-h-40 overflow-y-auto space-y-0.5"></div>
+        <div class="rounded-lg bg-red-50 border border-red-100 px-4 py-2.5 text-xs text-red-600 mb-5">此操作不可撤销，本地文件将被永久删除。</div>
+        <div class="flex gap-3 justify-end">
+          <button id="deleteCancelBtn" type="button" class="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all bg-white cursor-pointer">取消</button>
+          <button id="deleteConfirmBtn" type="button" class="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 transition-all shadow-sm cursor-pointer">确认删除</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ====== 全局状态 ======
+    var lastPayloadUrls = [];
+    var currentTab = 'generate';
+    var styleLibrary = [];
+    var selectedStyleId = null;
+    var activeScrollStyleId = null;
+    var activePopupStyleId = null;
+
+    // ====== API 配置管理（自动保存/加载） ======
+    var apiConfig = {
+      api_key: "",
+      api_url: "https://api.geeknow.top/v1",
+      chat_model_name: "gpt-4o-mini",
+      image_model_name: "gpt-image-1",
+      analysis_prompt: "",
+      concurrency: 2
+    };
+
+    function loadApiConfig() {
+      return fetch("/api/config").then(function(r) { return r.json(); }).then(function(d) {
+        if (d.api_url) apiConfig.api_url = d.api_url;
+        if (d.chat_model_name) apiConfig.chat_model_name = d.chat_model_name;
+        if (d.image_model_name) apiConfig.image_model_name = d.image_model_name;
+        if (d.api_key) apiConfig.api_key = d.api_key;
+        if (d.analysis_prompt !== undefined) apiConfig.analysis_prompt = d.analysis_prompt;
+        if (d.concurrency) apiConfig.concurrency = d.concurrency;
+        applyConfigToForm();
+      }).catch(function() {
+        // 后端不可用时从 localStorage 加载
+        try {
+          var saved = JSON.parse(localStorage.getItem('novelAdConfig') || '{}');
+          if (saved.api_url) apiConfig = Object.assign(apiConfig, saved);
+          applyConfigToForm();
+        } catch(e) {}
+      });
+    }
+
+    function saveApiConfig() {
+      apiConfig.api_key = document.getElementById("apiKey").value;
+      apiConfig.api_url = document.getElementById("apiUrl").value;
+      apiConfig.chat_model_name = document.getElementById("chatModel").value;
+      apiConfig.image_model_name = document.getElementById("imageModel").value;
+      var concurrencyEl = document.getElementById("concurrencySlider");
+      if (concurrencyEl) apiConfig.concurrency = parseInt(concurrencyEl.value) || 2;
+
+      fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apiConfig)
+      }).catch(function() {});
+
+      localStorage.setItem('novelAdConfig', JSON.stringify(apiConfig));
+    }
+
+    function applyConfigToForm() {
+      var el;
+      el = document.getElementById("apiKey"); if (el && apiConfig.api_key) el.value = apiConfig.api_key;
+      el = document.getElementById("apiUrl"); if (el && apiConfig.api_url) el.value = apiConfig.api_url;
+      el = document.getElementById("chatModel"); if (el && apiConfig.chat_model_name) el.value = apiConfig.chat_model_name;
+      el = document.getElementById("imageModel"); if (el && apiConfig.image_model_name) el.value = apiConfig.image_model_name;
+      el = document.getElementById("concurrencySlider"); if (el && apiConfig.concurrency) el.value = apiConfig.concurrency;
+    }
+
+    function bindConfigAutoSave() {
+      ['apiKey', 'apiUrl', 'chatModel', 'imageModel'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', saveApiConfig);
+      });
+      var concurrencyEl = document.getElementById("concurrencySlider");
+      if (concurrencyEl) concurrencyEl.addEventListener('input', saveApiConfig);
+    }
+
+
+    // ====== Tab 切换 (HTML5 原生 hidden 属性，不依赖任何 CSS) ======
+    function switchTab(tab) {
+      console.log('[switchTab]', tab);
+      currentTab = tab;
+
+      // 隐藏所有 tab
+      document.getElementById('tab-generate').hidden = true;
+      document.getElementById('tab-history').hidden = true;
+      document.getElementById('tab-assets').hidden = true;
+      document.getElementById('tab-video-style').hidden = true;
+      document.getElementById('tab-prompt-generate').hidden = true;
+      document.getElementById('tab-novel-analyze').hidden = true;
+      document.getElementById('tab-dashboard').hidden = true;
+      document.getElementById('tab-novel-mgr').hidden = true;
+
+      // 显示目标 tab
+      document.getElementById('tab-' + tab).hidden = false;
+
+      // 更新导航按钮样式
+      ['generate', 'history', 'assets', 'video-style', 'prompt-generate', 'novel-analyze', 'dashboard', 'novel-mgr'].forEach(function(t) {
+        var btn = document.getElementById('nav-' + t);
+        if (!btn) return;
+        btn.classList.remove('bg-white/5', 'text-white', 'font-medium');
+        btn.classList.add('text-slate-400');
+      });
+      var activeBtn = document.getElementById('nav-' + tab);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-white/5', 'text-white', 'font-medium');
+        activeBtn.classList.remove('text-slate-400');
+      }
+
+      // 更新面包屑
+      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理' };
+      document.getElementById('breadcrumb').textContent = titles[tab] || tab;
+      document.getElementById('pageTitle').textContent = titles[tab] || tab;
+
+      // 加载数据
+      if (tab === 'history') { loadHistory(); document.getElementById('batchDetailPanel').hidden = true; }
+      if (tab === 'assets') loadAssets();
+      if (tab === 'video-style') { loadStyleLibrary().then(function() { loadFonts(); }); }
+      if (tab === 'novel-analyze') {
+        var el = document.getElementById('naAnalysisPrompt');
+        if (el && apiConfig.analysis_prompt) el.value = apiConfig.analysis_prompt;
+      }
+      if (tab === 'dashboard') { loadDashboard(); }
+      if (tab === 'novel-mgr') { if (novelMgrPages.books === 1) loadNovelBooks(1); else loadNovelBooks(novelMgrPages.books); }
+    }
+
+    // ====== 数据加载 ======
+    function loadPromptRules() {
+      fetch("/api/prompt-rules").then(function(r) { return r.json(); }).then(function(d) {
+        if (d.content) document.getElementById("globalPrompt").value = d.content;
+      }).catch(function(e) { console.warn("加载提示词失败:", e); });
+    }
+
+    var useTemplatesMode = false;  // 默认不参考模版
+
+    function switchMode(mode) {
+      useTemplatesMode = mode;
+      var btnPrompt = document.getElementById('modePrompt');
+      var btnTemplate = document.getElementById('modeTemplate');
+      var statusEl = document.getElementById('templateStatus');
+      if (mode) {
+        btnTemplate.className = 'px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white transition-colors';
+        btnPrompt.className = 'px-3 py-1.5 text-xs font-medium bg-white text-slate-600 hover:bg-slate-50 transition-colors';
+        statusEl.classList.remove('hidden');
+        loadTemplates();
+      } else {
+        btnPrompt.className = 'px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white transition-colors';
+        btnTemplate.className = 'px-3 py-1.5 text-xs font-medium bg-white text-slate-600 hover:bg-slate-50 transition-colors';
+        statusEl.classList.add('hidden');
+      }
+    }
+
+    function updateTemplateStatus(d) {
+      var el = document.getElementById('templateStatus');
+      if (!d.loaded) {
+        el.innerHTML = '<span class="text-amber-600">' + d.message + '</span>';
+        el.classList.remove('hidden');
+        return;
+      }
+      el.innerHTML = '<span class="text-emerald-600 font-medium">' + d.message + '</span>';
+    }
+
+    function loadTemplates() {
+      fetch("/api/templates").then(function(r) { return r.json(); }).then(function(d) {
+        updateTemplateStatus(d);
+      }).catch(function(e) { document.getElementById('templateStatus').textContent = '检查失败'; });
+    }
+
+    // 分段选择器按钮事件
+    document.getElementById('modePrompt').addEventListener('click', function() { switchMode(false); });
+    document.getElementById('modeTemplate').addEventListener('click', function() { switchMode(true); });
+
+    function loadStats() {
+      fetch("/api/stats").then(function(r) { return r.json(); }).then(function(d) {
+        document.getElementById('statJobs').textContent = d.total_jobs || 0;
+        var rate = d.total_jobs > 0 ? Math.round((d.success_jobs || 0) / d.total_jobs * 100) + '%' : '-';
+        document.getElementById('statRate').textContent = rate;
+        document.getElementById('statImages').textContent = d.total_images || 0;
+        document.getElementById('statVideos').textContent = d.total_videos || 0;
+        if (d.output_root) document.getElementById('outputRootDisplay').textContent = d.output_root.split(/[\\\/]/).pop() || d.output_root;
+      }).catch(function(e) { console.warn("加载统计失败:", e); });
+    }
+
+    var historyPage = 1;
+    var historyPerPage = 20;
+
+    function loadHistory(page, perPage) {
+      if (page === undefined) page = historyPage;
+      if (perPage === undefined) perPage = historyPerPage;
+      historyPage = page;
+      historyPerPage = perPage;
+      document.getElementById('historyPerPage').value = perPage;
+      var offset = (page - 1) * perPage;
+      var tbody = document.getElementById('historyTableBody');
+      tbody.innerHTML = '<tr><td colspan="10" class="px-5 py-16 text-center text-slate-400"><div class="flex flex-col items-center gap-2"><svg class="w-8 h-8 text-slate-200 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg><span class="text-sm">加载中...</span></div></td></tr>';
+      fetch("/api/history?limit=" + perPage + "&offset=" + offset).then(function(r) { return r.json(); }).then(function(d) {
+        var items = d.history || [];
+        var total = d.total || 0;
+        if (!items.length) { tbody.innerHTML = '<tr><td colspan="10" class="px-5 py-16 text-center text-slate-400"><div class="flex flex-col items-center gap-2"><svg class="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-sm">暂无历史记录</span></div></td></tr>'; renderHistoryPagination(0, page, perPage); return; }
+        tbody.innerHTML = items.map(function(item) {
+          var sb = item.status === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.status === 'partial' ? 'bg-amber-50 text-amber-700 border-amber-200' : item.status === 'failed' ? 'bg-red-50 text-red-700 border-red-200' : item.status === 'cancelled' ? 'bg-slate-200 text-slate-500 border-slate-300' : item.status === 'running' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200';
+          var cb = item.chat_status === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.chat_status === 'failed' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200';
+          var progressCell = '<td class="px-5 py-3 text-[12px]">';
+          if (item.progress && item.status === 'running') {
+            var pct = item.progress.percent || 0;
+            progressCell += '<div class="flex items-center gap-2"><div class="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden min-w-[60px]"><div class="bg-indigo-500 h-full rounded-full transition-all" style="width:' + pct + '%"></div></div><span class="text-[10px] text-slate-400 font-mono">' + pct + '%</span></div>';
+          } else if (item.status === 'running') {
+            progressCell += '<span class="text-[10px] text-blue-500">运行中...</span>';
+          } else {
+            progressCell += '<span class="text-[10px] text-slate-300">-</span>';
+          }
+          progressCell += '</td>';
+          var cancelBtn = '';
+          if (item.status === 'running') {
+            cancelBtn = '<button type="button" class="rounded-xl bg-red-50 px-2.5 py-1.5 text-[10px] font-semibold text-red-500 hover:bg-red-100 transition-all border-0 cursor-pointer ml-1.5" onclick="var b=this;event.stopPropagation();cancelProduction(' + parseInt(item.batch_id) + ');b.disabled=true;b.textContent=\'取消中...\'">取消</button>';
+          }
+          var deleteBtn = '<button type="button" class="rounded-xl bg-red-50 px-2.5 py-1.5 text-[10px] font-semibold text-red-500 hover:bg-red-100 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();confirmDeleteSingle(\'' + item.batch_id + '\')">删除</button>';
+          return '<tr class="border-b border-slate-50 hover:bg-slate-50/30 transition-colors"><td class="px-3 py-3"><input type="checkbox" class="history-checkbox accent-indigo-600 w-3.5 h-3.5 cursor-pointer" value="' + item.batch_id + '" onchange="onHistoryCheckboxChange()" /></td><td class="px-5 py-3 font-mono text-[12px] text-slate-600 font-medium">#' + item.batch_id + '</td><td class="px-5 py-3 text-[12px] text-slate-500 font-mono">' + (item.novel_id || '-') + '</td><td class="px-5 py-3"><span class="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold border ' + sb + '">' + (item.status || 'unknown') + '</span></td>' + progressCell + '<td class="px-5 py-3"><span class="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold border ' + cb + '">' + (item.chat_status || '-') + '</span></td><td class="px-5 py-3 text-[13px] text-slate-600">' + (item.images || 0) + '</td><td class="px-5 py-3 text-[13px] text-slate-600">' + (item.videos || 0) + '</td><td class="px-5 py-3 text-[12px] text-slate-500 max-w-[200px] truncate">' + (item.message || '-') + '</td><td class="px-5 py-3 whitespace-nowrap"><button type="button" class="rounded-xl bg-indigo-50 px-3 py-1.5 text-[10px] font-semibold text-indigo-600 hover:bg-indigo-100 transition-all border-0 cursor-pointer" onclick="viewBatchDetail(\'' + item.batch_id + '\')">详情</button>' + deleteBtn + cancelBtn + '</td></tr>';
+        }).join('');
+        renderHistoryPagination(total, page, perPage);
+      }).catch(function(e) { tbody.innerHTML = '<tr><td colspan="10" class="px-5 py-16 text-center text-red-400"><div class="flex flex-col items-center gap-2"><span class="text-sm">加载失败: ' + e.message + '</span></div></td></tr>'; });
+    }
+
+    function renderHistoryPagination(total, page, perPage) {
+      var bar = document.getElementById('historyPagination');
+      var totalLabel = document.getElementById('historyTotalLabel');
+      var pageButtons = document.getElementById('historyPageButtons');
+      if (total <= 0) { bar.hidden = true; return; }
+      bar.hidden = false;
+      var totalPages = Math.ceil(total / perPage);
+      totalLabel.textContent = '共 ' + total + ' 条，' + totalPages + ' 页';
+      var html = '';
+      // Prev button
+      html += '<button type="button" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" onclick="loadHistory(' + (page - 1) + ',' + perPage + ')"' + (page <= 1 ? ' disabled' : '') + '>«</button>';
+      // Page numbers
+      var maxButtons = 7;
+      var start = Math.max(1, page - Math.floor(maxButtons / 2));
+      var end = Math.min(totalPages, start + maxButtons - 1);
+      if (end - start < maxButtons - 1) start = Math.max(1, end - maxButtons + 1);
+      for (var i = start; i <= end; i++) {
+        if (i === page) {
+          html += '<span class="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs text-white font-semibold">' + i + '</span>';
+        } else {
+          html += '<button type="button" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-50 transition-colors" onclick="loadHistory(' + i + ',' + perPage + ')">' + i + '</button>';
+        }
+      }
+      // Next button
+      html += '<button type="button" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" onclick="loadHistory(' + (page + 1) + ',' + perPage + ')"' + (page >= totalPages ? ' disabled' : '') + '>»</button>';
+      pageButtons.innerHTML = html;
+    }
+
+    function viewBatchDetail(batchId) {
+      var panel = document.getElementById('batchDetailPanel');
+      panel.hidden = false;
+      document.getElementById('detailBatchId').textContent = batchId;
+      document.getElementById('detailStatusBadge').textContent = '加载中...';
+      document.getElementById('detailInfo').innerHTML = '';
+      document.getElementById('detailImageGrid').innerHTML = '<p class="text-xs text-slate-400 col-span-full">加载中...</p>';
+      document.getElementById('detailVideoList').innerHTML = '';
+      document.getElementById('detailPromptList').innerHTML = '';
+      document.getElementById('detailWarnings').hidden = true;
+      document.getElementById('detailErrors').hidden = true;
+
+      fetch('/api/history/' + batchId).then(function(r) { return r.json(); }).then(function(data) {
+        var sb = data.status === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : data.status === 'partial' ? 'bg-amber-50 text-amber-700 border border-amber-200' : data.status === 'failed' ? 'bg-red-50 text-red-700 border border-red-200' : data.status === 'cancelled' ? 'bg-slate-200 text-slate-500 border border-slate-300' : data.status === 'running' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-600 border border-slate-200';
+        document.getElementById('detailStatusBadge').className = 'inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold ' + sb;
+        document.getElementById('detailStatusBadge').textContent = data.status || 'unknown';
+
+        var infoHTML = '<div><span class="font-medium text-slate-700">消息:</span> ' + (data.message || '-') + '</div><div><span class="font-medium text-slate-700">Chat API:</span> ' + (data.chat_status || '-') + '</div><div><span class="font-medium text-slate-700">图片:</span> ' + (data.image_count || 0) + ' 张</div><div><span class="font-medium text-slate-700">视频:</span> ' + (data.video_count || 0) + ' 个</div>';
+        if (data.progress && data.status === 'running') {
+          var pct = data.progress.percent || 0;
+          infoHTML += '<div class="mt-3"><div class="flex items-center justify-between text-xs mb-1"><span class="font-medium text-slate-700">生产进度</span><span class="font-mono text-indigo-600 font-semibold">' + pct + '%</span></div><div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden"><div class="bg-gradient-to-r from-indigo-500 to-indigo-700 h-full rounded-full transition-all" style="width:' + pct + '%"></div></div><div class="text-xs text-slate-500 mt-1">' + (data.progress.step || '') + '</div></div>';
+        }
+        document.getElementById('detailInfo').innerHTML = infoHTML;
+
+        if (data.warnings && data.warnings.length) {
+          document.getElementById('detailWarnings').textContent = data.warnings.join('\n');
+          document.getElementById('detailWarnings').hidden = false;
+        }
+        if (data.errors && data.errors.length) {
+          document.getElementById('detailErrors').textContent = data.errors.join('\n');
+          document.getElementById('detailErrors').hidden = false;
+        }
+
+        // 图片
+        var imgGrid = document.getElementById('detailImageGrid');
+        var imgs = Array.isArray(data.images) ? data.images : [];
+        var dlAllBtn = document.getElementById('downloadAllImagesBtn');
+        if (!imgs.length) { imgGrid.innerHTML = '<p class="text-xs text-slate-400 col-span-full">无图片</p>'; dlAllBtn.hidden = true; }
+        else {
+          dlAllBtn.hidden = false;
+          dlAllBtn.onclick = function() {
+            dlAllBtn.disabled = true;
+            dlAllBtn.textContent = '下载中...';
+            var chain = Promise.resolve();
+            imgs.forEach(function(src) {
+              var full = absUrl(src);
+              var name = src.split('/').pop();
+              chain = chain.then(function() {
+                return downloadBlobUrl(full, name).then(function() {
+                  return new Promise(function(r) { setTimeout(r, 350); });
+                });
+              });
+            });
+            chain.then(function() {
+              dlAllBtn.textContent = '下载全部图片';
+              dlAllBtn.disabled = false;
+            }).catch(function(e) {
+              alert("下载中断：" + e.message);
+              dlAllBtn.textContent = '下载全部图片';
+              dlAllBtn.disabled = false;
+            });
+          };
+          imgGrid.innerHTML = imgs.map(function(src) {
+            var full = absUrl(src);
+            var name = src.split('/').pop();
+            return '<div class="relative overflow-hidden rounded-2xl bg-slate-100 group shadow-sm"><img src="' + full + '" class="aspect-square w-full object-cover" loading="lazy" /><button type="button" class="absolute bottom-2 right-2 rounded-xl bg-black/70 px-3 py-1 text-[10px] text-white hover:bg-black opacity-0 group-hover:opacity-100 transition-opacity border-0 cursor-pointer" onclick="event.stopPropagation();downloadBlobUrl(\'' + full + '\',\'' + name + '\')">保存</button></div>';
+          }).join('');
+        }
+
+        // 视频
+        var vidList = document.getElementById('detailVideoList');
+        var vids = Array.isArray(data.videos) ? data.videos : [];
+        var pops = Array.isArray(data.popup_videos) ? data.popup_videos : [];
+        var allVids = vids.concat(pops);
+        if (!allVids.length) { vidList.innerHTML = '<p class="text-xs text-slate-400">无视频</p>'; }
+        else {
+          vidList.innerHTML = allVids.map(function(src, idx) {
+            var full = absUrl(src);
+            var name = src.split('/').pop();
+            return '<div class="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3"><video src="' + full + '" controls class="max-h-32 rounded-xl"></video><button type="button" class="rounded-xl bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm border-0 cursor-pointer" onclick="downloadBlobUrl(\'' + full + '\',\'' + name + '\')">下载</button></div>';
+          }).join('');
+        }
+
+        // 提示词
+        var promptList = document.getElementById('detailPromptList');
+        var prompts = Array.isArray(data.used_prompts) ? data.used_prompts : [];
+        if (!prompts.length) { promptList.innerHTML = '<p class="text-xs text-slate-400">无提示词记录</p>'; }
+        else {
+          promptList.innerHTML = prompts.map(function(p, i) {
+            return '<details class="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5"><summary class="text-[12px] font-medium text-slate-700 cursor-pointer select-none hover:text-indigo-600 transition-colors">' + (i+1) + '. ' + (p.label || '未知') + ' <span class="text-[10px] text-slate-400 ml-2">[' + (p.type || '-') + ']</span></summary><pre class="mt-2 text-[11px] text-slate-600 whitespace-pre-wrap font-sans leading-relaxed">' + (p.prompt || '-') + '</pre></details>';
+          }).join('');
+        }
+
+        panel.scrollIntoView({ behavior: 'smooth' });
+      }).catch(function(e) {
+        document.getElementById('detailInfo').innerHTML = '<span class="text-red-500">加载失败: ' + e.message + '</span>';
+      });
+    }
+
+    var allAssetsData = [];
+
+    function loadAssets() {
+      var loading = document.getElementById('assetsLoading');
+      var gallery = document.getElementById('assetsGallery');
+      loading.textContent = '加载中...';
+      loading.hidden = false;
+      gallery.innerHTML = '';
+
+      fetch("/api/history?limit=200").then(function(r) { return r.json(); }).then(function(d) {
+        var items = d.history || [];
+        if (!items.length) { loading.textContent = '暂无素材'; return; }
+        loading.hidden = true;
+
+        var detailPromises = items.map(function(item) {
+          return fetch('/api/history/' + item.batch_id).then(function(r) { return r.json(); }).catch(function() { return item; });
+        });
+
+        Promise.all(detailPromises).then(function(detailsList) {
+          // 按 batch_id 降序排列（最新批次在前）
+          detailsList.sort(function(a, b) {
+            var aid = parseInt(a.batch_id) || 0;
+            var bid = parseInt(b.batch_id) || 0;
+            return bid - aid;
+          });
+          allAssetsData = detailsList;
+          renderAssetsGallery(detailsList);
+          document.getElementById('btnApplyFilter').onclick = applyAssetFilter;
+          document.getElementById('btnClearFilter').onclick = function() {
+            document.getElementById('assetFilterType').value = 'all';
+            document.getElementById('assetFilterStatus').value = 'all';
+            document.getElementById('assetFilterDate').value = '';
+            document.getElementById('assetFilterNovelId').value = '';
+            renderAssetsGallery(detailsList);
+          };
+          // 日期快选按钮
+          var quickBtns = document.querySelectorAll('.date-quick-btn');
+          quickBtns.forEach(function(btn) {
+            btn.onclick = function() {
+              var days = parseInt(this.getAttribute('data-days'));
+              var d = new Date();
+              d.setDate(d.getDate() - days);
+              var yyyy = d.getFullYear();
+              var mm = String(d.getMonth() + 1).padStart(2, '0');
+              var dd = String(d.getDate()).padStart(2, '0');
+              document.getElementById('assetFilterDate').value = yyyy + '-' + mm + '-' + dd;
+              // 高亮当前按钮
+              quickBtns.forEach(function(b) { b.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-600'); b.classList.add('bg-white', 'text-slate-500', 'border-slate-200'); });
+              this.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600');
+              this.classList.remove('bg-white', 'text-slate-500', 'border-slate-200');
+              applyAssetFilter();
+            };
+          });
+        });
+      }).catch(function(e) { loading.textContent = '加载失败: ' + e.message; });
+    }
+
+    function renderAssetsGallery(items) {
+      var gallery = document.getElementById('assetsGallery');
+      gallery.innerHTML = '';
+
+      items.forEach(function(data) {
+        var batchId = data.batch_id;
+        var status = data.status || 'unknown';
+        var imgs = Array.isArray(data.images) ? data.images : [];
+        var vids = Array.isArray(data.videos) ? data.videos : [];
+        var prompts = Array.isArray(data.used_prompts) ? data.used_prompts : [];
+        var allMedia = [];
+
+        imgs.forEach(function(src, i) {
+          var promptInfo = prompts[i] || {};
+          allMedia.push({ type: 'image', src: src, label: promptInfo.label || '图片' + (i+1), prompt: promptInfo.prompt || '', index: i });
+        });
+        vids.forEach(function(src, i) {
+          allMedia.push({ type: 'video', src: src, label: '视频' + (i+1), prompt: '', index: i });
+        });
+
+        if (!allMedia.length) return;
+
+        var section = document.createElement('div');
+        section.className = 'card p-4';
+
+        var timeStr = '';
+        if (data.progress && data.progress.updated_at) {
+          try { timeStr = new Date(data.progress.updated_at).toLocaleString('zh-CN'); } catch(e) {}
+        }
+
+        var headerDiv = document.createElement('div');
+        headerDiv.className = 'flex items-center justify-between mb-3';
+        var novelIdTag = data.novel_id ? '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 font-mono cursor-pointer hover:bg-indigo-100 transition-all" onclick="event.stopPropagation();document.getElementById(\'assetFilterNovelId\').value=\'' + data.novel_id + '\';applyAssetFilter();">小说ID:' + data.novel_id + '</span>' : '';
+        headerDiv.innerHTML = '<div class="flex items-center gap-3"><h4 class="text-sm font-semibold text-slate-700">批次 #' + batchId + '</h4>' + novelIdTag + '<span class="text-[10px] text-slate-400">' + timeStr + '</span></div><span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ' + (status === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500') + '">' + status + '</span>';
+        section.appendChild(headerDiv);
+
+        var grid = document.createElement('div');
+        grid.className = 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5';
+
+        allMedia.forEach(function(media) {
+          var card = document.createElement('div');
+          card.className = 'relative overflow-hidden rounded-2xl bg-slate-100 group shadow-sm';
+
+          if (media.type === 'image') {
+            var full = absUrl(media.src);
+            var name = media.src.split('/').pop();
+            var safePrompt = (media.prompt || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            card.innerHTML = '<img src="' + full + '" class="aspect-square w-full object-cover" loading="lazy" />' +
+              '<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-8 opacity-0 group-hover:opacity-100 transition-opacity">' +
+              '<div class="flex items-center gap-2">' +
+              '<button type="button" class="rounded-lg bg-white/20 px-2.5 py-1 text-[10px] text-white hover:bg-white/30 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();var t=this.parentElement.parentElement.previousElementSibling?this.parentElement.parentElement.previousElementSibling.getAttribute(\'data-prompt\'):\'\';copyPromptText(t||\'\',this)">复制提示词</button>' +
+              '<button type="button" class="rounded-lg bg-indigo-500/80 px-2.5 py-1 text-[10px] text-white hover:bg-indigo-500 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();goGenerateFromPrompt(\'' + safePrompt + '\')">去生图</button>' +
+              '</div></div>' +
+              '<span class="absolute top-2 left-2 rounded-lg bg-black/60 px-2 py-0.5 text-[10px] text-white">' + media.label + '</span>';
+            // Store prompt as data attribute on the img for copy function
+            card.querySelector('img').setAttribute('data-prompt', safePrompt);
+          } else {
+            var vfull = absUrl(media.src);
+            card.innerHTML = '<video src="' + vfull + '" controls class="w-full rounded-2xl"></video>';
+          }
+
+          grid.appendChild(card);
+        });
+
+        section.appendChild(grid);
+        gallery.appendChild(section);
+      });
+    }
+
+    function applyAssetFilter() {
+      var typeFilter = document.getElementById('assetFilterType').value;
+      var statusFilter = document.getElementById('assetFilterStatus').value;
+      var dateFilter = document.getElementById('assetFilterDate').value;
+      var novelIdFilter = document.getElementById('assetFilterNovelId').value.trim();
+
+      var filtered = allAssetsData.filter(function(data) {
+        if (statusFilter !== 'all' && data.status !== statusFilter) return false;
+        if (novelIdFilter && (data.novel_id || '') !== novelIdFilter) return false;
+        if (typeFilter === 'image') {
+          var imgs = Array.isArray(data.images) ? data.images : [];
+          if (!imgs.length) return false;
+        } else if (typeFilter === 'video') {
+          var vids = Array.isArray(data.videos) ? data.videos : [];
+          if (!vids.length) return false;
+        }
+        if (dateFilter) {
+          var dateStr = null;
+          // 优先从 progress.updated_at 取，其次从 created_at
+          if (data.progress && data.progress.updated_at) {
+            dateStr = data.progress.updated_at;
+          } else if (data.created_at) {
+            dateStr = data.created_at;
+          }
+          if (dateStr) {
+            if (!dateStr.startsWith(dateFilter)) return false;
+          } else {
+            return false; // 无日期信息则滤掉
+          }
+        }
+        return true;
+      });
+
+      renderAssetsGallery(filtered);
+    }
+
+    function copyPromptText(promptText, btn) {
+      navigator.clipboard.writeText(promptText).then(function() {
+        btn.textContent = '已复制!';
+        setTimeout(function() { btn.textContent = '复制提示词'; }, 1500);
+      }).catch(function() {
+        var ta = document.createElement('textarea');
+        ta.value = promptText;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        btn.textContent = '已复制!';
+        setTimeout(function() { btn.textContent = '复制提示词'; }, 1500);
+      });
+    }
+
+    function goGenerateFromPrompt(promptText) {
+      if (confirm('是否使用此提示词前往生图页面生成图片？')) {
+        // 切换到提示词生图 tab (will be added in Task 5.1)
+        var tabEl = document.getElementById('tab-prompt-generate');
+        if (tabEl) {
+          switchTab('prompt-generate');
+          var el = document.getElementById('pgPrompt');
+          if (el) el.value = promptText;
+        } else {
+          alert('提示词生图页面尚未加载，请在后续版本中使用。');
+        }
+      }
+    }
+
+    // ====== Chapter 1 提取 ======
+    function extractChapter1(text) {
+      if (!text || !text.trim()) return "";
+      var patterns = [/Chapter\s*1\b[:\-\s]*\n?/i, /Chapter\s*One\b[:\-\s]*\n?/i, /CHAPTER\s*1\b[:\-\s]*\n?/, /第[一1]章[:\-\s]*\n?/];
+      var startIdx = -1;
+      for (var i = 0; i < patterns.length; i++) {
+        var m = text.match(patterns[i]);
+        if (m && m.index !== undefined) { startIdx = m.index + m[0].length; break; }
+      }
+      if (startIdx < 0) return "";
+      var remaining = text.substring(startIdx);
+      var nextChapter = remaining.search(/\n\s*(?:Chapter|CHAPTER)\s*(?:2|Two|[二2])\b/);
+      var raw = nextChapter > 0 ? remaining.substring(0, nextChapter) : remaining;
+      return raw.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').replace(/ *\n */g, '\n').trim();
+    }
+
+    function onNovelChange() {
+      var novel = document.getElementById('novelContent').value;
+      var ch1 = extractChapter1(novel);
+      document.getElementById('videoText').value = ch1;
+    }
+
+    // ====== 工具 ======
+    function absUrl(path) {
+      if (!path) return "";
+      if (path.startsWith("http")) return path;
+      var base = window.location.origin.replace(/\/$/, "");
+      return base + (path.startsWith("/") ? path : "/" + path);
+    }
+
+    function downloadBlobUrl(url, filename) {
+      return fetch(url, { credentials: "same-origin" }).then(function(r) { return r.blob(); }).then(function(blob) {
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename || "download";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+      });
+    }
+
+    function downloadAllAssets() {
+      var btn = document.getElementById("downloadAllBtn");
+      if (!lastPayloadUrls.length) return;
+      btn.disabled = true;
+      var chain = Promise.resolve();
+      lastPayloadUrls.forEach(function(item) {
+        chain = chain.then(function() { return downloadBlobUrl(item.url, item.name).then(function() { return new Promise(function(r) { setTimeout(r, 350); }); }); });
+      });
+      chain.then(function() { btn.disabled = false; }).catch(function(e) { alert("下载中断：" + e.message); btn.disabled = false; });
+    }
+
+    function renderGallery(data) {
+      var gallery = document.getElementById("imageGallery");
+      var videoList = document.getElementById("videoList");
+      var dlBtn = document.getElementById("downloadAllBtn");
+      var emptyHint = document.getElementById("resultEmpty");
+      gallery.innerHTML = "";
+      videoList.innerHTML = "";
+      lastPayloadUrls = [];
+
+      var imgs = Array.isArray(data.images) ? data.images : [];
+      var scrollVideos = Array.isArray(data.scroll_videos) ? data.scroll_videos.filter(Boolean) : (data.video ? [data.video] : []);
+      var popupList = Array.isArray(data.popup_videos) ? data.popup_videos.filter(Boolean) : [];
+      var aiScrollVideos = Array.isArray(data.ai_scroll_videos) ? data.ai_scroll_videos.filter(Boolean) : [];
+      var aiPopupVideos = Array.isArray(data.ai_popup_videos) ? data.ai_popup_videos.filter(Boolean) : [];
+
+      if (imgs.length || scrollVideos.length || popupList.length || aiScrollVideos.length || aiPopupVideos.length) emptyHint.hidden = true;
+
+      imgs.forEach(function(src) {
+        var full = absUrl(src);
+        var name = src.split("/").pop();
+        var wrap = document.createElement("div");
+        wrap.className = "relative overflow-hidden rounded-2xl bg-slate-100 group shadow-sm";
+        wrap.innerHTML = '<img src="' + full + '" class="aspect-square w-full object-cover" loading="lazy" /><button type="button" class="absolute bottom-2 right-2 rounded-lg bg-black/70 px-3 py-1 text-[10px] text-white hover:bg-black opacity-0 group-hover:opacity-100 transition-opacity">保存</button>';
+        wrap.querySelector("button").onclick = function(e) { e.stopPropagation(); downloadBlobUrl(full, name); };
+        gallery.appendChild(wrap);
+        lastPayloadUrls.push({ url: full, name: name });
+      });
+
+      if (scrollVideos.length) scrollVideos.forEach(function(src, idx) { addVideoBlock("滚屏合成视频" + (scrollVideos.length > 1 ? " " + (idx + 1) : ""), "bg-sky-100 text-sky-700", src, "保存滚屏视频"); });
+      if (popupList.length) popupList.forEach(function(src, idx) { addVideoBlock("弹屏 " + (idx + 1), "bg-violet-100 text-violet-700", src, "保存弹屏"); });
+      if (aiScrollVideos.length) aiScrollVideos.forEach(function(src, idx) { addVideoBlock("AI滚屏视频" + (aiScrollVideos.length > 1 ? " " + (idx + 1) : ""), "bg-cyan-100 text-cyan-700", src, "保存AI滚屏视频"); });
+      if (aiPopupVideos.length) aiPopupVideos.forEach(function(src, idx) { addVideoBlock("AI弹屏 " + (idx + 1), "bg-teal-100 text-teal-700", src, "保存AI弹屏"); });
+
+      function addVideoBlock(title, badge, src, btnLabel) {
+        var full = absUrl(src);
+        var name = src.split("/").pop();
+        var row = document.createElement("div");
+        row.className = "space-y-2";
+        row.innerHTML = '<div class="flex items-center gap-2"><span class="text-xs font-semibold text-slate-700">' + title + '</span><span class="' + badge + ' rounded-full px-2 py-0.5 text-[10px] font-semibold">视频</span></div><div class="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50/70 p-3"><video src="' + full + '" controls class="max-h-40 rounded-xl"></video><button class="rounded-xl bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm">' + btnLabel + '</button></div>';
+        row.querySelector("button").onclick = function() { downloadBlobUrl(full, name); };
+        videoList.appendChild(row);
+        lastPayloadUrls.push({ url: full, name: name });
+      }
+      dlBtn.hidden = lastPayloadUrls.length === 0;
+    }
+
+    // ====== 取消 ======
+    function cancelProduction(batchId) {
+      var btn = document.getElementById("cancelBtn");
+      btn.textContent = "正在发送取消请求...";
+      btn.disabled = true;
+      var url = "/api/cancel";
+      if (batchId) { url += "?batch_id=" + batchId; }
+      fetch(url, { method: "POST" })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+          btn.textContent = "已发送取消请求";
+          if (batchId && activePollTimers[batchId]) {
+            if (typeof activePollTimers[batchId] === 'object' && activePollTimers[batchId].close) {
+              activePollTimers[batchId].close();
+            } else {
+              clearInterval(activePollTimers[batchId]);
+            }
+            delete activePollTimers[batchId];
+          }
+        })
+        .catch(function(e) { console.error("取消请求失败", e); btn.disabled = false; });
+    }
+
+    // ====== 后台轮询 ======
+    var activePollTimers = {};
+
+    function handleTaskComplete(batchId, data) {
+      var cancelBtn = document.getElementById("cancelBtn");
+      renderGallery({
+        status: data.status,
+        batch_id: batchId,
+        images: data.images || [],
+        scroll_videos: (data.videos || []).filter(function(v) { return v.indexOf("scroll-video") >= 0; }),
+        popup_videos: data.popup_videos || [],
+        ai_scroll_videos: (data.videos || []).filter(function(v) { return v.indexOf("ai-scroll") >= 0; }),
+        ai_popup_videos: [],
+        message: data.message,
+        warnings: data.warnings || [],
+        errors: data.errors || [],
+        chat_status: data.chat_status || "",
+        used_prompts: data.used_prompts || []
+      });
+      cancelBtn.hidden = true;
+      loadStats();
+    }
+
+    function pollBatchProgress(batchId) {
+      if (activePollTimers[batchId]) {
+        if (typeof activePollTimers[batchId] === 'object' && activePollTimers[batchId].close) {
+          activePollTimers[batchId].close();
+        } else {
+          clearInterval(activePollTimers[batchId]);
+        }
+      }
+
+      var statusNotice = document.getElementById("statusNotice");
+      var gallery = document.getElementById("imageGallery");
+      var videoList = document.getElementById("videoList");
+      var emptyHint = document.getElementById("resultEmpty");
+
+      // 清空结果面板，准备实时展示
+      gallery.innerHTML = "";
+      videoList.innerHTML = "";
+      lastPayloadUrls = [];
+
+      // 尝试 SSE 连接
+      var es = new EventSource("/api/generate/stream/" + batchId);
+      activePollTimers[batchId] = es;
+      var sseFailed = false;
+
+      es.addEventListener("progress", function(e) {
+        var progress = JSON.parse(e.data);
+        var pct = progress.percent || 0;
+        var step = progress.step || "";
+        var status = progress.status || "running";
+        statusNotice.innerHTML = '<div class="flex flex-col gap-2"><div class="flex items-center justify-between text-xs"><span>任务 #' + batchId + ' 正在生产...</span><span class="font-mono text-indigo-600 font-semibold">' + pct + '%</span></div><div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden"><div class="bg-gradient-to-r from-indigo-500 to-indigo-700 h-full rounded-full transition-all duration-500" style="width:' + pct + '%"></div></div><div class="text-xs text-slate-500">' + step + '</div></div>';
+        statusNotice.hidden = false;
+
+        if (status === "success" || status === "failed" || status === "cancelled" || status === "partial") {
+          es.close();
+          delete activePollTimers[batchId];
+          fetch("/api/history/" + batchId).then(function(hr) { return hr.json(); }).then(function(d) {
+            handleTaskComplete(batchId, d);
+          }).catch(function() {});
+        }
+      });
+
+      es.addEventListener("image_ready", function(e) {
+        var data = JSON.parse(e.data);
+        var full = absUrl(data.image_url);
+        var name = data.image_url.split("/").pop();
+
+        emptyHint.hidden = true;
+        var wrap = document.createElement("div");
+        wrap.className = "relative overflow-hidden rounded-2xl bg-slate-100 group shadow-sm animate-fadeIn";
+        wrap.innerHTML = '<img src="' + full + '" class="aspect-square w-full object-cover" loading="lazy" /><span class="absolute top-2 left-2 rounded-lg bg-black/60 px-2 py-0.5 text-[10px] text-white">' + (data.label || '') + '</span><button type="button" class="absolute bottom-2 right-2 rounded-lg bg-black/70 px-3 py-1 text-[10px] text-white hover:bg-black opacity-0 group-hover:opacity-100 transition-opacity border-0 cursor-pointer">保存</button>';
+        wrap.querySelector("button").onclick = function(ev) { ev.stopPropagation(); downloadBlobUrl(full, name); };
+        gallery.appendChild(wrap);
+        lastPayloadUrls.push({ url: full, name: name });
+        document.getElementById("downloadAllBtn").hidden = false;
+      });
+
+      es.addEventListener("error", function(e) {
+        var errData = JSON.parse(e.data);
+        alert("任务失败: " + (errData.message || "对话模型调用失败"));
+        es.close();
+        delete activePollTimers[batchId];
+        fetch("/api/history/" + batchId).then(function(hr) { return hr.json(); }).then(function(d) {
+          handleTaskComplete(batchId, d);
+        }).catch(function() {});
+      });
+
+      es.addEventListener("ping", function(e) {
+        // 心跳，无需操作
+      });
+
+      es.onerror = function() {
+        if (!sseFailed) {
+          sseFailed = true;
+          es.close();
+          delete activePollTimers[batchId];
+          // SSE 失败，回退到轮询
+          fallbackPollProgress(batchId);
+        }
+      };
+    }
+
+    function fallbackPollProgress(batchId) {
+      var timer = setInterval(function() {
+        fetch("/api/progress/" + batchId).then(function(r) {
+          if (!r.ok) {
+            clearInterval(timer);
+            delete activePollTimers[batchId];
+            fetch("/api/history/" + batchId).then(function(hr) { return hr.json(); }).then(function(d) {
+              handleTaskComplete(batchId, d);
+            }).catch(function() {});
+            return;
+          }
+          return r.json();
+        }).then(function(progress) {
+          if (!progress) return;
+          var pct = progress.percent || 0;
+          var step = progress.step || "";
+          var status = progress.status || "running";
+          var statusNotice = document.getElementById("statusNotice");
+          statusNotice.innerHTML = '<div class="flex flex-col gap-2"><div class="flex items-center justify-between text-xs"><span>任务 #' + batchId + ' 正在生产...</span><span class="font-mono text-indigo-600 font-semibold">' + pct + '%</span></div><div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden"><div class="bg-gradient-to-r from-indigo-500 to-indigo-700 h-full rounded-full transition-all duration-500" style="width:' + pct + '%"></div></div><div class="text-xs text-slate-500">' + step + '</div></div>';
+          statusNotice.hidden = false;
+          if (status === "success" || status === "failed" || status === "cancelled" || status === "partial") {
+            clearInterval(timer);
+            delete activePollTimers[batchId];
+            fetch("/api/history/" + batchId).then(function(hr) { return hr.json(); }).then(function(d) {
+              handleTaskComplete(batchId, d);
+            }).catch(function() {});
+          }
+        }).catch(function() {});
+      }, 2500);
+      activePollTimers[batchId] = timer;
+    }
+
+    // ====== 开始生产 ======
+    async function startProduction() {
+      var btn = document.getElementById("startBtn");
+      var cancelBtn = document.getElementById("cancelBtn");
+      var statusNotice = document.getElementById("statusNotice");
+
+      // 如果填写了小说ID，先获取内容
+      var novelId = document.getElementById('novelIdInput').value.trim();
+      if (novelId) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="flex items-center justify-center"><svg class="loading-spin h-5 w-5 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>获取小说内容中...</span>';
+        try {
+          var r = await fetch('/api/fetch-novel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ novel_id: novelId }) });
+          if (!r.ok) { var e = await r.json(); throw new Error(e.detail || '获取失败'); }
+          var d = await r.json();
+          if (d.status === 'success' && d.content) {
+            document.getElementById('novelContent').value = d.content;
+            onNovelChange();
+          } else {
+            alert('获取失败: 返回内容为空');
+            btn.disabled = false;
+            btn.innerHTML = '<span class="flex items-center justify-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>开始全自动生产</span>';
+            return;
+          }
+        } catch (err) {
+          alert('获取失败: ' + err.message);
+          btn.disabled = false;
+          btn.innerHTML = '<span class="flex items-center justify-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>开始全自动生产</span>';
+          return;
+        }
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="flex items-center justify-center"><svg class="loading-spin h-5 w-5 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>提交中...</span>';
+
+      var selectedScroll = pickStyleByWeight('scroll');
+      var selectedPopup = pickStyleByWeight('popup');
+      activeScrollStyleId = selectedScroll.id || activeScrollStyleId;
+      activePopupStyleId = selectedPopup.id || activePopupStyleId;
+
+      var payload = {
+        api_key: apiConfig.api_key,
+        api_url: apiConfig.api_url,
+        chat_model_name: apiConfig.chat_model_name,
+        image_model_name: apiConfig.image_model_name,
+        concurrency: apiConfig.concurrency,
+        novel_content: document.getElementById("novelContent").value,
+        novel_id: document.getElementById("novelIdInput").value.trim(),
+        prompt: document.getElementById("globalPrompt").value,
+        video_text: document.getElementById("videoText").value,
+        text_single_count: parseInt(document.getElementById("textSingleCount").value) || 0,
+        lr_split_count: parseInt(document.getElementById("lrSplitCount").value) || 0,
+        tb_split_count: parseInt(document.getElementById("tbSplitCount").value) || 0,
+        scroll_count: parseInt(document.getElementById("scrollCount").value) || 0,
+        popup_count: parseInt(document.getElementById("popupCount").value) || 0,
+        ai_scroll_count: parseInt(document.getElementById("aiScrollCount").value) || 0,
+        ai_popup_count: parseInt(document.getElementById("aiPopupCount").value) || 0,
+        scroll_style: selectedScroll.style,
+        popup_style: selectedPopup.style,
+        use_templates: useTemplatesMode,
+        text_single_text_enabled: document.getElementById("textSingleTextToggle").checked,
+        lr_split_text_enabled: document.getElementById("lrSplitTextToggle").checked,
+        tb_split_text_enabled: document.getElementById("tbSplitTextToggle").checked
+      };
+
+      saveStyleLibrary();
+
+      try {
+        var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        var data = await r.json();
+
+        if (data.status === "submitted" && data.batch_id) {
+          var batchId = data.batch_id;
+          document.getElementById("batchTag").textContent = "批次 " + batchId;
+          document.getElementById("batchTag").hidden = false;
+
+          cancelBtn.hidden = false;
+          cancelBtn.disabled = false;
+          cancelBtn.textContent = "取消任务 #" + batchId;
+          cancelBtn.onclick = function() { cancelProduction(batchId); };
+
+          statusNotice.innerHTML = '<div class="flex flex-col gap-2"><div class="flex items-center justify-between text-xs"><span>任务 #' + batchId + ' 已提交到后台</span><span class="font-mono text-indigo-600 font-semibold">0%</span></div><div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden"><div class="bg-gradient-to-r from-indigo-500 to-indigo-700 h-full rounded-full transition-all duration-500" style="width:0%"></div></div><div class="text-xs text-slate-500">正在启动...</div></div>';
+          statusNotice.hidden = false;
+
+          pollBatchProgress(batchId);
+        } else {
+          statusNotice.textContent = "提交失败: " + (data.message || "未知错误");
+          statusNotice.hidden = false;
+        }
+      } catch (error) {
+        alert("请求异常: " + error.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="flex items-center justify-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>开始全自动生产</span>';
+      }
+    }
+
+    // ====== 视频样式管理 ======
+    function loadStyleLibrary() {
+      return fetch("/api/video-styles").then(function(r) { return r.json(); }).then(function(d) {
+        styleLibrary = d.styles || [];
+        if (d.lastUsed) {
+          activeScrollStyleId = d.lastUsed.scroll || null;
+          activePopupStyleId = d.lastUsed.popup || null;
+        }
+        if (!findStyleById(activeScrollStyleId)) {
+          var first = styleLibrary.find(function(s) { return s.type === 'scroll'; });
+          activeScrollStyleId = first ? first.id : null;
+        }
+        if (!findStyleById(activePopupStyleId)) {
+          var first = styleLibrary.find(function(s) { return s.type === 'popup'; });
+          activePopupStyleId = first ? first.id : null;
+        }
+        renderStyleList();
+      });
+    }
+
+    function findStyleById(id) {
+      return styleLibrary.find(function(s) { return s.id === id; }) || null;
+    }
+
+    function escHtml(s) {
+      var d = document.createElement('div');
+      d.textContent = s || '';
+      return d.innerHTML;
+    }
+
+    function saveStyleLibrary() {
+      return fetch("/api/video-styles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version: 2, styles: styleLibrary, lastUsed: { scroll: activeScrollStyleId, popup: activePopupStyleId } })
+      }).then(function(r) { return r.json(); });
+    }
+
+    function pickStyleByWeight(type) {
+      var styles = styleLibrary.filter(function(s) { return s.type === type; });
+      if (!styles.length) return { style: {}, id: null };
+      var totalWeight = styles.reduce(function(sum, s) { return sum + (s.weight || 1); }, 0);
+      var rand = Math.random() * totalWeight;
+      var cumulative = 0;
+      for (var i = 0; i < styles.length; i++) {
+        cumulative += (styles[i].weight || 1);
+        if (rand < cumulative) {
+          var st = styles[i];
+          return { style: { font: st.font, font_size: st.font_size, text_color: st.text_color, bg_type: st.bg_type, bg_color: st.bg_color, bg_opacity: st.bg_opacity, speed: st.speed || 1.0 }, id: st.id };
+        }
+      }
+      var s = styles[0];
+      return { style: { font: s.font, font_size: s.font_size, text_color: s.text_color, bg_type: s.bg_type, bg_color: s.bg_color, bg_opacity: s.bg_opacity, speed: s.speed || 1.0 }, id: s.id };
+    }
+
+    function renderStyleList() {
+      var c = document.getElementById('styleListContainer');
+      if (!styleLibrary.length) { c.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">暂无样式，点击"+ 新建"创建</p>'; return; }
+      var scrollStyles = styleLibrary.filter(function(s) { return s.type === 'scroll'; });
+      var popupStyles = styleLibrary.filter(function(s) { return s.type === 'popup'; });
+      var h = '';
+      function item(s) {
+        var cls = selectedStyleId === s.id ? 'border-l-[3px] border-l-indigo-500 bg-indigo-50/50 border-slate-200' : 'border-slate-100 hover:bg-slate-50';
+        var w = s.weight || 1;
+        return '<div class="flex items-center justify-between rounded-xl border px-3 py-2.5 cursor-pointer transition-all ' + cls + '" onclick="selectStyle(\'' + s.id + '\')"><div class="min-w-0"><span class="text-[13px] text-slate-700 truncate font-medium">' + escHtml(s.name) + '</span><span class="ml-2 inline-block rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400 font-mono">w:' + w + '</span></div><button class="w-5 h-5 flex items-center justify-center rounded-full text-[11px] text-slate-300 hover:text-red-500 hover:bg-red-50 ml-2 shrink-0 transition-all" onclick="event.stopPropagation();deleteStyle(\'' + s.id + '\')">&times;</button></div>';
+      }
+      if (scrollStyles.length) { h += '<div class="text-[10px] text-slate-400 uppercase font-semibold tracking-wide px-1 mb-1.5 mt-1">滚屏样式</div>'; scrollStyles.forEach(function(s) { h += item(s); }); }
+      if (popupStyles.length) { h += '<div class="text-[10px] text-slate-400 uppercase font-semibold tracking-wide px-1 mb-1.5 mt-4">弹屏样式</div>'; popupStyles.forEach(function(s) { h += item(s); }); }
+      c.innerHTML = h;
+    }
+
+    function selectStyle(id) {
+      selectedStyleId = id;
+      var s = findStyleById(id);
+      if (!s) return;
+      document.getElementById('styleEditorEmpty').hidden = true;
+      document.getElementById('styleEditorForm').hidden = false;
+      document.getElementById('styleEditorTitle').textContent = '编辑: ' + s.name;
+      fillStyleForm(s);
+      renderStyleList();
+    }
+
+    function createNewStyle() {
+      var s = { id: 's' + Date.now(), name: '新样式', type: 'scroll', weight: 1, font: 'corbelb.ttf', font_size: 46, text_color: '#FFFFFF', bg_type: 'full_bar', bg_color: '#000000', bg_opacity: 150, speed: 1.0 };
+      styleLibrary.push(s);
+      selectedStyleId = s.id;
+      document.getElementById('styleEditorEmpty').hidden = true;
+      document.getElementById('styleEditorForm').hidden = false;
+      document.getElementById('styleEditorTitle').textContent = '新建样式';
+      fillStyleForm(s);
+      renderStyleList();
+      saveStyleLibrary();
+    }
+
+    function deleteStyle(id) {
+      var s = findStyleById(id);
+      if (!s || !confirm('确定删除样式"' + s.name + '"吗？')) return;
+      styleLibrary = styleLibrary.filter(function(st) { return st.id !== id; });
+      if (selectedStyleId === id) { selectedStyleId = null; document.getElementById('styleEditorEmpty').hidden = false; document.getElementById('styleEditorForm').hidden = true; document.getElementById('styleEditorTitle').textContent = '编辑样式'; }
+      if (activeScrollStyleId === id) activeScrollStyleId = null;
+      if (activePopupStyleId === id) activePopupStyleId = null;
+      renderStyleList();
+      saveStyleLibrary();
+    }
+
+    function fillStyleForm(style) {
+      document.getElementById('styleName').value = style.name || '';
+      document.getElementById('styleType').value = style.type || 'scroll';
+      document.getElementById('styleWeight').value = style.weight !== undefined ? style.weight : 1;
+      document.getElementById('styleFont').value = style.font || 'arial.ttf';
+      document.getElementById('styleFontSize').value = style.font_size || 46;
+      document.getElementById('styleTextColor').value = style.text_color || '#FFFFFF';
+      document.getElementById('styleTextColorHex').value = style.text_color || '#FFFFFF';
+      document.getElementById('styleBgType').value = style.bg_type || 'full_bar';
+      document.getElementById('styleBgColor').value = style.bg_color || '#000000';
+      document.getElementById('styleBgColorHex').value = style.bg_color || '#000000';
+      document.getElementById('styleBgOpacity').value = style.bg_opacity !== undefined ? style.bg_opacity : 150;
+      document.getElementById('styleBgOpacityLabel').textContent = '(' + (style.bg_opacity !== undefined ? style.bg_opacity : 150) + ')';
+      var spd = style.speed !== undefined ? style.speed : 1.0;
+      document.getElementById('styleSpeed').value = spd;
+      document.getElementById('styleSpeedLabel').textContent = '(' + spd.toFixed(2) + 'x)';
+    }
+
+    function readStyleFormInto(style) {
+      style.name = document.getElementById('styleName').value || '未命名';
+      style.type = document.getElementById('styleType').value;
+      style.weight = parseInt(document.getElementById('styleWeight').value) || 1;
+      style.font = document.getElementById('styleFont').value;
+      style.font_size = parseInt(document.getElementById('styleFontSize').value) || 46;
+      style.text_color = document.getElementById('styleTextColorHex').value || '#FFFFFF';
+      style.bg_type = document.getElementById('styleBgType').value;
+      style.bg_color = document.getElementById('styleBgColorHex').value || '#000000';
+      style.bg_opacity = parseInt(document.getElementById('styleBgOpacity').value) || 150;
+      style.speed = parseFloat(document.getElementById('styleSpeed').value) || 1.0;
+      return style;
+    }
+
+    function saveCurrentStyle() {
+      if (!selectedStyleId) return;
+      var style = findStyleById(selectedStyleId);
+      if (!style) return;
+      readStyleFormInto(style);
+      var btn = document.getElementById('saveStyleBtn');
+      btn.textContent = '保存中...';
+      btn.disabled = true;
+      saveStyleLibrary().then(function() {
+        btn.textContent = '已保存';
+        renderStyleList();
+        document.getElementById('styleEditorTitle').textContent = '编辑: ' + style.name;
+        setTimeout(function() { btn.textContent = '保存样式'; btn.disabled = false; }, 1500);
+      }).catch(function(e) {
+        alert("保存失败: " + e.message);
+        btn.textContent = '保存样式';
+        btn.disabled = false;
+      });
+    }
+
+    function loadFonts() {
+      fetch("/api/fonts").then(function(r) { return r.json(); }).then(function(d) {
+        var sel = document.getElementById('styleFont');
+        sel.innerHTML = (d.fonts || []).map(function(f) {
+          return '<option value="' + f + '">' + f + '</option>';
+        }).join('');
+        if (selectedStyleId) {
+          var s = findStyleById(selectedStyleId);
+          if (s && s.font) sel.value = s.font;
+        }
+      }).catch(function(e) { console.warn("加载字体失败:", e); });
+    }
+
+    // 颜色同步
+    document.getElementById('styleTextColor').addEventListener('input', function() {
+      document.getElementById('styleTextColorHex').value = this.value;
+    });
+    document.getElementById('styleTextColorHex').addEventListener('input', function() {
+      document.getElementById('styleTextColor').value = this.value;
+    });
+    document.getElementById('styleBgColor').addEventListener('input', function() {
+      document.getElementById('styleBgColorHex').value = this.value;
+    });
+    document.getElementById('styleBgColorHex').addEventListener('input', function() {
+      document.getElementById('styleBgColor').value = this.value;
+    });
+    document.getElementById('styleBgOpacity').addEventListener('input', function() {
+      document.getElementById('styleBgOpacityLabel').textContent = '(' + this.value + ')';
+    });
+
+    // ====== 提示词生图逻辑 ======
+    document.getElementById('pgTextToggle').addEventListener('change', function() {
+      document.getElementById('pgTextFields').hidden = !this.checked;
+    });
+
+    document.getElementById('pgStartBtn').addEventListener('click', function() {
+      startPromptGeneration();
+    });
+
+    // 卡片管理
+    function updatePgCount() {
+      var cards = document.querySelectorAll('#pgCards .pg-card');
+      var count = cards.length;
+      var perLine = parseInt(document.getElementById('pgCount').value) || 1;
+      document.getElementById('pgPromptCount').textContent = count + ' 条 → ' + (count * perLine) + ' 张图';
+    }
+
+    function addPromptCard(focus) {
+      var container = document.getElementById('pgCards');
+      var idx = container.querySelectorAll('.pg-card').length + 1;
+      var div = document.createElement('div');
+      div.className = 'pg-card flex gap-2';
+      div.innerHTML = '<textarea rows="3" class="pg-prompt flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm input-focus resize-none bg-slate-50/50" placeholder="提示词 #' + idx + '"></textarea>' +
+        '<button type="button" class="pg-del shrink-0 w-7 h-7 mt-1 rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 transition-all border-0 cursor-pointer text-lg leading-none" title="删除">&times;</button>';
+      container.appendChild(div);
+      div.querySelector('.pg-del').addEventListener('click', function() {
+        var cards = container.querySelectorAll('.pg-card');
+        if (cards.length <= 1) return;
+        div.remove();
+        updatePgCount();
+      });
+      div.querySelector('textarea').addEventListener('input', updatePgCount);
+      if (focus) div.querySelector('textarea').focus();
+      updatePgCount();
+    }
+
+    document.getElementById('pgAddCard').addEventListener('click', function() { addPromptCard(true); });
+
+    // 初始化第一张卡片
+    (function() {
+      var firstCard = document.querySelector('#pgCards .pg-card');
+      firstCard.querySelector('.pg-del').addEventListener('click', function() {
+        var cards = document.querySelectorAll('#pgCards .pg-card');
+        if (cards.length <= 1) return;
+        firstCard.remove();
+        updatePgCount();
+      });
+      firstCard.querySelector('textarea').addEventListener('input', updatePgCount);
+    })();
+
+    document.getElementById('pgCount').addEventListener('input', updatePgCount);
+
+    function startPromptGeneration() {
+      var textareas = document.querySelectorAll('#pgCards .pg-prompt');
+      var prompts = [];
+      textareas.forEach(function(ta) {
+        var t = ta.value.trim();
+        if (t) prompts.push(t);
+      });
+      if (!prompts.length) { alert('请输入至少一条提示词'); return; }
+
+      var repeatCount = parseInt(document.getElementById('pgCount').value) || 1;
+      var duplicatedPrompts = [];
+      for (var r = 0; r < repeatCount; r++) {
+        for (var p = 0; p < prompts.length; p++) {
+          duplicatedPrompts.push(prompts[p]);
+        }
+      }
+
+      var size = document.getElementById('pgSize').value;
+      var sizes = duplicatedPrompts.map(function() { return size; });
+      var withText = document.getElementById('pgTextToggle').checked;
+
+      var payload = {
+        api_key: apiConfig.api_key,
+        api_url: apiConfig.api_url,
+        image_model_name: apiConfig.image_model_name,
+        prompts: duplicatedPrompts,
+        sizes: sizes,
+        with_text: withText,
+        text_bottom_list: withText ? [document.getElementById('pgTextBottom').value] : [],
+        text_left_list: withText ? [document.getElementById('pgTextLeft').value] : [],
+        text_right_list: withText ? [document.getElementById('pgTextRight').value] : [],
+      };
+
+      var btn = document.getElementById('pgStartBtn');
+      var statusEl = document.getElementById('pgStatus');
+      var gallery = document.getElementById('pgGallery');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="flex items-center justify-center"><svg class="loading-spin h-5 w-5 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>生成中...</span>';
+      statusEl.hidden = false;
+      statusEl.textContent = '正在生成 ' + duplicatedPrompts.length + ' 张图片...';
+      statusEl.className = 'rounded-xl bg-blue-50 p-3.5 text-sm font-medium text-blue-800 border border-blue-100';
+      gallery.innerHTML = '';
+
+      fetch('/api/generate-from-prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        var images = Array.isArray(data.images) ? data.images : [];
+        var errors = data.errors || [];
+
+        if (images.length) {
+          statusEl.textContent = '完成！生成 ' + images.length + ' 张图片。';
+          statusEl.className = 'rounded-xl bg-emerald-50 p-3.5 text-sm font-medium text-emerald-800 border border-emerald-100';
+        } else {
+          statusEl.textContent = '生成失败：' + (errors.join('; ') || '未知错误');
+          statusEl.className = 'rounded-xl bg-red-50 p-3.5 text-sm font-medium text-red-800 border border-red-100';
+        }
+
+        images.forEach(function(src) {
+          var full = absUrl(src);
+          var name = src.split('/').pop();
+          var wrap = document.createElement('div');
+          wrap.className = 'relative overflow-hidden rounded-2xl bg-slate-100 group shadow-sm';
+          wrap.innerHTML = '<img src="' + full + '" class="aspect-square w-full object-cover" loading="lazy" /><button type="button" class="absolute bottom-2 right-2 rounded-lg bg-black/70 px-3 py-1 text-[10px] text-white hover:bg-black opacity-0 group-hover:opacity-100 transition-opacity border-0 cursor-pointer">保存</button>';
+          wrap.querySelector('button').onclick = function(e) { e.stopPropagation(); downloadBlobUrl(full, name); };
+          gallery.appendChild(wrap);
+        });
+      }).catch(function(e) {
+        statusEl.textContent = '请求失败: ' + e.message;
+        statusEl.className = 'rounded-xl bg-red-50 p-3.5 text-sm font-medium text-red-800 border border-red-100';
+      }).finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="flex items-center justify-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>生成图片</span>';
+        loadStats();
+      });
+    }
+
+    // ====== 小说分析逻辑 ======
+    var naUseTemplates = false;
+    var naPendingPrompts = null;
+
+    document.getElementById('naModePrompt').addEventListener('click', function() { naUseTemplates = false; this.className = 'px-3 py-1.5 text-[11px] font-medium bg-indigo-600 text-white transition-colors border-0 cursor-pointer'; document.getElementById('naModeTemplate').className = 'px-3 py-1.5 text-[11px] font-medium bg-white text-slate-500 hover:bg-slate-50 transition-colors border-0 cursor-pointer'; });
+    document.getElementById('naModeTemplate').addEventListener('click', function() { naUseTemplates = true; this.className = 'px-3 py-1.5 text-[11px] font-medium bg-indigo-600 text-white transition-colors border-0 cursor-pointer'; document.getElementById('naModePrompt').className = 'px-3 py-1.5 text-[11px] font-medium bg-white text-slate-500 hover:bg-slate-50 transition-colors border-0 cursor-pointer'; });
+
+    document.getElementById('naAnalyzeBtn').addEventListener('click', function() { analyzeNovel(); });
+
+    document.getElementById('naAnalysisPrompt').addEventListener('change', function() {
+      apiConfig.analysis_prompt = this.value;
+      saveApiConfig();
+    });
+
+    async function analyzeNovel() {
+      var novel = document.getElementById('naNovelContent').value.trim();
+
+      // 如果填写了小说ID，先获取内容
+      var novelId = document.getElementById('naNovelIdInput').value.trim();
+      if (novelId) {
+        var btn = document.getElementById('naAnalyzeBtn');
+        btn.disabled = true;
+        btn.textContent = '获取中...';
+        try {
+          var r = await fetch('/api/fetch-novel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ novel_id: novelId }) });
+          if (!r.ok) { var e = await r.json(); throw new Error(e.detail || '获取失败'); }
+          var d = await r.json();
+          if (d.status === 'success' && d.content) {
+            document.getElementById('naNovelContent').value = d.content;
+            novel = d.content;
+          } else {
+            alert('获取失败: 返回内容为空');
+            btn.disabled = false;
+            btn.textContent = '分析小说 → 生成提示词';
+            return;
+          }
+        } catch (err) {
+          alert('获取失败: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = '分析小说 → 生成提示词';
+          return;
+        }
+      }
+
+      if (!novel) { alert('请粘贴小说内容'); return; }
+
+      var btn = document.getElementById('naAnalyzeBtn');
+      btn.disabled = true;
+      btn.textContent = '分析中...';
+
+      var payload = {
+        api_key: apiConfig.api_key,
+        api_url: apiConfig.api_url,
+        chat_model_name: apiConfig.chat_model_name,
+        novel_content: novel,
+        analysis_prompt: document.getElementById('naAnalysisPrompt').value.trim(),
+        text_single_count: parseInt(document.getElementById('naTextSingle').value) || 0,
+        lr_split_count: parseInt(document.getElementById('naLrSplit').value) || 0,
+        tb_split_count: parseInt(document.getElementById('naTbSplit').value) || 0,
+        scroll_count: 0,
+        popup_count: 0,
+        use_templates: naUseTemplates,
+      };
+
+      fetch('/api/analyze-novel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.status === 'success') {
+          naPendingPrompts = data.data;
+          showConfirmModal(data.data);
+        } else {
+          alert('分析失败: ' + (data.error || '未知错误'));
+        }
+      }).catch(function(e) {
+        alert('请求异常: ' + e.message);
+      }).finally(function() {
+        btn.disabled = false;
+        btn.textContent = '分析小说 → 生成提示词';
+      });
+    }
+
+    function showConfirmModal(data) {
+      var list = document.getElementById('confirmPromptList');
+      var html = '';
+      var types = [
+        { key: 'text_single_prompts', name: '单帧图 (1:1)' },
+        { key: 'lr_split_prompts', name: '左右分屏' },
+        { key: 'tb_split_prompts', name: '上下分屏' },
+        { key: 'scroll_visual_prompts', name: '竖屏滚图' },
+      ];
+
+      types.forEach(function(t) {
+        var items = data[t.key];
+        if (!items || !items.length) return;
+        html += '<div class="mb-3"><span class="text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg px-2 py-0.5">' + t.name + ' (' + items.length + '张)</span></div>';
+        items.forEach(function(item, i) {
+          var prompt = typeof item === 'string' ? item : (item.image_prompt || JSON.stringify(item));
+          html += '<div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3 mb-2"><div class="text-[10px] text-slate-400 mb-1">#' + (i+1) + '</div><pre class="text-xs text-slate-700 whitespace-pre-wrap font-sans">' + prompt + '</pre></div>';
+        });
+      });
+
+      if (!html) html = '<p class="text-slate-400 text-sm">模型未返回任何提示词，请尝试调整分析提示词或小说内容。</p>';
+
+      list.innerHTML = html;
+      document.getElementById('confirmModal').hidden = false;
+    }
+
+    document.getElementById('confirmCancelBtn').addEventListener('click', function() {
+      document.getElementById('confirmModal').hidden = true;
+      naPendingPrompts = null;
+    });
+
+    document.getElementById('confirmGenerateBtn').addEventListener('click', function() {
+      if (!naPendingPrompts) return;
+      document.getElementById('confirmModal').hidden = true;
+      startAnalysisGeneration();
+    });
+
+    var naCurrentBatchId = null;
+    var naEventSource = null;
+    var naSseFailed = false;
+    var naFallbackTimer = null;
+
+    function naFallbackPoll() {
+      if (naFallbackTimer) clearInterval(naFallbackTimer);
+      naFallbackTimer = setInterval(function() {
+        if (!naCurrentBatchId) { clearInterval(naFallbackTimer); naFallbackTimer = null; return; }
+        fetch('/api/progress/' + naCurrentBatchId).then(function(r) {
+          if (!r.ok) { throw new Error('progress fetch failed'); }
+          return r.json();
+        }).then(function(p) {
+          var bar = document.getElementById('naProgressBar');
+          var txt = document.getElementById('naProgressText');
+          if (bar) bar.style.width = (p.percent || 0) + '%';
+          if (txt) txt.textContent = (p.step || '') + ' (' + (p.percent || 0) + '%)';
+          if (p.status === 'success' || p.status === 'partial' || p.status === 'failed' || p.status === 'cancelled') {
+            clearInterval(naFallbackTimer);
+            naFallbackTimer = null;
+            var bid = naCurrentBatchId;
+            naCurrentBatchId = null;
+            fetch('/api/history/' + bid).then(function(r) { return r.json(); }).then(function(data) {
+              var imgs = Array.isArray(data.images) ? data.images : [];
+              var grid = document.getElementById('naGeneratedImages');
+              if (grid) {
+                grid.innerHTML = '';
+                imgs.forEach(function(src) {
+                  var img = document.createElement('img');
+                  img.src = absUrl(src);
+                  img.className = 'rounded-xl shadow-sm w-full aspect-square object-cover';
+                  img.loading = 'lazy';
+                  grid.appendChild(img);
+                });
+              }
+              var status = data.status || 'unknown';
+              var statusColor = status === 'success' ? 'text-emerald-600' : status === 'partial' ? 'text-amber-600' : 'text-red-600';
+              if (txt) {
+                txt.className = 'text-xs font-semibold ' + statusColor;
+                txt.textContent = status + (data.message ? ' — ' + data.message : '');
+              }
+              if (bar) bar.style.width = '100%';
+              var spinner = document.querySelector('#naResultContent .animate-spin');
+              if (spinner) spinner.remove();
+            }).catch(function() {});
+          }
+        }).catch(function() {});
+      }, 2500);
+    }
+
+    function startSSEStream(batchId) {
+      naSseFailed = false;
+      if (naFallbackTimer) { clearInterval(naFallbackTimer); naFallbackTimer = null; }
+      if (naEventSource) { naEventSource.close(); }
+      naEventSource = new EventSource('/api/generate/stream/' + batchId);
+
+      naEventSource.addEventListener('image_ready', function(e) {
+        var d = JSON.parse(e.data);
+        var grid = document.getElementById('naGeneratedImages');
+        if (grid) {
+          var img = document.createElement('img');
+          img.src = absUrl(d.image_url);
+          img.className = 'rounded-xl shadow-sm w-full aspect-square object-cover';
+          img.loading = 'lazy';
+          grid.appendChild(img);
+        }
+      });
+
+      naEventSource.addEventListener('progress', function(e) {
+        var d = JSON.parse(e.data);
+        var bar = document.getElementById('naProgressBar');
+        var txt = document.getElementById('naProgressText');
+        if (bar) bar.style.width = (d.percent || 0) + '%';
+        if (txt) txt.textContent = (d.step || '') + ' (' + (d.percent || 0) + '%)';
+        if (d.status === 'success' || d.status === 'partial' || d.status === 'failed' || d.status === 'cancelled') {
+          if (naFallbackTimer) { clearInterval(naFallbackTimer); naFallbackTimer = null; }
+          naEventSource.close();
+          naEventSource = null;
+          naCurrentBatchId = null;
+          if (txt) {
+            var statusColor = d.status === 'success' ? 'text-emerald-600' : d.status === 'partial' ? 'text-amber-600' : 'text-red-600';
+            txt.className = 'text-xs font-semibold ' + statusColor;
+            txt.textContent = d.status + ' — ' + (d.step || '');
+          }
+          var spinner = document.querySelector('#naResultContent .animate-spin');
+          if (spinner) spinner.remove();
+        }
+      });
+
+      naEventSource.onerror = function() {
+        if (!naSseFailed) {
+          naSseFailed = true;
+          if (naEventSource) { naEventSource.close(); naEventSource = null; }
+          naFallbackPoll();
+        }
+      };
+    }
+
+    function startAnalysisGeneration() {
+      var tsPrompts = (naPendingPrompts.text_single_prompts || []).filter(function(it) { return (typeof it === 'string' ? it : it.image_prompt || '').trim(); });
+      var lrPrompts = (naPendingPrompts.lr_split_prompts || []).filter(function(it) { return (typeof it === 'string' ? it : it.image_prompt || '').trim(); });
+      var tbPrompts = (naPendingPrompts.tb_split_prompts || []).filter(function(it) { return (typeof it === 'string' ? it : it.image_prompt || '').trim(); });
+
+      if (!tsPrompts.length && !lrPrompts.length && !tbPrompts.length) {
+        alert('没有可生成的提示词'); return;
+      }
+
+      var payload = {
+        api_key: apiConfig.api_key,
+        api_url: apiConfig.api_url,
+        image_model_name: apiConfig.image_model_name,
+        novel_id: document.getElementById('naNovelIdInput').value.trim(),
+        text_single_prompts: tsPrompts,
+        text_single_text_enabled: document.getElementById('naTextSingleText').checked,
+        lr_split_prompts: lrPrompts,
+        lr_split_text_enabled: document.getElementById('naLrSplitText').checked,
+        tb_split_prompts: tbPrompts,
+        tb_split_text_enabled: document.getElementById('naTbSplitText').checked,
+        concurrency: apiConfig.concurrency || 2,
+      };
+
+      // Show progress in result area
+      var content = document.getElementById('naResultContent');
+      var empty = document.getElementById('naResultEmpty');
+      empty.hidden = true;
+      content.hidden = false;
+      content.innerHTML = '<div class="space-y-4"><div class="flex items-center gap-3"><div class="animate-spin w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full"></div><span class="text-sm text-slate-600">正在提交生成任务...</span></div></div>';
+
+      fetch('/api/generate-from-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.batch_id) {
+          naCurrentBatchId = data.batch_id;
+          content.innerHTML = '<div class="space-y-4">' +
+            '<div class="flex items-center justify-between"><div class="flex items-center gap-3"><div class="animate-spin w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full"></div><span class="text-sm font-semibold text-slate-700">批次 #' + data.batch_id + ' 生成中...</span></div>' +
+            '<button id="naCancelBtn" type="button" class="rounded-lg border border-red-200 px-3 py-1 text-[11px] text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">取消</button></div>' +
+            '<div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div id="naProgressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all" style="width:0%"></div></div>' +
+            '<div id="naProgressText" class="text-xs text-slate-500">准备中...</div>' +
+            '<div id="naGeneratedImages" class="grid grid-cols-2 gap-3 sm:grid-cols-3"></div>' +
+            '</div>';
+          document.getElementById('naCancelBtn').addEventListener('click', function() {
+            if (naCurrentBatchId) { fetch('/api/cancel', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({batch_id: naCurrentBatchId}) }); }
+            if (naEventSource) { naEventSource.close(); naEventSource = null; }
+            if (naFallbackTimer) { clearInterval(naFallbackTimer); naFallbackTimer = null; }
+          });
+          startSSEStream(data.batch_id);
+        } else {
+          content.innerHTML = '<div class="text-red-500 text-sm">提交失败: ' + (data.error || '未知错误') + '</div>';
+        }
+      }).catch(function(e) {
+        content.innerHTML = '<div class="text-red-500 text-sm">请求异常: ' + e.message + '</div>';
+      });
+    }
+
+
+
+    // ====== 删除功能 ======
+    var pendingDeleteIds = [];
+
+    function confirmDeleteSingle(batchId) {
+      pendingDeleteIds = [batchId];
+      document.getElementById('deleteConfirmMsg').textContent = '确定要删除批次 #' + batchId + ' 吗？';
+      document.getElementById('deleteConfirmList').textContent = '包括该批次的所有图片、视频和元数据文件。';
+      document.getElementById('deleteConfirmModal').hidden = false;
+    }
+
+    function showBatchDeleteConfirm() {
+      var checked = document.querySelectorAll('.history-checkbox:checked');
+      pendingDeleteIds = [];
+      checked.forEach(function(cb) { pendingDeleteIds.push(cb.value); });
+      if (!pendingDeleteIds.length) return;
+      document.getElementById('deleteConfirmMsg').textContent = '确定要删除以下 ' + pendingDeleteIds.length + ' 个批次吗？';
+      document.getElementById('deleteConfirmList').textContent = '#' + pendingDeleteIds.join(', #');
+      document.getElementById('deleteConfirmModal').hidden = false;
+    }
+
+    document.getElementById('deleteCancelBtn').addEventListener('click', function() {
+      document.getElementById('deleteConfirmModal').hidden = true;
+      pendingDeleteIds = [];
+    });
+
+    document.getElementById('deleteConfirmBtn').addEventListener('click', function() {
+      if (!pendingDeleteIds.length) return;
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = '删除中...';
+      var ids = pendingDeleteIds.slice();
+
+      var url, body;
+      if (ids.length === 1) {
+        url = '/api/history/' + ids[0];
+        fetch(url, { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function(d) {
+          document.getElementById('deleteConfirmModal').hidden = true;
+          pendingDeleteIds = [];
+          btn.disabled = false;
+          btn.textContent = '确认删除';
+          loadHistory();
+        }).catch(function(e) {
+          alert('删除失败: ' + e.message);
+          btn.disabled = false;
+          btn.textContent = '确认删除';
+        });
+      } else {
+        fetch('/api/history/batch-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ batch_ids: ids })
+        }).then(function(r) { return r.json(); }).then(function(d) {
+          document.getElementById('deleteConfirmModal').hidden = true;
+          pendingDeleteIds = [];
+          btn.disabled = false;
+          btn.textContent = '确认删除';
+          loadHistory();
+        }).catch(function(e) {
+          alert('删除失败: ' + e.message);
+          btn.disabled = false;
+          btn.textContent = '确认删除';
+        });
+      }
+    });
+
+    function toggleSelectAllHistory(cb) {
+      var checkboxes = document.querySelectorAll('.history-checkbox');
+      checkboxes.forEach(function(c) { c.checked = cb.checked; });
+      onHistoryCheckboxChange();
+    }
+
+    function onHistoryCheckboxChange() {
+      var checked = document.querySelectorAll('.history-checkbox:checked');
+      var btn = document.getElementById('btnBatchDeleteHistory');
+      if (checked.length > 0) {
+        btn.hidden = false;
+        btn.textContent = '批量删除 (' + checked.length + ')';
+      } else {
+        btn.hidden = true;
+      }
+      // 更新全选框状态
+      var all = document.querySelectorAll('.history-checkbox');
+      var selectAll = document.getElementById('historySelectAll');
+      if (all.length > 0 && checked.length === all.length) {
+        selectAll.checked = true;
+        selectAll.indeterminate = false;
+      } else if (checked.length > 0) {
+        selectAll.indeterminate = true;
+      } else {
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+      }
+    }
+
+    // ====== 初始化：绑定事件 ======
+    document.getElementById('nav-generate').addEventListener('click', function() { switchTab('generate'); });
+    document.getElementById('nav-history').addEventListener('click', function() { switchTab('history'); });
+    document.getElementById('nav-assets').addEventListener('click', function() { switchTab('assets'); });
+    document.getElementById('btnNewTask').addEventListener('click', function() {
+      document.getElementById("novelContent").value = "";
+      document.getElementById("videoText").value = "";
+      document.getElementById("textSingleCount").value = "0";
+      document.getElementById("lrSplitCount").value = "0";
+      document.getElementById("tbSplitCount").value = "0";
+      document.getElementById("scrollCount").value = "0";
+      document.getElementById("popupCount").value = "1";
+      document.getElementById("aiScrollCount").value = "0";
+      document.getElementById("aiPopupCount").value = "0";
+      document.getElementById("imageGallery").innerHTML = "";
+      document.getElementById("videoList").innerHTML = "";
+      document.getElementById("warnBox").hidden = true;
+      document.getElementById("debugBox").hidden = true;
+      document.getElementById("statusNotice").hidden = true;
+      document.getElementById("batchTag").hidden = true;
+      document.getElementById("downloadAllBtn").hidden = true;
+      document.getElementById("resultEmpty").hidden = false;
+      document.getElementById("cancelBtn").hidden = true;
+      lastPayloadUrls = [];
+      switchTab('generate');
+    });
+    document.getElementById('btnRefreshStats').addEventListener('click', function() { loadStats(); });
+    document.getElementById('btnRefreshHistory').addEventListener('click', function() { loadHistory(); });
+    document.getElementById('historyPerPage').addEventListener('change', function() {
+      var perPage = parseInt(this.value) || 20;
+      loadHistory(1, perPage);
+    });
+    document.getElementById('btnRefreshAssets').addEventListener('click', function() { loadAssets(); });
+    document.getElementById('startBtn').addEventListener('click', function() { startProduction(); });
+    document.getElementById('cancelBtn').addEventListener('click', function() {
+      var tag = document.getElementById("batchTag");
+      if (tag && !tag.hidden) {
+        var txt = tag.textContent || "";
+        var m = txt.match(/\d+/);
+        if (m) { cancelProduction(parseInt(m[0])); return; }
+      }
+      cancelProduction();
+    });
+    document.getElementById('downloadAllBtn').addEventListener('click', function() { downloadAllAssets(); });
+    document.getElementById('styleSpeed').addEventListener('input', function() {
+      document.getElementById('styleSpeedLabel').textContent = '(' + parseFloat(this.value).toFixed(2) + 'x)';
+    });
+    document.getElementById('novelContent').addEventListener('input', function() {
+      onNovelChange();
+      var btn = document.getElementById('clearNovelBtn');
+      if (btn) { btn.style.display = this.value ? 'flex' : 'none'; }
+    });
+    document.getElementById('clearNovelBtn').addEventListener('click', function() {
+      document.getElementById('novelContent').value = '';
+      onNovelChange();
+      this.style.display = 'none';
+    });
+    document.getElementById('naNovelContent').addEventListener('input', function() {
+      var btn = document.getElementById('naClearNovelBtn');
+      if (btn) { btn.style.display = this.value ? 'flex' : 'none'; }
+    });
+    document.getElementById('naClearNovelBtn').addEventListener('click', function() {
+      document.getElementById('naNovelContent').value = '';
+      this.style.display = 'none';
+    });
+    document.getElementById('nav-video-style').addEventListener('click', function() { switchTab('video-style'); });
+    document.getElementById('nav-prompt-generate').addEventListener('click', function() { switchTab('prompt-generate'); });
+    document.getElementById('nav-novel-analyze').addEventListener('click', function() { switchTab('novel-analyze'); });
+    document.getElementById('nav-dashboard').addEventListener('click', function() { switchTab('dashboard'); });
+    document.getElementById('nav-novel-mgr').addEventListener('click', function() { switchTab('novel-mgr'); });
+    document.getElementById('btnAddStyle').addEventListener('click', function() { createNewStyle(); });
+    document.getElementById('saveStyleBtn').addEventListener('click', function() { saveCurrentStyle(); });
+    document.getElementById('deleteStyleBtn').addEventListener('click', function() { if (selectedStyleId) { deleteStyle(selectedStyleId); } });
+    // 初始加载
+    loadApiConfig().then(function() {
+      bindConfigAutoSave();
+    });
+    loadPromptRules();
+    loadStats();
+    loadTemplates();
+    loadStyleLibrary();
+    console.log('[init] Page ready, tabs: generate(visible), history(hidden), assets(hidden)');
+
+    // ====== 数据看板 ======
+    var chartTrendInst = null;
+    var chartPieInst = null;
+
+    function escapeHtml(str) {
+      var div = document.createElement('div');
+      div.textContent = str || '';
+      return div.innerHTML;
+    }
+
+    function loadDashboard() {
+      checkDashboardSession();
+      loadDashboardAccounts();
+      refreshDashboard();
+    }
+
+    var _captchaCheckKey = '';
+
+    function loadCaptcha() {
+      var img = document.getElementById('captchaImg');
+      var input = document.getElementById('loginCaptcha');
+      fetch('/api/scraper/captcha').then(function(r) { return r.json(); }).then(function(d) {
+        if (d.image) {
+          _captchaCheckKey = d.check_key;
+          img.src = d.image;
+          img.style.display = '';
+          input.style.display = '';
+        }
+      }).catch(function() {
+        _captchaCheckKey = '';
+        img.style.display = 'none';
+        input.style.display = 'none';
+      });
+    }
+
+    document.getElementById('captchaImg').addEventListener('click', function() {
+      loadCaptcha();
+    });
+
+    function checkDashboardSession() {
+      fetch('/api/scraper/session-status').then(function(r) { return r.json(); }).then(function(d) {
+        var dot = document.getElementById('dashSessionDot');
+        var txt = document.getElementById('dashSessionText');
+        var loginGroup = document.getElementById('loginGroup');
+        var logoutBtn = document.getElementById('btnLogout');
+        if (d.valid) {
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+          txt.textContent = '会话有效';
+          txt.className = 'text-xs text-emerald-600';
+          loginGroup.hidden = true;
+          logoutBtn.hidden = false;
+        } else {
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-red-400';
+          txt.textContent = '未登录';
+          txt.className = 'text-xs text-red-500';
+          loginGroup.hidden = false;
+          logoutBtn.hidden = true;
+          loadCaptcha();
+        }
+      }).catch(function() {});
+    }
+
+    function loadDashboardAccounts() {
+      fetch('/api/dashboard/accounts').then(function(r) { return r.json(); }).then(function(data) {
+        var sel = document.getElementById('dashAccountFilter');
+        sel.innerHTML = '<option value="">全部账户</option>';
+        (data || []).forEach(function(a) {
+          sel.innerHTML += '<option value="' + a.account_id + '">' + escapeHtml(a.display) + '</option>';
+        });
+      }).catch(function() {});
+    }
+
+    function getDashboardDateRange() {
+      var active = document.querySelector('.dashDatePillActive');
+      return active ? active.getAttribute('data-range') : 'today';
+    }
+
+    function getDashboardParams() {
+      var range = getDashboardDateRange();
+      var account = document.getElementById('dashAccountFilter').value;
+      var keyword = document.getElementById('dashKeyword').value.trim();
+      var params = [];
+      var start, end;
+
+      if (range === 'today') {
+        start = end = new Date().toISOString().slice(0, 10);
+      } else if (range === 'yesterday') {
+        var d = new Date(Date.now() - 86400000);
+        start = end = d.toISOString().slice(0, 10);
+      } else if (range === 'custom') {
+        start = document.getElementById('dashDateStart').value;
+        end = document.getElementById('dashDateEnd').value;
+      } else if (range > 0) {
+        end = new Date().toISOString().slice(0, 10);
+        start = new Date(Date.now() - parseInt(range) * 86400000).toISOString().slice(0, 10);
+      }
+
+      if (start) params.push('start=' + start);
+      if (end) params.push('end=' + end);
+      if (account) params.push('account=' + encodeURIComponent(account));
+      if (keyword) params.push('keyword=' + encodeURIComponent(keyword));
+      return params.length ? '?' + params.join('&') : '';
+    }
+
+    // 翻页状态
+    var dashPages = { stats: 1, orders: 1, ranking: 1 };
+
+    function renderPager(containerId, result, onPage) {
+      var container = document.getElementById(containerId);
+      if (!result || result.total <= result.page_size) {
+        container.innerHTML = '';
+        return;
+      }
+      var totalPages = Math.ceil(result.total / result.page_size);
+      var current = result.page;
+      var html = '<span class=\"text-[10px] text-slate-400 mr-1\">' + result.total + '条</span>';
+      html += '<button class=\"px-2 py-0.5 text-[10px] rounded border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30\" ' + (current <= 1 ? 'disabled' : '') + ' data-pg=\"' + (current - 1) + '\">◀</button>';
+      html += '<span class=\"text-[10px] text-slate-600 px-1\">' + current + '/' + totalPages + '</span>';
+      html += '<button class=\"px-2 py-0.5 text-[10px] rounded border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30\" ' + (current >= totalPages ? 'disabled' : '') + ' data-pg=\"' + (current + 1) + '\">▶</button>';
+      container.innerHTML = html;
+      container.querySelectorAll('button').forEach(function(btn) {
+        btn.addEventListener('click', function() { onPage(parseInt(this.getAttribute('data-pg'))); });
+      });
+    }
+
+    function loadNovelStats() {
+      // 小说排行榜统计全部订单，不受日期筛选影响
+      var keywordVal = document.getElementById('dashKeyword').value.trim();
+      var qs = keywordVal ? '?keyword=' + encodeURIComponent(keywordVal) : '';
+      fetch('/api/dashboard/novel-stats' + qs).then(function(r) { return r.json(); }).then(function(data) {
+        var tbody = document.getElementById('dashNovelBody');
+        if (!data || data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">暂无数据</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.map(function(r, i) {
+          var name = r.novel_name || '未知';
+          var nid = r.novel_id || '-';
+          return '<tr class="border-b border-slate-50 hover:bg-slate-50/50">' +
+            '<td class="py-1.5 text-slate-400">' + (i + 1) + '</td>' +
+            '<td class="py-1.5 font-medium text-slate-700 max-w-[200px] truncate" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</td>' +
+            '<td class="py-1.5 text-slate-500 font-mono text-[10px]">' + escapeHtml(String(nid)) + '</td>' +
+            '<td class="py-1.5 text-right text-slate-600 font-medium">' + (r.order_count || 0).toLocaleString() + ' 单</td>' +
+            '<td class="py-1.5 text-right text-emerald-600 font-semibold">¥' + ((r.total_amount || 0)).toLocaleString() + '</td>' +
+            '</tr>';
+        }).join('');
+      }).catch(function() {
+        document.getElementById('dashNovelBody').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">加载失败</td></tr>';
+      });
+    }
+
+    function loadDailyStats(page) {
+      page = page || 1;
+      dashPages.stats = page;
+      var qs = getDashboardParams() + (getDashboardParams() ? '&' : '?') + 'page=' + page + '&page_size=20';
+      fetch('/api/dashboard/daily-stats' + qs).then(function(r) { return r.json(); }).then(function(res) {
+        var rows = res.data || res;
+        var tbody = document.getElementById('dashTableBody');
+        if (!rows || rows.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-slate-300">暂无数据，请先同步</td></tr>'; document.getElementById('dashTablePager').innerHTML = ''; return; }
+        tbody.innerHTML = rows.map(function(r, i) {
+          return '<tr class="' + (i%2 ? 'bg-slate-50/50' : '') + '">' +
+            '<td class="py-1.5 text-slate-600">' + (r.date || '') + '</td>' +
+            '<td class="py-1.5 font-medium text-slate-700">' + escapeHtml(r.account_display || r.ad_account || '') + '</td>' +
+            '<td class="py-1.5 text-right text-slate-700">¥' + (r.total_spend || 0).toLocaleString() + '</td>' +
+            '<td class="py-1.5 text-right font-medium ' + (r.total_revenue > r.total_spend ? 'text-emerald-600' : 'text-red-500') + '">¥' + (r.total_revenue || 0).toLocaleString() + '</td>' +
+            '<td class="py-1.5 text-right font-medium ' + (r.roi >= 2 ? 'text-emerald-600' : r.roi >= 1 ? 'text-amber-600' : 'text-red-500') + '">' + (r.roi || 0).toFixed(2) + '</td>' +
+            '<td class="py-1.5 text-right text-slate-500">' + (r.ad_count || 0) + '</td></tr>';
+        }).join('');
+        renderPager('dashTablePager', res, loadDailyStats);
+      }).catch(function() {});
+    }
+
+    function refreshDashboard() {
+      var qs = getDashboardParams();
+      var rangeVal = getDashboardDateRange();
+      var accountVal = document.getElementById('dashAccountFilter').value;
+      var keywordVal = document.getElementById('dashKeyword').value.trim();
+      var daysParam = (rangeVal === 'today' || rangeVal === 'yesterday') ? '1' : (rangeVal === 'custom' ? '90' : (rangeVal > 0 ? rangeVal : '90'));
+      var acctParam = accountVal ? '&account=' + encodeURIComponent(accountVal) : '';
+      var kwParam = keywordVal ? '&keyword=' + encodeURIComponent(keywordVal) : '';
+
+      fetch('/api/dashboard/summary' + qs).then(function(r) { return r.json(); }).then(function(d) {
+        document.getElementById('kpiSpend').textContent = '¥' + (d.total_spend || 0).toLocaleString();
+        document.getElementById('kpiRevenue').textContent = '¥' + (d.total_revenue || 0).toLocaleString();
+        document.getElementById('kpiRoi').textContent = (d.roi || 0).toFixed(2);
+        document.getElementById('kpiOrders').textContent = (d.order_count || 0).toLocaleString();
+      }).catch(function() {});
+
+      loadNovelStats();
+
+      loadDailyStats(dashPages.stats);
+
+      fetch('/api/dashboard/trend?days=' + daysParam + acctParam + kwParam).then(function(r) { return r.json(); }).then(function(data) {
+        if (!data || data.length === 0) return;
+        var ctx = document.getElementById('chartTrend').getContext('2d');
+        if (chartTrendInst) chartTrendInst.destroy();
+        chartTrendInst = new Chart(ctx, {
+          type: 'line', data: {
+            labels: data.map(function(d) { return d.date; }),
+            datasets: [
+              { label: '消耗', data: data.map(function(d) { return d.spend; }), borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 },
+              { label: '收入', data: data.map(function(d) { return d.revenue; }), borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 12, padding: 16, font: { size: 11 }, usePointStyle: true } } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 10 }, maxTicksLimit: 12 } }, y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: function(v) { return v >= 1000 ? '¥' + (v/1000).toFixed(1) + 'k' : '¥' + v; } } } } }
+        });
+      }).catch(function() {});
+
+      function loadRanking(page) {
+        page = page || 1;
+        dashPages.ranking = page;
+        var rqs = qs + (qs ? '&' : '?') + 'page=' + page + '&page_size=20';
+        fetch('/api/dashboard/account-ranking' + rqs).then(function(r) { return r.json(); }).then(function(res) {
+          var data = res.data || res;
+          var tbody = document.getElementById('dashRankBody');
+          if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">暂无数据</td></tr>'; document.getElementById('dashRankPager').innerHTML = ''; return; }
+          tbody.innerHTML = data.map(function(r, i) {
+            return '<tr><td class="py-1 text-slate-400">' + ((page-1)*20 + i + 1) + '</td><td class="py-1 font-medium text-slate-700">' + escapeHtml(r.account_display || r.ad_account || '') + '</td><td class="py-1 text-right text-slate-600">¥' + (r.spend||0).toLocaleString() + '</td><td class="py-1 text-right text-slate-600">¥' + (r.revenue||0).toLocaleString() + '</td><td class="py-1 text-right font-medium ' + (r.roi>=2?'text-emerald-600':'text-red-500') + '">' + (r.roi||0).toFixed(2) + '</td></tr>';
+          }).join('');
+          renderPager('dashRankPager', res, loadRanking);
+          if (chartPieInst) chartPieInst.destroy();
+          var ctx2 = document.getElementById('chartPie').getContext('2d');
+          var colors = ['#818cf8','#34d399','#fbbf24','#f472b6','#a78bfa','#38bdf8','#fb923c','#4ade80'];
+          chartPieInst = new Chart(ctx2, { type: 'doughnut', data: { labels: data.map(function(d){return d.ad_account;}), datasets: [{ data: data.map(function(d){return d.spend;}), backgroundColor: colors.slice(0,data.length), borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 12, font: { size: 10 }, usePointStyle: true } } } } });
+        }).catch(function() {});
+      }
+
+      function loadOrders(page) {
+        page = page || 1;
+        dashPages.orders = page;
+        var oqs = qs + (qs ? '&' : '?') + 'page=' + page + '&page_size=15';
+        fetch('/api/dashboard/orders' + oqs).then(function(r) { return r.json(); }).then(function(res) {
+          var data = res.data || res;
+          var tbody = document.getElementById('dashOrderBody');
+          if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-slate-300">暂无数据</td></tr>'; document.getElementById('dashOrderPager').innerHTML = ''; return; }
+          tbody.innerHTML = data.map(function(r, i) {
+            return '<tr class="' + (i%2?'bg-slate-50/50':'') + '"><td class="py-1 font-mono text-[11px] text-slate-600">'+(r.order_id||'')+'</td><td class="py-1 text-slate-500">'+(r.order_date||'')+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.promotion_link_name||'-')+'</td><td class="py-1 font-mono text-[11px] text-slate-600">'+(r.ad_id||'-')+'</td><td class="py-1 text-right text-slate-700">¥'+(r.amount||0).toLocaleString()+'</td><td class="py-1 text-slate-500">'+(r.status||'')+'</td></tr>';
+          }).join('');
+          renderPager('dashOrderPager', res, loadOrders);
+        }).catch(function() {});
+      }
+
+      loadRanking(dashPages.ranking);
+      loadOrders(dashPages.orders);
+    }
+
+    document.getElementById('btnSyncData').addEventListener('click', function() {
+      var btn = this;
+      btn.disabled = true;
+      btn.innerHTML = '<svg class="w-3.5 h-3.5 loading-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 同步中...';
+      fetch('/api/scraper/sync', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+        alert(d.message || '同步完成');
+        refreshDashboard();
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 同步数据';
+      }).catch(function() {
+        alert('同步失败');
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 同步数据';
+      });
+    });
+
+    document.getElementById('btnLogin').addEventListener('click', function() {
+      var username = document.getElementById('loginUsername').value.trim();
+      var password = document.getElementById('loginPassword').value.trim();
+      if (!username || !password) {
+        alert('请输入账号和密码');
+        return;
+      }
+      var captcha = document.getElementById('loginCaptcha').value.trim();
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = '登录中...';
+      fetch('/api/scraper/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username,
+          password: password,
+          captcha: captcha,
+          check_key: _captchaCheckKey
+        })
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        alert(d.message);
+        if (d.status === 'ok') {
+          document.getElementById('loginPassword').value = '';
+          document.getElementById('loginCaptcha').value = '';
+        } else {
+          loadCaptcha();
+        }
+        checkDashboardSession();
+      }).catch(function() {
+        alert('登录失败');
+        loadCaptcha();
+      }).finally(function() {
+        btn.disabled = false;
+        btn.textContent = '登录';
+      });
+    });
+
+    // 密码框和验证码框回车触发登录
+    document.getElementById('loginPassword').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { document.getElementById('btnLogin').click(); }
+    });
+    document.getElementById('loginCaptcha').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { document.getElementById('btnLogin').click(); }
+    });
+
+    // 登出按钮
+    document.getElementById('btnLogout').addEventListener('click', function() {
+      if (!confirm('确定要登出当前账号吗？')) return;
+      fetch('/api/scraper/logout', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+        alert(d.message);
+        checkDashboardSession();
+        refreshDashboard();
+      }).catch(function() {
+        alert('登出失败');
+      });
+    });
+
+    // 药片日期按钮
+    document.querySelectorAll('.dashDatePill').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.dashDatePill').forEach(function(b) {
+          b.className = 'dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700';
+        });
+        this.className = 'dashDatePill dashDatePillActive px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-white text-indigo-600 shadow-sm';
+        var isCustom = this.getAttribute('data-range') === 'custom';
+        document.getElementById('dashCustomDate').hidden = !isCustom;
+        if (isCustom) {
+          var today = new Date().toISOString().slice(0, 10);
+          if (!document.getElementById('dashDateStart').value) document.getElementById('dashDateStart').value = today;
+          if (!document.getElementById('dashDateEnd').value) document.getElementById('dashDateEnd').value = today;
+        }
+        refreshDashboard();
+      });
+    });
+    document.getElementById('dashAccountFilter').addEventListener('change', refreshDashboard);
+    document.getElementById('dashDateStart').addEventListener('change', refreshDashboard);
+    document.getElementById('dashDateEnd').addEventListener('change', refreshDashboard);
+    var dashKwTimer = null;
+    document.getElementById('dashKeyword').addEventListener('input', function() {
+      clearTimeout(dashKwTimer);
+      dashKwTimer = setTimeout(refreshDashboard, 400);
+    });
+
+    // 同步间隔 + 自动刷新
+    var dashRefreshTimer = null;
+
+    function startAutoRefresh(secs) {
+      if (dashRefreshTimer) clearInterval(dashRefreshTimer);
+      dashRefreshTimer = setInterval(function() {
+        refreshDashboard();
+      }, secs * 1000);
+    }
+
+    function loadSyncInterval() {
+      fetch('/api/scraper/sync-interval').then(function(r) { return r.json(); }).then(function(d) {
+        document.getElementById('dashSyncInterval').value = d.seconds;
+        document.getElementById('dashIntervalHint').textContent = '同步+刷新: ' + d.text;
+        startAutoRefresh(d.seconds);
+      }).catch(function() {});
+    }
+    document.getElementById('dashSyncInterval').addEventListener('change', function() {
+      var secs = parseInt(this.value);
+      document.getElementById('dashIntervalHint').textContent = '更新中...';
+      fetch('/api/scraper/sync-interval?seconds=' + secs, { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+        document.getElementById('dashIntervalHint').textContent = '同步+刷新: ' + (d.message.split('已设为')[1] || d.message);
+        startAutoRefresh(secs);
+      }).catch(function() {
+        document.getElementById('dashIntervalHint').textContent = '设置失败';
+      });
+    });
+
+    loadSyncInterval();
+
+    // 别名编辑
+    document.getElementById('btnEditAlias').addEventListener('click', function() {
+      var sel = document.getElementById('dashAccountFilter');
+      var acctId = sel.value;
+      if (!acctId) { alert('请先选择一个账户'); return; }
+      var currentName = sel.options[sel.selectedIndex].text;
+      var alias = prompt('为账户设置别名（留空则删除）:\n当前: ' + currentName, '');
+      if (alias === null) return; // 取消
+      var method = alias.trim() ? 'POST' : 'DELETE';
+      var url = '/api/dashboard/account-aliases?account_id=' + encodeURIComponent(acctId);
+      if (method === 'POST') url += '&alias=' + encodeURIComponent(alias.trim());
+      fetch(url, { method: method }).then(function(r) { return r.json(); }).then(function() {
+        loadDashboardAccounts();
+        refreshDashboard();
+      });
+    });
+
+    // ====== 小说管理 ======
+    var novelMgrPages = { books: 1, chapters: 1, selectedNovelId: null, selectedBookName: '' };
+    var chapterModalData = { novelId: null, chapters: [], currentIndex: 0 };
+
+    function loadNovelBooks(page) {
+      page = page || 1;
+      novelMgrPages.books = page;
+      var keyword = document.getElementById('novelMgrSearch').value.trim();
+      var status = document.getElementById('novelMgrStatus').value;
+      var params = 'page=' + page + '&page_size=15';
+      if (keyword) params += '&keyword=' + encodeURIComponent(keyword);
+      if (status) params += '&status=' + encodeURIComponent(status);
+
+      fetch('/api/novels/list?' + params).then(function(r) { return r.json(); }).then(function(res) {
+        var tbody = document.getElementById('novelMgrBookBody');
+        var data = res.data || [];
+        if (data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="19" class="text-center py-8 text-slate-300 text-xs">暂无书籍，请先同步</td></tr>';
+        } else {
+          tbody.innerHTML = data.map(function(b, i) {
+            var isSelected = novelMgrPages.selectedNovelId === b.novel_id;
+            var bgClass = isSelected ? 'bg-indigo-50' : (i%2 ? 'bg-slate-50/50' : '');
+            var coverHtml = b.cover_url
+              ? '<img src="' + b.cover_url + '" class="w-10 h-14 object-cover rounded" onerror="this.style.display=\'none\'">'
+              : '<span class="text-slate-300">-</span>';
+            var statusClass = b.status === '完结' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
+            return '<tr class="hover:bg-indigo-50/50 transition-all ' + bgClass + '">' +
+              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.create_time ? b.create_time.slice(0,10) : '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-xs font-medium text-indigo-600 max-w-[180px] truncate cursor-pointer hover:underline" title="' + (b.novel_name || '') + '" onclick="selectNovelBook(\'' + b.novel_id + '\',\'' + (b.novel_name || '').replace(/'/g, '\\\'') + '\')">' + (b.novel_name || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-right text-[10px] text-slate-600">$' + ((b.book_ad_spend || 0).toLocaleString ? (b.book_ad_spend || 0).toLocaleString() : (b.book_ad_spend || 0)) + '</td>' +
+              '<td class="py-1.5 px-3 text-right text-[10px] text-slate-600">' + (b.promotion_link_count || 0) + '</td>' +
+              '<td class="py-1.5 px-3 text-[10px] font-mono text-slate-500">' + (b.novel_id || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.source || '-') + '</td>' +
+              '<td class="py-1.5 px-3">' + coverHtml + '</td>' +
+              '<td class="py-1.5 px-3 text-[10px] text-slate-600">' + (b.author || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-[10px] text-slate-400 max-w-[180px] truncate" title="' + (b.intro || '') + '">' + (b.intro || '-').slice(0,60) + '</td>' +
+              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.region || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.category || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.tags || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-[10px]">' + (b.recommend === '是' ? '<span class="text-green-600 font-medium">是</span>' : '<span class="text-slate-400">否</span>') + '</td>' +
+              '<td class="py-1.5 px-3"><span class="px-1.5 py-0.5 rounded text-[9px] font-medium ' + statusClass + '">' + (b.status || '-') + '</span></td>' +
+              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.exclusive_status || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.create_by || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-right text-[10px] text-slate-600">' + ((b.word_count || 0).toLocaleString ? (b.word_count || 0).toLocaleString() : (b.word_count || 0)) + '</td>' +
+              '<td class="py-1.5 px-3 text-right text-[10px] text-slate-600">' + (b.total_chapters || 0) + '</td>' +
+              '<td class="py-1.5 px-3 text-right text-[10px] text-slate-600">' + (b.collect_num || 0) + '</td>' +
+            '</tr>';
+          }).join('');
+        }
+        document.getElementById('novelMgrCount').textContent = '共 ' + res.total + ' 本';
+        renderPager('novelMgrBookPager', res, loadNovelBooks);
+      }).catch(function() {});
+    }
+
+    // 切换弹窗视图
+    function _showChapterListView() {
+      document.getElementById('chapterModalListView').classList.remove('hidden');
+      document.getElementById('chapterModalContentView').classList.add('hidden');
+      document.getElementById('chapterModalNav').classList.add('hidden');
+      document.getElementById('chapterModalBack').classList.add('hidden');
+      document.getElementById('chapterModalSyncBtn').classList.remove('hidden');
+    }
+    function _showChapterContentView() {
+      document.getElementById('chapterModalListView').classList.add('hidden');
+      document.getElementById('chapterModalContentView').classList.remove('hidden');
+      document.getElementById('chapterModalNav').classList.remove('hidden');
+      document.getElementById('chapterModalBack').classList.remove('hidden');
+      document.getElementById('chapterModalSyncBtn').classList.add('hidden');
+    }
+
+    // 点击书籍 → 弹窗展示章节列表
+    function selectNovelBook(novelId, bookName) {
+      novelMgrPages.selectedNovelId = novelId;
+      novelMgrPages.selectedBookName = bookName || novelId;
+      chapterModalData.novelId = novelId;
+      chapterModalData.chapters = [];
+      chapterModalData.currentIndex = 0;
+      loadNovelBooks(novelMgrPages.books);
+      loadNovelChapters(novelId, 1);
+      document.getElementById('chapterModalTitle').textContent = bookName || novelId;
+      document.getElementById('chapterModalSyncBtn').dataset.novelId = novelId;
+      _showChapterListView();
+      document.getElementById('chapterModal').hidden = false;
+    }
+
+    function loadNovelChapters(novelId, page) {
+      page = page || 1;
+      novelMgrPages.chapters = page;
+      fetch('/api/novels/' + novelId + '/chapters?page=' + page + '&page_size=50').then(function(r) { return r.json(); }).then(function(res) {
+        var container = document.getElementById('chapterModalChapterList');
+        var data = res.data || [];
+        if (page === 1) { chapterModalData.chapters = data; chapterModalData.currentIndex = 0; }
+        if (data.length === 0) {
+          container.innerHTML = '<div class="col-span-2 text-xs text-slate-400 text-center py-8">暂无章节，请先同步内容</div>';
+        } else {
+          container.innerHTML = data.map(function(ch, i) {
+            return '<div class="rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2 cursor-pointer hover:bg-indigo-50 hover:border-indigo-200 transition-all text-xs text-slate-600 flex justify-between items-center" onclick="_openChapterContent(' + i + ')">' +
+              '<span><span class="text-indigo-500 font-medium mr-1">#' + (ch.chapter_no || '?') + '</span>' + (ch.chapter_name || '') + '</span>' +
+              '<span class="text-[10px] text-slate-400">' + (ch.word_count || 0) + '词</span>' +
+            '</div>';
+          }).join('');
+        }
+        renderPager('chapterModalChapterPager', res, function(p) { loadNovelChapters(novelId, p); });
+      }).catch(function() {});
+    }
+
+    function _openChapterContent(index) {
+      var ch = chapterModalData.chapters[index];
+      if (!ch) return;
+      chapterModalData.currentIndex = index;
+      document.getElementById('chapterModalTitle').textContent = ch.chapter_name || ('Chapter ' + (ch.chapter_no || '?'));
+      document.getElementById('chapterModalContentView').innerHTML = '<div class="text-center text-slate-400 py-12"><div class="animate-spin w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-2"></div>加载中...</div>';
+      document.getElementById('chapterModalInfo').textContent = 'Ch.' + (ch.chapter_no || '?') + ' · ' + (ch.word_count || 0) + '词';
+      document.getElementById('chapterModalPrev').style.visibility = index > 0 ? '' : 'hidden';
+      document.getElementById('chapterModalNext').style.visibility = index < chapterModalData.chapters.length - 1 ? '' : 'hidden';
+      _showChapterContentView();
+      // 从 API 获取完整内容
+      fetch('/api/novels/chapters/' + ch.id).then(function(r) { return r.json(); }).then(function(full) {
+        chapterModalData.chapters[index] = full; // 更新缓存
+        if (chapterModalData.currentIndex === index) {
+          document.getElementById('chapterModalContentView').innerHTML = full.content || '无内容';
+        }
+      }).catch(function() {
+        if (chapterModalData.currentIndex === index) {
+          document.getElementById('chapterModalContentView').innerHTML = '<span class="text-slate-400">加载失败</span>';
+        }
+      });
+    }
+
+    function _backToChapterList() {
+      document.getElementById('chapterModalTitle').textContent = novelMgrPages.selectedBookName;
+      _showChapterListView();
+    }
+
+    // 弹窗事件绑定
+    document.getElementById('chapterModalClose').addEventListener('click', function() { document.getElementById('chapterModal').hidden = true; });
+    document.getElementById('chapterModalBack').addEventListener('click', _backToChapterList);
+    document.getElementById('chapterModal').addEventListener('click', function(e) { if (e.target === this) document.getElementById('chapterModal').hidden = true; });
+    document.getElementById('chapterModalPrev').addEventListener('click', function() {
+      if (chapterModalData.currentIndex > 0) { chapterModalData.currentIndex--; _openChapterContent(chapterModalData.currentIndex); }
+    });
+    document.getElementById('chapterModalNext').addEventListener('click', function() {
+      if (chapterModalData.currentIndex < chapterModalData.chapters.length - 1) { chapterModalData.currentIndex++; _openChapterContent(chapterModalData.currentIndex); }
+    });
+    document.addEventListener('keydown', function(e) {
+      if (document.getElementById('chapterModal').hidden) return;
+      if (document.getElementById('chapterModalContentView').classList.contains('hidden')) return; // 只在内容视图响应键盘
+      if (e.key === 'ArrowLeft') document.getElementById('chapterModalPrev').click();
+      if (e.key === 'ArrowRight') document.getElementById('chapterModalNext').click();
+      if (e.key === 'Escape') { e.preventDefault(); _backToChapterList(); }
+    });
+
+    // 弹窗内同步按钮
+    document.getElementById('chapterModalSyncBtn').addEventListener('click', function() {
+      var novelId = this.dataset.novelId;
+      if (novelId) syncNovelContent(novelId);
+    });
+
+    function syncNovelBooks() {
+      var btn = document.getElementById('novelMgrSyncBooksBtn');
+      btn.disabled = true; btn.textContent = '同步中...';
+      fetch('/api/novels/sync-books', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+        alert(d.message || ('已同步 ' + (d.count || 0) + ' 本书'));
+        loadNovelBooks(1);
+      }).catch(function() { alert('同步失败'); }).finally(function() { btn.disabled = false; btn.textContent = '同步书籍列表'; });
+    }
+
+    function syncNovelContent(novelId) {
+      var btn = document.getElementById('novelMgrSyncContentBtn');
+      if (novelId) btn = document.getElementById('chapterModalSyncBtn');
+      btn.disabled = true; btn.textContent = '同步中...';
+      var body = novelId ? JSON.stringify({ novel_id: novelId }) : '{}';
+      fetch('/api/novels/sync-content', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body }).then(function(r) { return r.json(); }).then(function(d) {
+        var total = 0;
+        for (var k in d.books || {}) { total += d.books[k].chapters || 0; }
+        alert('同步完成，共 ' + total + ' 章');
+        if (novelId) loadNovelChapters(novelId, 1);
+        loadNovelBooks(novelMgrPages.books);
+      }).catch(function() { alert('同步失败'); }).finally(function() { btn.disabled = false; btn.textContent = novelId ? '同步内容' : '同步全部内容'; });
+    }
+
+    document.getElementById('novelMgrSyncBooksBtn').addEventListener('click', syncNovelBooks);
+    document.getElementById('novelMgrSyncContentBtn').addEventListener('click', function() { syncNovelContent(null); });
+    document.getElementById('novelMgrSearch').addEventListener('input', function() { loadNovelBooks(1); });
+    document.getElementById('novelMgrStatus').addEventListener('change', function() { loadNovelBooks(1); });
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+requests
+pillow
+moviepy
+numpy
+python-multipart
+sse-starlette
+imageio-ffmpeg
+apscheduler
+beautifulsoup4
+lxml

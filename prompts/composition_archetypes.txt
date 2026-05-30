@@ -1,0 +1,135 @@
+Visual DNA Blueprints — composition archetypes for viral Facebook ad images.
+These are NOT scenes. They are visual grammar templates. Apply novel characters/setting/props into these skeletons.
+
+[p power_reversal] Low-Angle Power Shot
+  Camera: low-angle, victor standing tall looking down, defeated figure kneeling/sitting at bottom of frame
+  Light: single hard key light from above-front on victor, deep shadows on defeated, rim light separates figures
+  Color: cold desaturated background, warm amber/gold on victor, shadow on defeated
+  Composition: victor upper-right third, defeated lower-left, empty upper-left for text
+  Energy: the exact moment the defeated figure realizes they've lost everything
+
+[p power_reversal] Crowd Humiliation
+  Camera: wide shot, slightly elevated, crowd encircling a shamed central figure
+  Light: harsh overhead lighting like stage/courtroom, no shadows to hide faces
+  Color: desaturated crowd, saturated center figure, cold institutional tones
+  Composition: center figure small and isolated, crowd forms circular frame, text space at top/bottom
+  Energy: every face in the crowd turned toward the shamed figure, phones raised recording
+
+[p power_reversal] Object of Defeat
+  Camera: extreme close-up on a symbolic object breaking/hitting ground, figures blurred in background
+  Light: dramatic spotlight on the object, everything else in shadow
+  Color: the object in vivid color against monochrome background
+  Composition: object centered and large, blurred figures distant, heavy negative space for text
+  Energy: the crown/ring/contract mid-shatter, frozen in the instant of destruction
+
+[p secret_exposure] Phone Screen Revelation
+  Camera: over-the-shoulder close-up on phone screen, background onlookers in soft focus
+  Light: phone screen blue glow as key light on holder's face, ambient warm party light behind
+  Color: cold blue phone light vs warm golden background, creating visual temperature clash
+  Composition: phone centered foreground, shocked face mid-right, blurred crowd background, text space bottom
+  Energy: the incriminating message/photo visible on screen, one person's world ending while the party continues
+
+[p secret_exposure] Public Projection
+  Camera: wide shot of a room, projection/screen dominating one wall, frozen audience
+  Light: projector beam cutting through air as light source, faces lit from screen reflection
+  Color: screen content in harsh white/blue, room in deep shadow, faces in ghostly screen glow
+  Composition: screen top-center, exposed figure small in foreground, audience midground frozen
+  Energy: every head turned to the screen, the secret now irreversible, champagne glasses mid-drop
+
+[p secret_exposure] The Letter
+  Camera: tight over-the-shoulder, hands holding an opened letter/envelope, face reaction visible beyond
+  Light: warm practical light (desk lamp/candle) illuminating the paper, face in partial shadow
+  Color: aged paper cream/white, warm amber light, dark wood/leather surroundings
+  Composition: letter/paper in lower foreground, hands visible, face upper third, intimate negative space
+  Energy: the trembling hands holding the paper, the moment before the truth registers on the face
+
+[p forbidden_intimacy] Almost Kiss
+  Camera: extreme close-up, two faces inches apart, shallow depth of field, lips not touching
+  Light: single warm key light from side, soft shadows, practical light source (window/streetlamp) in frame
+  Color: warm skin tones, deep shadow background, one accent color (red lipstick/dress)
+  Composition: faces fill frame, negative space between lips is the focal point, text space on empty side
+  Energy: the 1cm of charged air between lips, breath visible, eyes half-closed — will they or won't they?
+
+[p forbidden_intimacy] Pinned Against Wall
+  Camera: medium shot, one figure's back against wall, other figure leaning in, hand planted beside head
+  Light: harsh single light from above creating dramatic shadows on wall behind figures
+  Color: cold wall tone vs warm skin, shadow patterns on wall, one accent color from clothing
+  Composition: wall fills background, figures left/center, empty right for text, leading lines from arm/wall
+  Energy: the hand planted beside the head, the trapped-but-wanting-it expression, power dynamic visible in body language
+
+[p forbidden_intimacy] Possessive Grip
+  Camera: tight medium shot focusing on physical contact — hand gripping wrist/waist/fabric
+  Light: side light raking across skin to emphasize texture and tension in the grip
+  Color: skin tones dominant, dark clothing, one striking accent (red nails, gold jewelry)
+  Composition: the grip is the focal point center-right, faces visible but secondary, text space bottom
+  Energy: fingers digging into fabric/skin, the possession claim made physical, the gasp it causes
+
+[p forbidden_intimacy] The Necklace Break
+  Camera: medium close-up, pearls/jewelry mid-scatter in air, faces reacting in background
+  Light: slow-motion freeze lighting, pearls catching light as they fly, faces in soft focus
+  Color: white pearls against dark clothing/background, warm skin, cold ambient
+  Composition: scattered pearls create diagonal movement line across frame, faces at edges, text space top/bottom
+  Energy: the exact instant the necklace snaps, pearls suspended in air, the violence of the gesture frozen
+
+[p impossible_choice] The Table
+  Camera: over-the-shoulder or POV shot, a table with two objects representing the choice
+  Light: single overhead practical light casting equal light on both options, no bias
+  Color: neutral palette, the two objects in contrasting colors (red pill/blue pill coding)
+  Composition: table horizontal across lower third, two objects equally spaced, hand hovering between them
+  Energy: the hand frozen mid-reach, fingertips an inch from decision, the weight of the choice visible in body tension
+
+[p impossible_choice] Between Two Doors
+  Camera: wide shot from behind, figure standing in corridor between two doorways leading to different worlds
+  Light: one door warm/golden light, other door cold/blue light, figure in neutral shadow between
+  Color: warm vs cold split down the center, figure silhouetted
+  Composition: figure centered and small, two doors equal size framing left and right, text space top
+  Energy: the figure frozen at the threshold, head turning slightly toward one door, the last second of choice
+
+[p identity_transformation] Grand Entrance
+  Camera: full-body shot from crowd perspective, figure descending stairs or stepping out of vehicle
+  Light: dramatic backlight creating silhouette-then-reveal, flashbulbs popping, golden hour or chandelier glow
+  Color: the figure in striking contrast to surroundings (bright against dark, or vice versa)
+  Composition: figure center, crowd reactions blurred at edges, leading lines from architecture toward figure
+  Energy: the moment of recognition — jaws dropping, whispers spreading, the person they underestimated has arrived
+
+[p identity_transformation] Before and After Glance
+  Camera: medium shot, figure looking at their own reflection (mirror/window/phone screen), two versions visible
+  Light: practical light on real face, reflection slightly brighter/more glamorous
+  Color: real side desaturated vs reflection side rich/saturated
+  Composition: real face one third, reflection opposite third, the gaze connecting them, text space top/bottom
+  Energy: the moment the character sees who they've become — and so does the viewer
+
+[p identity_transformation] The Unrecognizable Return
+  Camera: wide shot, figure walking through a room where everyone they knew is frozen in recognition
+  Light: figure in spotlight/beam of light, rest of room in shadow, chiaroscuro contrast
+  Color: figure in monochrome or striking single color, background in muted earth tones
+  Composition: figure walking through center, heads turning in sequence creating movement line, text space top
+  Energy: old acquaintances frozen mid-conversation, one person dropping their glass, the collective disbelief
+
+[p innocence_vs_corruption] Split Light Portrait
+  Camera: tight two-shot or split-frame, innocent figure on one side, corrupting figure on other
+  Light: warm soft light on innocent side, cold hard light with sharp shadows on corrupt side
+  Color: warm gold/pink on innocent side, cold blue/gray on corrupt side, the boundary stark
+  Composition: 50/50 split down center, innocent looking toward corrupt (or away), corrupt looking at innocent
+  Energy: the visual temperature clash between the two halves, the tension of proximity
+
+[p innocence_vs_corruption] Protective Shield
+  Camera: medium shot, adult figure (protector) positioned between child/innocent and looming threat
+  Light: warm protective light on the shielded figure, cold threatening shadow approaching from edge
+  Color: warm domestic tones behind protector, cold darkness creeping from the threat side
+  Composition: protector center foreground, threat at frame edge, innocent behind protector, text space top
+  Energy: the protector's outstretched arm, the shadow creeping closer, the child's unaware expression
+
+[p innocence_vs_corruption] The Stained Hand
+  Camera: extreme close-up on hands — one clean/soft, one stained/rough, nearly touching
+  Light: soft diffused light on clean hand, harsh raking light on stained hand
+  Color: clean hand in warm natural tones, stained hand in cold desaturated tones
+  Composition: both hands fill frame, the gap between them narrow, text space at edges
+  Energy: the clean hand reaching toward (or pulling away from) the stained hand, the decision frozen
+
+Universal composition notes — apply to any archetype:
+- Characters always age-tagged (e.g. "28-year-old woman"), never named
+- Characters always pristine/immaculate even in distress
+- Never look at camera — gaze directed at other character, prop, or off-frame
+- Anatomically correct, no distorted limbs, no object clipping
+- Negative space reserved for text overlay synthesis

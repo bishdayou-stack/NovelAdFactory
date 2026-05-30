@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# 数据文件（部署时自动创建）
+data/
+output/
+*.db
+
+# 开发工具
+.claude/
+.playwright-mcp/
+.plans/
+*.zip
+
+# 环境变量
+.env
+.env.local
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 标记文件
+.dep_installed
+
+# 输出目录
+D:\每日小说/

@@ -1,0 +1,77 @@
+欧美小说投流素材出图提示词规则
+核心：AI 生成的提示词仅用于生成纯图片底图，所有文字由 AI 额外输出为字符串，后期代码合成。分屏图允许炸裂衍生。
+
+## 一、绝对硬性红线
+1. 合规至上：严禁违规词，合规前提下无上限放大冲突。
+2. 爆款钩子驱动：每个提示词必须植入至少 1 个爆款钩子（6 大钩子见 system prompt），S级优先。可混合使用双钩子。
+3. 情感触发器前置（硬性）：image_prompt 必须以 3-5 个情绪触发词开头。质量词（masterpiece, best quality）跟在触发词之后。严禁以 masterpiece 开头。
+4. 模板融合必做（当有参考模板时）：按 system prompt Step 2 融合流程——骨架=模板构图光影，血肉=小说人物情节。
+5. 人物指代：严禁姓名，只用"28-year-old Caucasian woman"等含年龄标签。女主<30岁白人。所有人物白人。
+6. 人物干净精致：必须含 pristine / immaculate / polished 关键词。允许"精致狼狈"。
+7. 1:1 方图强制多人：单帧图(1:1 square)必须有 2+ 人物在同一画面中形成冲突对峙，冲突双方同时为画面焦点，占有相等视觉权重。
+8. 清晰视觉钩子：手枪、文件、钻戒、震惊脸、萌宝等直接服务叙事。
+9. 文本字数限制：底部/分割线文本 ≤15词，左右状态短语 ≤6词。
+
+🚫 1:1 方图黑名单句式（绝对禁止）：
+- "man in background" / "man walking away in background"
+- "blurred figure" / "blurred man" / "blurred couple"
+- "sitting alone at table" / "standing alone" / "clutching hands alone"
+→ 冲突双方必须同为画面焦点。不准把冲突人物藏进背景、远景、虚化。
+
+## 二、情感触发器词库（前置用，每图选 3-5 个最精准的）
+
+权力/支配：
+dominance asserted, crown knocked off, kneeling in defeat, smirk of victory, towering over, finger pointing down, heel on chest, chain of power broken, chin lifted defiantly
+
+羞辱/崩溃：
+public disgrace, champagne glass slipping, jaw dropped, mascara streaking, room spinning, all eyes on her, face drained of color, whispers spreading, frozen mid-gasp, dress torn symbolically
+
+禁忌吸引/浪漫张力：
+charged proximity, aching nearness, hand hovering inches above skin, stolen glance across the room, unspoken desire crackling in air, wedding ring catching light between them, breath caught in throat, invisible pull, third person watching unnoticed, door left ajar, hesitation before almost-kiss, silent confession
+⚠️ 图像模型合规：浪漫≠成人。禁止 pinned/grabbed/trapped/pressed/lips touching/buttons undone/barely contained hunger。身体接触 = 通过眼神和空间距离表达，不是通过抓/压/按。
+
+恐惧/危险：
+shadow looming, cold sweat, pulse at throat, predator's smile, door creaking open, caught red-handed, hand trembling on doorknob, reflection in dark glass, footsteps echoing
+
+破碎/哀伤：
+tears cutting makeup, clutching shattered locket, alone in crowd, ring removed, on bathroom floor, broken vows, rain mixing with tears, empty chair across table, wedding ring slipped off
+
+逆袭/高光：
+armored in couture, stepping into light, gasps rippling, unrecognizable, ex kneeling, crowd parting, old enemy paling, flashes of cameras, stunning transformation reveal
+
+多人冲突（1:1 方图专用）：
+two women one man between them, husband wife mistress triangle, public confrontation with audience, family dinner explosion, wedding objection scene, wife confronts mistress face to face, mother-in-law towers over wife
+
+原则：精准贴合冲突场景，不堆砌。一个画面 3-5 个高冲击力词就够了。
+
+## 三、模板融合方法论（当有参考模板时执行）
+
+三步法：
+1. 提取模板视觉 DNA（5 参数）：Camera 镜头角度距离 / Light 光源方向硬度 / Color 3 个主色冷暖比 / Composition 人物位置留白 / Energy 最抓人的视觉瞬间
+2. 映射到小说冲突场景：找到小说最炸裂的 1-2 个冲突瞬间，将模板的 5 个视觉参数"套"上去
+3. 注入小说元素生成：保留模板构图/色调/光影（骨架）→ 替换人物/场景/道具/情绪（血肉）→ 加强钩子关键词前置（刀刃）
+
+口诀：模板是骨架，小说是血肉，钩子是刀刃。
+❌ 禁止复制模板的故事元素
+✓ 提取模板的视觉语法（怎么拍），用来拍小说的内容（拍什么）
+
+## 四、预处理 Pipeline（拿到原文后必做）
+(1) 人设与年龄锁定：女主<30岁白人，所有人物白人，含具体年龄。
+(2) 情节提取与类型匹配：提取名场面，按用户指定类型生成。
+(3) 合规校验：过滤违规词。
+(4) 逻辑冲突前置规避：唯一指代标签 + 动作视线锚定(谁在哪做什么看哪) + 空间层级划分。
+(5) 文本预生成：为每组图设计核心叙事文本，简短有力。
+
+## 五、通用格式要求
+- 英文提示词用逗号分隔的 Tag 模式，禁用完整语法长句。
+- 提示词中绝对不出现文字绘制指令（如 text:"..."）。
+- 提示词 DENSE：30-60 个高冲击关键词，无填充词。
+- 触发词前置（硬性）：开头 3-5 个情绪触发词 → 质量词(masterpiece等) → 场景描述 → 镜头参数 → 负面排除。
+- 每个 image_prompt 独立一行/一个代码框，不互相引用。
+
+## 六、原创构图指南（无模板时）
+从 6 大钩子选 1 个为核心（S级优先），构图直接服务钩子：
+权力反转→low-angle, two figures power gap dramatic | 秘密曝光→wide shot, crowd reaction, one figure crumbling center | 禁忌亲密→extreme close-up, two faces near touch, third watching | 致命选择→过肩镜头，两个选项同框 | 身份颠覆→full-body reveal, crowd gasping | 纯真vs罪恶→split lighting, warm vs cold, two figures in contrast
+
+1:1 方图核心：必须 2+ 人物，一方施加压力一方承受冲击，画面本身就是一场对峙。
+自检：钩子 0.3 秒可读？给文字留空间？有具体故事锚点？至少 2 人在画面焦点中？

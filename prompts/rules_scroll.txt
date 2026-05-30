@@ -1,0 +1,6 @@
+## 三、滚屏单图规则（纯视觉底图 9:16，无文字）
+与带文字单图相同核心规则（模块 1-5 完全一致）。额外要求：
+- 9:16 vertical portrait composition
+- 负面排除更严格：no letters, no numbers, no watermarks, no logos, no text of any kind
+- No eye contact with viewer. No distorted limbs, no anatomical errors, no object clipping.
+- No dirt on skin or clothing, no messy hair, no wrinkled fabrics.

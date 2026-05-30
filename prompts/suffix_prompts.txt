@@ -1,0 +1,13 @@
+# 后缀常量 - 用于 finalize_square_prompt 和 finalize_scroll_visual_prompt
+
+# 带文字单图后缀 (1:1 square)
+TEXT_SINGLE_SUFFIX=1:1 square composition
+
+# 滚屏竖图后缀 (9:16 vertical)
+SCROLL_VISUAL_SUFFIX=9:16 vertical portrait composition
+
+# 左右分屏后缀
+LR_SPLIT_SUFFIX=VERTICAL LEFT-RIGHT SPLIT SCREEN ONLY, single straight vertical divider line in center, left panel and right panel side by side, forbidden top-bottom layout
+
+# 上下分屏后缀
+TB_SPLIT_SUFFIX=HORIZONTAL TOP-BOTTOM SPLIT SCREEN ONLY, single straight horizontal divider line in center, top panel above bottom panel, forbidden left-right layout
