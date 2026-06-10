@@ -148,7 +148,19 @@ def init_db() -> None:
                 clicks INTEGER DEFAULT 0,
                 extra_data TEXT,
                 synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(date, ad_account)
+                source TEXT DEFAULT 'pingykj',
+                meta_account_id TEXT,
+                ctr REAL,
+                cpm REAL,
+                cpc REAL,
+                inline_link_clicks INTEGER,
+                inline_link_click_ctr REAL,
+                add_to_cart INTEGER,
+                add_to_cart_cost REAL,
+                purchases INTEGER,
+                cost_per_purchase REAL,
+                purchase_value REAL,
+                UNIQUE(date, ad_account, source)
             );
 
             CREATE TABLE IF NOT EXISTS orders (
@@ -322,7 +334,7 @@ def upsert_ad_stats(rows: List[Dict[str, Any]]) -> int:
             conn.execute("""
                 INSERT INTO ad_daily_stats (date, ad_account, total_spend, total_revenue, ad_count, impressions, clicks, extra_data)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(date, ad_account) DO UPDATE SET
+                ON CONFLICT(date, ad_account, source) DO UPDATE SET
                     total_spend=excluded.total_spend,
                     total_revenue=excluded.total_revenue,
                     ad_count=excluded.ad_count,
