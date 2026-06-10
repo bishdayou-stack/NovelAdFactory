@@ -1,4 +1,5 @@
 """Meta (Facebook) Graph API 客户端封装 — 认证、速率限制、请求重试"""
+import os
 import time
 import json
 from pathlib import Path
@@ -11,6 +12,26 @@ API_VERSION = "v25.0"
 
 # 速率控制：每账户每秒最多 4 次调用
 _RATE_LIMITS: Dict[str, Tuple[float, int]] = {}  # act_id -> (last_reset_time, remaining)
+
+
+def _get_proxies() -> Optional[Dict[str, str]]:
+    """获取 Meta API 代理配置。
+    优先读 config.json 的 meta.proxy，否则读取环境变量 HTTP_PROXY/HTTPS_PROXY。"""
+    try:
+        config_path = Path(__file__).parent / "config.json"
+        if config_path.exists():
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            proxy_url = config.get("meta", {}).get("proxy", "")
+            if proxy_url:
+                return {"http": proxy_url, "https": proxy_url}
+    except Exception:
+        pass
+    # 回退到环境变量
+    http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+    https_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+    if http_proxy or https_proxy:
+        return {"http": http_proxy or https_proxy, "https": https_proxy or http_proxy}
+    return None
 
 
 def _check_rate(act_id: str) -> None:
@@ -42,7 +63,7 @@ def _api_get(act_id: str, access_token: str, endpoint: str, params: dict = None)
 
     for attempt in range(3):
         try:
-            resp = http_requests.get(url, params=all_params, timeout=30)
+            resp = http_requests.get(url, params=all_params, timeout=30, proxies=_get_proxies())
             data = resp.json()
             if "error" in data:
                 err = data["error"]
@@ -75,9 +96,9 @@ def _api_post(act_id: str, access_token: str, endpoint: str, body: dict = None,
     for attempt in range(3):
         try:
             if files:
-                resp = http_requests.post(url, data=all_params, files=files, timeout=60)
+                resp = http_requests.post(url, data=all_params, files=files, timeout=60, proxies=_get_proxies())
             else:
-                resp = http_requests.post(url, data=all_params, timeout=30)
+                resp = http_requests.post(url, data=all_params, timeout=30, proxies=_get_proxies())
             data = resp.json()
             if "error" in data:
                 err = data["error"]
@@ -275,7 +296,7 @@ def get_insights(act_id: str, access_token: str,
         for attempt in range(3):
             try:
                 _check_rate(act_id)
-                resp = http_requests.get(full_next, timeout=30)
+                resp = http_requests.get(full_next, timeout=30, proxies=_get_proxies())
                 data = resp.json()
                 all_data.extend(data.get("data", []))
                 paging = data.get("paging", {})
@@ -301,7 +322,7 @@ def _simple_get(access_token: str, endpoint: str, params: dict = None) -> Tuple[
         all_params.update(params)
     for attempt in range(3):
         try:
-            resp = http_requests.get(url, params=all_params, timeout=30)
+            resp = http_requests.get(url, params=all_params, timeout=30, proxies=_get_proxies())
             data = resp.json()
             if "error" in data:
                 err = data["error"]

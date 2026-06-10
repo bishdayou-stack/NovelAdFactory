@@ -3666,6 +3666,7 @@ class MetaConfigBody(BaseModel):
     api_version: str = "v25.0"
     sync_interval_seconds: int = Field(default=300, ge=30, le=86400)
     rate_limit_per_second: int = Field(default=4, ge=1, le=20)
+    proxy: str = ""
 
 
 @app.get("/api/meta/config")
@@ -3679,6 +3680,7 @@ def _get_meta_config():
         "api_version": meta.get("api_version", "v25.0"),
         "sync_interval_seconds": meta.get("sync_interval_seconds", 300),
         "rate_limit_per_second": meta.get("rate_limit_per_second", 4),
+        "proxy": meta.get("proxy", ""),
     }
 
 
@@ -3695,6 +3697,7 @@ def _save_meta_config(body: MetaConfigBody):
     meta["api_version"] = body.api_version
     meta["sync_interval_seconds"] = body.sync_interval_seconds
     meta["rate_limit_per_second"] = body.rate_limit_per_second
+    meta["proxy"] = body.proxy
     config["meta"] = meta
     _save_config(config)
     return {"status": "ok", "message": "Meta 配置已保存"}
