@@ -715,3 +715,56 @@ def get_novel_chapter_count(novel_id: str) -> int:
             "SELECT COUNT(*) AS cnt FROM novel_chapters WHERE novel_id = ?", (novel_id,)
         ).fetchone()
         return row["cnt"] if row else 0
+
+
+# ====== Meta Accounts CRUD ======
+
+def get_meta_accounts() -> List[Dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM meta_accounts ORDER BY created_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+def get_meta_account(act_id: str) -> Optional[Dict[str, Any]]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM meta_accounts WHERE act_id = ?", (act_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+def upsert_meta_account(act_id: str, act_name: str = "", access_token: str = "",
+                        pingykj_account: str = "", status: str = "active") -> None:
+    token_expires_at = (datetime.utcnow() + timedelta(days=60)).isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO meta_accounts (act_id, act_name, access_token, token_expires_at,
+                pingykj_account, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(act_id) DO UPDATE SET
+                act_name=excluded.act_name,
+                access_token=excluded.access_token,
+                token_expires_at=excluded.token_expires_at,
+                pingykj_account=excluded.pingykj_account,
+                status=excluded.status,
+                updated_at=CURRENT_TIMESTAMP
+        """, (act_id, act_name, access_token, token_expires_at, pingykj_account, status))
+
+def delete_meta_account(act_id: str) -> None:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM meta_accounts WHERE act_id = ?", (act_id,))
+
+def update_meta_account_status(act_id: str, status: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE meta_accounts SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE act_id = ?",
+            (status, act_id)
+        )
+
+def update_meta_token(act_id: str, access_token: str) -> None:
+    token_expires_at = (datetime.utcnow() + timedelta(days=60)).isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE meta_accounts SET access_token = ?, token_expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE act_id = ?",
+            (access_token, token_expires_at, act_id)
+        )
