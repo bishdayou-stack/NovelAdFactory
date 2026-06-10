@@ -92,6 +92,20 @@ _scheduler.add_job(
 )
 _scheduler.start()
 
+# Meta 数据定时同步
+meta_interval = json.loads(Path("config.json").read_text(encoding="utf-8")).get("meta", {}).get("sync_interval_seconds", 300)
+if hasattr(scraper, 'sync_all_meta_insights'):
+    try:
+        _scheduler.add_job(
+            scraper.sync_all_meta_insights,
+            'interval',
+            seconds=meta_interval,
+            id='meta_insights_sync',
+            max_instances=1,
+        )
+    except Exception:
+        pass
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
