@@ -3140,6 +3140,113 @@
       loadTemplates();
     }
 
+    // ====== 审核队列 ======
+    var selectedQueueIds = new Set();
+
+    function toggleSelectAllQueue() {
+      var checkAll = document.getElementById('queue-select-all');
+      var tbody = document.querySelector('#delivery-queue-table tbody');
+      var checkboxes = tbody.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(function(cb) { cb.checked = checkAll.checked; });
+      selectedQueueIds.clear();
+      if (checkAll.checked) {
+        checkboxes.forEach(function(cb) { selectedQueueIds.add(parseInt(cb.dataset.id)); });
+      }
+    }
+
+    async function loadDeliveryQueue() {
+      var status = (document.getElementById('queue-filter-status') || {}).value || '';
+      var resp = await fetch('/api/delivery/queue?status=' + status);
+      var data = await resp.json();
+      var tbody = document.querySelector('#delivery-queue-table tbody');
+      var items = data.data || data || [];
+      tbody.innerHTML = items.map(function(item) {
+        return '<tr>' +
+          '<td class="py-2 px-3"><input type="checkbox" data-id="' + item.id + '" onchange="toggleQueueItem(' + item.id + ', this.checked)" class="accent-indigo-600 w-3.5 h-3.5 cursor-pointer"></td>' +
+          '<td class="py-2 px-3">' + item.id + '</td>' +
+          '<td class="py-2 px-3">' + (item.batch_id || '') + '</td>' +
+          '<td class="py-2 px-3">' + (item.image_type || '') + '</td>' +
+          '<td class="py-2 px-3 max-w-[200px] overflow-hidden text-ellipsis">' + (item.overlay_text || '') + '</td>' +
+          '<td class="py-2 px-3"><span style="color:' + (item.status === 'approved' ? 'green' : '#888') + '">' + item.status + '</span></td>' +
+          '<td class="py-2 px-3">' + (item.status === 'pending' || item.status === 'approved' ? '<button onclick="approveQueueItem(' + item.id + ')" class="rounded-lg border border-indigo-200 px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer mr-1">通过</button><button onclick="rejectQueueItem(' + item.id + ')" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">驳回</button>' : '') + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    function toggleQueueItem(id, checked) {
+      if (checked) selectedQueueIds.add(id); else selectedQueueIds.delete(id);
+    }
+
+    async function approveQueueItem(id) {
+      var templatesResp = await fetch('/api/delivery/templates');
+      var templates = await templatesResp.json();
+      if (!templates.length) { alert('请先创建投放模板'); return; }
+      var tplId = prompt('选择模板 ID:\n' + templates.map(function(t) { return t.id + ': ' + t.name; }).join('\n'));
+      if (!tplId) return;
+      await fetch('/api/delivery/queue/' + id + '/approve', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({template_id: parseInt(tplId), reviewer: 'admin'})
+      });
+      loadDeliveryQueue();
+    }
+
+    async function rejectQueueItem(id) {
+      await fetch('/api/delivery/queue/' + id + '/reject', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({reviewer: 'admin'})
+      });
+      loadDeliveryQueue();
+    }
+
+    async function batchApprove() {
+      if (selectedQueueIds.size === 0) { alert('请先勾选素材'); return; }
+      var templatesResp = await fetch('/api/delivery/templates');
+      var templates = await templatesResp.json();
+      if (!templates.length) { alert('请先创建投放模板'); return; }
+      var tplId = prompt('选择模板 ID:\n' + templates.map(function(t) { return t.id + ': ' + t.name; }).join('\n'));
+      if (!tplId) return;
+      await fetch('/api/delivery/queue/batch-approve', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: Array.from(selectedQueueIds), template_id: parseInt(tplId), reviewer: 'admin'})
+      });
+      selectedQueueIds.clear();
+      loadDeliveryQueue();
+    }
+
+    async function submitDelivery() {
+      if (selectedQueueIds.size === 0) { alert('请先勾选素材'); return; }
+      var templatesResp = await fetch('/api/delivery/templates');
+      var templates = await templatesResp.json();
+      if (!templates.length) { alert('请先创建投放模板'); return; }
+      var tplId = prompt('选择模板 ID:\n' + templates.map(function(t) { return t.id + ': ' + t.name; }).join('\n'));
+      if (!tplId) return;
+      var resp = await fetch('/api/delivery/submit', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({queue_ids: Array.from(selectedQueueIds), template_id: parseInt(tplId)})
+      });
+      var result = await resp.json();
+      if (result.success) { alert('投放已提交，batch_id: ' + result.batch_id); selectedQueueIds.clear(); loadDeliveryQueue(); }
+      else alert('投放提交失败: ' + (result.detail || JSON.stringify(result)));
+    }
+
+    async function loadDeliveryRecords() {
+      var resp = await fetch('/api/delivery/records');
+      var data = await resp.json();
+      var tbody = document.querySelector('#delivery-records-table tbody');
+      var records = data.data || data || [];
+      tbody.innerHTML = records.map(function(r) {
+        return '<tr>' +
+          '<td class="py-2 px-3">' + r.id + '</td>' +
+          '<td class="py-2 px-3">' + (r.batch_id || '') + '</td>' +
+          '<td class="py-2 px-3">' + (r.image_type || '') + '</td>' +
+          '<td class="py-2 px-3">' + (r.fb_ad_id || '') + '</td>' +
+          '<td class="py-2 px-3">' + (r.fb_campaign_id || '') + '</td>' +
+          '<td class="py-2 px-3">' + (r.status || '') + '</td>' +
+          '<td class="py-2 px-3">' + (r.updated_at || '') + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+
   </script>
 </body>
 </html>
