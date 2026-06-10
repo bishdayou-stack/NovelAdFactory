@@ -826,11 +826,13 @@ def sync_all_meta_insights(concurrency: int = 8) -> Dict[str, Any]:
     total_count = 0
     errors = []
 
-    with ThreadPoolExecutor(max_workers=min(concurrency, len(active_accounts))) as executor:
-        futures = {
-            executor.submit(_sync_one_meta_account, act_id, token): act_id
-            for act_id, token in active_accounts
-        }
+    # 控制并发：少量 worker + 提交间隔避免触发频率限制
+    workers = min(concurrency, len(active_accounts), 3)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {}
+        for act_id, token in active_accounts:
+            futures[executor.submit(_sync_one_meta_account, act_id, token)] = act_id
+            time.sleep(0.5)  # 提交间隔
         for future in as_completed(futures):
             act_id, count, err = future.result()
             result["accounts"][act_id] = {"count": count, "error": err}
