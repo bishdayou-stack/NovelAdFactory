@@ -6,5 +6,5 @@ echo ==========================================
 echo   Meta 凭据验证工具
 echo ==========================================
 echo.
-python 测试Meta凭据.py
+python test_meta_creds.py
 pause
