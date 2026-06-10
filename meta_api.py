@@ -111,7 +111,8 @@ def _http_request(method: str, url: str, params: dict = None, data: dict = None,
                 if err_code == 190:
                     return None, f"Token 已过期或无效: {err_msg}"
                 if err_code in (1, 2, 4, 17, 80000, 80001, 80002, 80004) and attempt < 2:
-                    time.sleep(2 ** attempt)
+                    # 错误码 2 (Service temporarily unavailable) 等更久
+                    time.sleep(5 if err_code == 2 else (2 ** attempt))
                     continue
                 return None, f"API 错误 [{err_code}]: {err_msg}"
 

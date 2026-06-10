@@ -840,10 +840,13 @@ def sync_all_meta_insights(concurrency: int = 8) -> Dict[str, Any]:
             if err:
                 errors.append(f"{act_id}: {err}")
 
+    succeeded = len(active_accounts) - len(errors)
     result["total_count"] = total_count
+    result["succeeded"] = succeeded
+    result["failed"] = len(errors)
     if errors:
-        result["message"] = "部分同步失败: " + "; ".join(errors)
+        result["message"] = f"{succeeded}/{len(active_accounts)} 个账户成功，共 {total_count} 条。失败: {'; '.join(errors)}"
     else:
-        result["message"] = f"全部同步完成，共 {total_count} 条"
+        result["message"] = f"全部 {len(active_accounts)} 个账户同步完成，共 {total_count} 条"
 
     return result
