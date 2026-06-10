@@ -3378,6 +3378,194 @@ async def _set_meta_sync_interval(request: Request):
     return {"success": True, "interval": seconds}
 
 
+# ---- 投放模板管理 API ----
+
+@app.get("/api/delivery/templates")
+def _get_delivery_templates():
+    return database.get_delivery_templates()
+
+class CreateTemplateBody(BaseModel):
+    name: str
+    targeting: dict = {}
+    placements: dict = {}
+    budget_type: str = "daily_budget"
+    budget_value: int = 0
+    bid_strategy: str = "LOWEST_COST_WITHOUT_CAP"
+    optimization_goal: str = "OFFSITE_CONVERSIONS"
+    billing_event: str = "IMPRESSIONS"
+    conversion_event: str = ""
+    ad_account_id: str = ""
+
+@app.post("/api/delivery/templates")
+def _create_delivery_template(body: CreateTemplateBody):
+    tid = database.create_delivery_template(body.model_dump())
+    return {"success": True, "id": tid}
+
+@app.put("/api/delivery/templates/{template_id}")
+async def _update_delivery_template(template_id: int, request: Request):
+    body = await request.json()
+    database.update_delivery_template(template_id, body)
+    return {"success": True}
+
+@app.delete("/api/delivery/templates/{template_id}")
+def _delete_delivery_template(template_id: int):
+    database.delete_delivery_template(template_id)
+    return {"success": True}
+
+@app.get("/api/delivery/templates/fb-adsets/{account_id}")
+def _get_fb_adsets(account_id: str):
+    token = None
+    account = database.get_meta_account(account_id)
+    if account:
+        token = account.get("access_token")
+    if not token:
+        raise HTTPException(400, "未找到该账户的 access token")
+    adsets, err = meta_api.get_adsets(account_id, token)
+    if err:
+        raise HTTPException(400, err)
+    return {"data": adsets or []}
+
+class ImportTemplateBody(BaseModel):
+    account_id: str
+    adset_id: str
+    name: str = ""
+
+@app.post("/api/delivery/templates/import")
+def _import_template_from_fb(body: ImportTemplateBody):
+    token = None
+    account = database.get_meta_account(body.account_id)
+    if account:
+        token = account.get("access_token")
+    if not token:
+        raise HTTPException(400, "未找到该账户的 access token")
+
+    adsets, err = meta_api.get_adsets(body.account_id, token)
+    if err:
+        raise HTTPException(400, err)
+
+    target_adset = None
+    for a in (adsets or []):
+        if a.get("id") == body.adset_id:
+            target_adset = a
+            break
+    if not target_adset:
+        raise HTTPException(404, "未找到指定 AdSet")
+
+    tname = body.name or f"导入:{target_adset.get('name', '')}"
+    tid = database.create_delivery_template({
+        "name": tname,
+        "source": "imported_from_fb",
+        "source_adset_id": body.adset_id,
+        "targeting": target_adset.get("targeting", {}),
+        "placements": {},
+        "budget_type": "daily_budget" if target_adset.get("daily_budget") else "lifetime_budget",
+        "budget_value": target_adset.get("daily_budget") or target_adset.get("lifetime_budget") or 0,
+        "bid_strategy": target_adset.get("bid_strategy", "LOWEST_COST_WITHOUT_CAP"),
+        "optimization_goal": target_adset.get("optimization_goal", "OFFSITE_CONVERSIONS"),
+        "billing_event": target_adset.get("billing_event", "IMPRESSIONS"),
+        "conversion_event": (
+            target_adset.get("promoted_object", {}).get("custom_event_type", "")
+            if target_adset.get("promoted_object") else ""
+        ),
+        "ad_account_id": body.account_id,
+    })
+    return {"success": True, "id": tid}
+
+# ---- 投放队列管理 API ----
+
+class AddToQueueBody(BaseModel):
+    items: list
+
+@app.post("/api/delivery/queue")
+def _add_to_delivery_queue(body: AddToQueueBody):
+    count = database.add_to_delivery_queue(body.items)
+    return {"success": True, "count": count}
+
+@app.get("/api/delivery/queue")
+def _get_delivery_queue(page: int = 1, page_size: int = 20, status: str = None):
+    return database.get_delivery_queue(page, page_size, status)
+
+@app.post("/api/delivery/queue/{queue_id}/approve")
+async def _approve_queue_item(queue_id: int, request: Request):
+    body = await request.json()
+    template_id = body.get("template_id", 0)
+    reviewer = body.get("reviewer", "")
+    database.update_queue_status(queue_id, "approved", reviewer=reviewer)
+    if template_id:
+        database.batch_approve_queue([queue_id], template_id, reviewer)
+    return {"success": True}
+
+@app.post("/api/delivery/queue/{queue_id}/reject")
+async def _reject_queue_item(queue_id: int, request: Request):
+    body = await request.json()
+    reviewer = body.get("reviewer", "")
+    database.update_queue_status(queue_id, "rejected", reviewer=reviewer)
+    return {"success": True}
+
+class BatchApproveBody(BaseModel):
+    ids: list
+    template_id: int
+    reviewer: str = ""
+
+@app.post("/api/delivery/queue/batch-approve")
+def _batch_approve_queue(body: BatchApproveBody):
+    database.batch_approve_queue(body.ids, body.template_id, body.reviewer)
+    return {"success": True}
+
+class SubmitDeliveryBody(BaseModel):
+    queue_ids: list
+    template_id: int
+
+@app.post("/api/delivery/submit")
+def _submit_delivery(body: SubmitDeliveryBody):
+    batch_id, err = delivery.submit_delivery_batch(body.queue_ids, body.template_id)
+    if err:
+        raise HTTPException(400, err)
+    return {"success": True, "batch_id": batch_id}
+
+@app.get("/api/delivery/progress/{batch_id}")
+def _delivery_progress(batch_id: str):
+    return delivery.get_delivery_progress(batch_id)
+
+@app.get("/api/delivery/stream/{batch_id}")
+async def _delivery_stream(batch_id: str):
+    import asyncio
+    import threading
+
+    local_queue = asyncio.Queue()
+
+    def _poll():
+        last_idx = 0
+        while True:
+            events = delivery._delivery_queues.get(batch_id, [])
+            for e in events[last_idx:]:
+                local_queue.put_nowait(e)
+                last_idx += 1
+            if delivery._delivery_events.get(batch_id, threading.Event()).is_set():
+                for e in events[last_idx:]:
+                    local_queue.put_nowait(e)
+                break
+            time.sleep(0.5)
+
+    threading.Thread(target=_poll, daemon=True).start()
+
+    async def _event_generator():
+        while True:
+            try:
+                event = await asyncio.wait_for(local_queue.get(), timeout=1.0)
+                yield {"event": event["type"], "data": json.dumps(event)}
+            except asyncio.TimeoutError:
+                yield {"event": "ping", "data": "{}"}
+                if delivery._delivery_events.get(batch_id, threading.Event()).is_set():
+                    break
+
+    return EventSourceResponse(_event_generator())
+
+@app.get("/api/delivery/records")
+def _get_delivery_records(page: int = 1, page_size: int = 20, status: str = None):
+    return database.get_delivery_records(page, page_size, status)
+
+
 if __name__ == "__main__":
     import uvicorn
     print("\n" + "="*50)
