@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any, Tuple
 import requests as http_requests
 
 import database
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 BASE_PATH = Path(__file__).parent.resolve()
 BASE_URL = "https://hw.manage.pingykj.com"
@@ -743,5 +744,75 @@ def run_full_sync() -> Dict[str, Any]:
         result["message"] = "部分同步失败: " + "; ".join(failed_parts)
     else:
         result["message"] = f"同步完成，广告 {ads_count} 条，订单 {orders_count} 条，小说 {novels_count} 本"
+
+    # Meta 数据同步
+    meta_result = sync_all_meta_insights()
+    result["meta"] = meta_result.get("accounts", {})
+    result["meta_count"] = meta_result.get("total_count", 0)
+    if not meta_result.get("success"):
+        result["message"] = (result.get("message", "") + "; Meta同步: " + meta_result.get("message", "")).strip("; ")
+
+    return result
+
+
+# ---- Meta Ads Insights 数据同步 ----
+
+import meta_api
+from datetime import datetime as dt, timedelta
+
+
+def _sync_one_meta_account(act_id: str, access_token: str) -> Tuple[str, int, str]:
+    """同步单个 Meta 账户的 Insights 数据，返回 (act_id, count, error)"""
+    last_date = database.get_meta_sync_state(act_id)
+    today = dt.utcnow().strftime("%Y-%m-%d")
+
+    if last_date:
+        from_date = (dt.strptime(last_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+        if from_date > today:
+            return act_id, 0, ""
+    else:
+        from_date = (dt.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
+
+    rows, err = meta_api.get_insights(act_id, access_token, from_date, today)
+    if err:
+        return act_id, 0, err
+    if not rows:
+        database.set_meta_sync_state(act_id, today)
+        return act_id, 0, ""
+
+    count = database.upsert_meta_insights(act_id, rows)
+    database.set_meta_sync_state(act_id, today)
+    return act_id, count, ""
+
+
+def sync_all_meta_insights(concurrency: int = 8) -> Dict[str, Any]:
+    """并行同步所有 active 状态的 Meta 账户数据"""
+    accounts = database.get_meta_accounts()
+    active_accounts = [a for a in accounts if a.get("status") == "active" and a.get("access_token")]
+
+    if not active_accounts:
+        return {"success": True, "total": 0, "accounts": {}, "message": "没有活跃的 Meta 账户"}
+
+    result = {"success": True, "total": len(active_accounts), "accounts": {}}
+    total_count = 0
+    errors = []
+
+    with ThreadPoolExecutor(max_workers=min(concurrency, len(active_accounts))) as executor:
+        futures = {
+            executor.submit(_sync_one_meta_account, a["act_id"], a["access_token"]): a["act_id"]
+            for a in active_accounts
+        }
+        for future in as_completed(futures):
+            act_id, count, err = future.result()
+            result["accounts"][act_id] = {"count": count, "error": err}
+            total_count += count
+            if err:
+                errors.append(f"{act_id}: {err}")
+
+    result["total_count"] = total_count
+    if errors:
+        result["message"] = "; ".join(errors)
+    else:
+        result["message"] = f"全部同步完成，共 {total_count} 条"
 
     return result
