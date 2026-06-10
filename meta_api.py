@@ -306,9 +306,15 @@ def _simple_get(access_token: str, endpoint: str, params: dict = None) -> Tuple[
             if "error" in data:
                 err = data["error"]
                 code = err.get("code", 0)
+                msg = err.get("message", "")
+                subcode = err.get("error_subcode", 0)
                 if code == 190:
-                    return None, f"Token 已过期: {err.get('message', '')}"
-                return None, f"API 错误 [{code}]: {err.get('message', '')}"
+                    return None, f"Token 已过期或无效: {msg}"
+                if code == 200 or subcode == 33:
+                    return None, f"权限不足: {msg}。请确保 Token 包含 ads_read、ads_management、business_management 权限。"
+                if code == 10:
+                    return None, f"无权限访问 [{code}]: {msg}。需要 business_management 权限来获取 BM 数据。"
+                return None, f"API 错误 [{code}]: {msg}"
             return data, None
         except http_requests.RequestException as e:
             if attempt < 2:
@@ -345,15 +351,36 @@ def discover_businesses(access_token: str) -> Tuple[Optional[List[Dict]], Option
 
 
 def discover_bm_ad_accounts(access_token: str, business_id: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
-    """获取 BM 下所有客户端广告账户。
+    """获取 BM 下所有广告账户（包含自有 + 客户端）。
     返回 [{id, name, account_id, account_status, ...}]"""
+    all_accounts = []
+    seen = set()
+
+    # 1. 自有广告账户 (owned)
+    data, err = _simple_get(access_token, f"/{business_id}/owned_ad_accounts", {
+        "fields": "id,name,account_id,account_status,currency,amount_spent,balance",
+        "limit": "200"
+    })
+    if err is None and data:
+        for acct in data.get("data", []):
+            aid = acct.get("id", "")
+            if aid and aid not in seen:
+                seen.add(aid)
+                all_accounts.append(acct)
+
+    # 2. 客户端广告账户 (client)
     data, err = _simple_get(access_token, f"/{business_id}/client_ad_accounts", {
         "fields": "id,name,account_id,account_status,currency,amount_spent,balance",
         "limit": "200"
     })
-    if err:
-        return None, err
-    return data.get("data", []), None
+    if err is None and data:
+        for acct in data.get("data", []):
+            aid = acct.get("id", "")
+            if aid and aid not in seen:
+                seen.add(aid)
+                all_accounts.append(acct)
+
+    return all_accounts, None
 
 
 def discover_pages(access_token: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
