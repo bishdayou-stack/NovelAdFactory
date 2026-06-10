@@ -19,6 +19,12 @@
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
     [hidden] { display: none !important; }
+    .sub-tab-btn { border: 0; cursor: pointer; }
+    .sub-tab-btn.active { background: #fff; color: #4f46e5; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .sub-tab-content { }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; margin-top: 8px; }
+    .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .pagination { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 12px; }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50 flex">
@@ -72,6 +78,18 @@
       <button type="button" id="nav-novel-mgr" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
         <span class="truncate">小说管理</span>
+      </button>
+      <button type="button" id="nav-delivery" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <span class="truncate">投放管理</span>
+      </button>
+      <button type="button" id="nav-meta-data" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span class="truncate">Meta 数据</span>
+      </button>
+      <button type="button" id="nav-meta-accounts" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <span class="truncate">账户配置</span>
       </button>
     </nav>
 
@@ -620,6 +638,107 @@
 
     </div>
 
+    <!-- ====== Tab: 投放管理 ====== -->
+    <div id="tab-delivery" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <div class="flex items-center justify-between mb-4 mt-2">
+        <h2 class="text-lg font-bold text-slate-800">投放管理</h2>
+      </div>
+
+      <!-- 子 Tab 导航 -->
+      <div class="flex items-center gap-1 mb-4 bg-slate-100 rounded-lg p-0.5 w-fit">
+        <button class="sub-tab-btn active px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-white text-indigo-600 shadow-sm" data-subtab="delivery-queue">审核队列</button>
+        <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700" data-subtab="delivery-templates">投放模板</button>
+        <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700" data-subtab="delivery-records">投放记录</button>
+      </div>
+
+      <!-- 审核队列 -->
+      <div id="subtab-delivery-queue" class="sub-tab-content">
+        <div class="toolbar">
+          <select id="queue-filter-status" class="rounded-xl border border-slate-200 px-3 py-2 text-xs input-focus bg-slate-50/50">
+            <option value="">全部状态</option>
+            <option value="pending">待审核</option>
+            <option value="approved">已通过</option>
+            <option value="rejected">已驳回</option>
+            <option value="delivered">已投放</option>
+          </select>
+          <button onclick="loadDeliveryQueue()" class="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer">刷新</button>
+          <button onclick="batchApprove()" class="rounded-xl border border-indigo-200 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer">批量通过</button>
+          <button onclick="submitDelivery()" class="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">提交投放</button>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table class="w-full text-xs whitespace-nowrap" id="delivery-queue-table">
+            <thead class="bg-slate-50 border-b border-slate-200">
+              <tr class="text-slate-500 text-left">
+                <th class="py-2.5 px-3 font-medium w-8"><input type="checkbox" id="queue-select-all" onchange="toggleSelectAllQueue()" class="accent-indigo-600 w-3.5 h-3.5 cursor-pointer"></th>
+                <th class="py-2.5 px-3 font-medium">ID</th><th class="py-2.5 px-3 font-medium">批次</th><th class="py-2.5 px-3 font-medium">类型</th><th class="py-2.5 px-3 font-medium">文案</th><th class="py-2.5 px-3 font-medium">状态</th><th class="py-2.5 px-3 font-medium">操作</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="queue-pagination"></div>
+      </div>
+
+      <!-- 投放模板 -->
+      <div id="subtab-delivery-templates" class="sub-tab-content" style="display:none">
+        <div class="toolbar">
+          <button onclick="openCreateTemplate()" class="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">+ 手动创建</button>
+          <button onclick="openImportTemplate()" class="rounded-xl border border-indigo-200 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer">从 FB 导入</button>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table class="w-full text-xs whitespace-nowrap" id="templates-table">
+            <thead class="bg-slate-50 border-b border-slate-200">
+              <tr class="text-slate-500 text-left"><th class="py-2.5 px-3 font-medium">名称</th><th class="py-2.5 px-3 font-medium">来源</th><th class="py-2.5 px-3 font-medium">预算</th><th class="py-2.5 px-3 font-medium">出价策略</th><th class="py-2.5 px-3 font-medium">关联账户</th><th class="py-2.5 px-3 font-medium">操作</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 投放记录 -->
+      <div id="subtab-delivery-records" class="sub-tab-content" style="display:none">
+        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table class="w-full text-xs whitespace-nowrap" id="delivery-records-table">
+            <thead class="bg-slate-50 border-b border-slate-200">
+              <tr class="text-slate-500 text-left"><th class="py-2.5 px-3 font-medium">ID</th><th class="py-2.5 px-3 font-medium">批次</th><th class="py-2.5 px-3 font-medium">类型</th><th class="py-2.5 px-3 font-medium">FB Ad ID</th><th class="py-2.5 px-3 font-medium">FB Campaign ID</th><th class="py-2.5 px-3 font-medium">状态</th><th class="py-2.5 px-3 font-medium">时间</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="records-pagination"></div>
+      </div>
+    </div>
+
+    <!-- ====== Tab: Meta 数据 ====== -->
+    <div id="tab-meta-data" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <div class="section-header">
+        <h2 class="text-lg font-bold text-slate-800">Meta 数据看板</h2>
+        <div class="flex items-center gap-2">
+          <button onclick="triggerMetaSync()" class="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">手动同步</button>
+          <span id="meta-sync-status" class="text-xs text-slate-400"></span>
+        </div>
+      </div>
+      <div id="meta-dashboard-container" class="card p-6">
+        <p class="text-sm text-slate-500">Meta 数据已合并到统一看板。在数据看板 Tab 中以 source 列区分 Meta 和 pingykj 数据源。</p>
+      </div>
+    </div>
+
+    <!-- ====== Tab: 账户配置 ====== -->
+    <div id="tab-meta-accounts" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <div class="section-header">
+        <h2 class="text-lg font-bold text-slate-800">Meta 账户配置</h2>
+        <button onclick="openAddAccount()" class="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">+ 添加账户</button>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table class="w-full text-xs whitespace-nowrap" id="meta-accounts-table">
+          <thead class="bg-slate-50 border-b border-slate-200">
+            <tr class="text-slate-500 text-left"><th class="py-2.5 px-3 font-medium">账户 ID</th><th class="py-2.5 px-3 font-medium">名称</th><th class="py-2.5 px-3 font-medium">状态</th><th class="py-2.5 px-3 font-medium">PingYKJ 映射</th><th class="py-2.5 px-3 font-medium">Token 过期</th><th class="py-2.5 px-3 font-medium">操作</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- 章节弹窗（双视图：章节列表 / 内容） -->
     <div id="chapterModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" hidden>
       <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col">
@@ -769,12 +888,15 @@
       document.getElementById('tab-novel-analyze').hidden = true;
       document.getElementById('tab-dashboard').hidden = true;
       document.getElementById('tab-novel-mgr').hidden = true;
+      document.getElementById('tab-delivery').hidden = true;
+      document.getElementById('tab-meta-data').hidden = true;
+      document.getElementById('tab-meta-accounts').hidden = true;
 
       // 显示目标 tab
       document.getElementById('tab-' + tab).hidden = false;
 
       // 更新导航按钮样式
-      ['generate', 'history', 'assets', 'video-style', 'prompt-generate', 'novel-analyze', 'dashboard', 'novel-mgr'].forEach(function(t) {
+      ['generate', 'history', 'assets', 'video-style', 'prompt-generate', 'novel-analyze', 'dashboard', 'novel-mgr', 'delivery', 'meta-data', 'meta-accounts'].forEach(function(t) {
         var btn = document.getElementById('nav-' + t);
         if (!btn) return;
         btn.classList.remove('bg-white/5', 'text-white', 'font-medium');
@@ -787,7 +909,7 @@
       }
 
       // 更新面包屑
-      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理' };
+      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'delivery': '投放管理', 'meta-data': 'Meta 数据', 'meta-accounts': '账户配置' };
       document.getElementById('breadcrumb').textContent = titles[tab] || tab;
       document.getElementById('pageTitle').textContent = titles[tab] || tab;
 
@@ -801,6 +923,9 @@
       }
       if (tab === 'dashboard') { loadDashboard(); }
       if (tab === 'novel-mgr') { if (novelMgrPages.books === 1) loadNovelBooks(1); else loadNovelBooks(novelMgrPages.books); }
+      if (tab === 'delivery') loadDeliveryQueue();
+      if (tab === 'meta-data') loadMetaSyncStatus();
+      if (tab === 'meta-accounts') loadMetaAccounts();
     }
 
     // ====== 数据加载 ======
@@ -2334,6 +2459,26 @@
     document.getElementById('nav-novel-analyze').addEventListener('click', function() { switchTab('novel-analyze'); });
     document.getElementById('nav-dashboard').addEventListener('click', function() { switchTab('dashboard'); });
     document.getElementById('nav-novel-mgr').addEventListener('click', function() { switchTab('novel-mgr'); });
+    document.getElementById('nav-delivery').addEventListener('click', function() { switchTab('delivery'); });
+    document.getElementById('nav-meta-data').addEventListener('click', function() { switchTab('meta-data'); });
+    document.getElementById('nav-meta-accounts').addEventListener('click', function() { switchTab('meta-accounts'); });
+
+    // === 投放管理子 Tab 切换 ===
+    document.querySelectorAll('.sub-tab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var subtab = this.dataset.subtab;
+        document.querySelectorAll('.sub-tab-content').forEach(function(t) { t.style.display = 'none'; });
+        var target = document.getElementById('subtab-' + subtab);
+        if (target) target.style.display = 'block';
+        document.querySelectorAll('.sub-tab-btn').forEach(function(b) { b.classList.remove('active', 'bg-white', 'text-indigo-600', 'shadow-sm'); b.classList.add('text-slate-500'); });
+        this.classList.add('active', 'bg-white', 'text-indigo-600', 'shadow-sm');
+        this.classList.remove('text-slate-500');
+
+        if (subtab === 'delivery-templates') loadTemplates();
+        if (subtab === 'delivery-records') loadDeliveryRecords();
+      });
+    });
+
     document.getElementById('btnAddStyle').addEventListener('click', function() { createNewStyle(); });
     document.getElementById('saveStyleBtn').addEventListener('click', function() { saveCurrentStyle(); });
     document.getElementById('deleteStyleBtn').addEventListener('click', function() { if (selectedStyleId) { deleteStyle(selectedStyleId); } });
