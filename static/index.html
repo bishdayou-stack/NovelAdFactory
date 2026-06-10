@@ -484,10 +484,10 @@
         </div>
         <div class="flex items-center gap-2">
           <div id="dashDatePills" class="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-            <button data-range="today" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-white text-indigo-600 shadow-sm">今天</button>
+            <button data-range="today" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">今天</button>
             <button data-range="yesterday" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">昨天</button>
             <button data-range="7" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">近7天</button>
-            <button data-range="30" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">近30天</button>
+            <button data-range="30" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-white text-indigo-600 shadow-sm">近30天</button>
             <button data-range="custom" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">自定义</button>
           </div>
           <div id="dashCustomDate" class="flex items-center gap-1" hidden>
@@ -2623,7 +2623,7 @@
 
     function getDashboardDateRange() {
       var active = document.querySelector('.dashDatePillActive');
-      return active ? active.getAttribute('data-range') : 'today';
+      return active ? active.getAttribute('data-range') : '30';
     }
 
     function getDashboardParams() {

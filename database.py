@@ -539,25 +539,43 @@ def delete_account_alias(account_id: str) -> None:
         conn.execute("DELETE FROM account_aliases WHERE account_id = ?", (account_id,))
 
 def get_account_display_list() -> List[Dict[str, str]]:
-    """返回账户列表，含别名"""
+    """返回账户列表（含 pingykj + Meta），含别名"""
     with get_conn() as conn:
-        rows = conn.execute("""
-            SELECT DISTINCT ad_account_id
-            FROM raw_ad_stats
-            ORDER BY ad_account_id
-        """).fetchall()
-
         aliases = get_account_aliases()
         result = []
-        for r in rows:
+        seen = set()
+
+        # 1. pingykj 来源
+        for r in conn.execute("SELECT DISTINCT ad_account_id FROM raw_ad_stats ORDER BY ad_account_id").fetchall():
             acct_id = r["ad_account_id"]
-            alias = aliases.get(acct_id, "")
-            display = alias if alias else acct_id
-            result.append({
-                "account_id": acct_id,
-                "alias": alias,
-                "display": display,
-            })
+            if acct_id and acct_id not in seen:
+                seen.add(acct_id)
+                alias = aliases.get(acct_id, "")
+                result.append({
+                    "account_id": acct_id,
+                    "alias": alias,
+                    "display": alias if alias else acct_id,
+                })
+
+        # 2. Meta 来源
+        for r in conn.execute("SELECT DISTINCT ad_account FROM ad_daily_stats WHERE source='meta' ORDER BY ad_account").fetchall():
+            acct_id = r["ad_account"]
+            if acct_id and acct_id not in seen:
+                seen.add(acct_id)
+                alias = aliases.get(acct_id, "")
+                display = alias if alias else acct_id
+                # 如果 act_id 在 meta_accounts 中有名称，优先用名称
+                meta_info = conn.execute(
+                    "SELECT act_name FROM meta_accounts WHERE act_id = ?", (acct_id,)
+                ).fetchone()
+                if meta_info and meta_info["act_name"] and not alias:
+                    display = f"{acct_id} ({meta_info['act_name']})"
+                result.append({
+                    "account_id": acct_id,
+                    "alias": alias,
+                    "display": display,
+                })
+
         return result
 
 
