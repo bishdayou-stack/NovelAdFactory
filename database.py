@@ -924,3 +924,110 @@ def get_delivery_records(page: int = 1, page_size: int = 20,
             params + [page_size, offset]
         ).fetchall()
         return {"data": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
+
+
+# ====== Meta Insights 数据写入 ======
+
+def _safe_float(val, default=0.0):
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+def _safe_int(val, default=0):
+    try:
+        return int(float(val))
+    except (ValueError, TypeError):
+        return default
+
+def _extract_action_value(actions: list, action_type: str) -> float:
+    """从 Meta actions 数组中提取指定 action_type 的 value"""
+    if not actions:
+        return 0.0
+    for a in actions:
+        if a.get("action_type") == action_type:
+            return _safe_float(a.get("value", 0))
+    return 0.0
+
+def _extract_cost_per_action(cost_per_action: list, action_type: str) -> float:
+    if not cost_per_action:
+        return 0.0
+    for a in cost_per_action:
+        if a.get("action_type") == action_type:
+            return _safe_float(a.get("value", 0))
+    return 0.0
+
+def upsert_meta_insights(act_id: str, insights_rows: List[Dict[str, Any]]) -> int:
+    """批量写入 Meta Insights 数据到 ad_daily_stats，返回写入行数"""
+    if not insights_rows:
+        return 0
+    with get_conn() as conn:
+        count = 0
+        for r in insights_rows:
+            date = r.get("date_start", "")
+            if not date:
+                continue
+            purchases = _extract_action_value(r.get("actions"), "purchase")
+            purchase_value = _extract_action_value(r.get("action_values"), "purchase")
+            add_to_cart = _extract_action_value(r.get("actions"), "add_to_cart")
+
+            conn.execute("""
+                INSERT INTO ad_daily_stats (date, ad_account, source, meta_account_id,
+                    total_spend, total_revenue, impressions, clicks,
+                    ctr, cpm, cpc,
+                    inline_link_clicks, inline_link_click_ctr,
+                    add_to_cart, add_to_cart_cost,
+                    purchases, cost_per_purchase, purchase_value)
+                VALUES (?, ?, 'meta', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(date, ad_account, source) DO UPDATE SET
+                    total_spend=excluded.total_spend,
+                    total_revenue=excluded.total_revenue,
+                    impressions=excluded.impressions,
+                    clicks=excluded.clicks,
+                    ctr=excluded.ctr,
+                    cpm=excluded.cpm,
+                    cpc=excluded.cpc,
+                    inline_link_clicks=excluded.inline_link_clicks,
+                    inline_link_click_ctr=excluded.inline_link_click_ctr,
+                    add_to_cart=excluded.add_to_cart,
+                    add_to_cart_cost=excluded.add_to_cart_cost,
+                    purchases=excluded.purchases,
+                    cost_per_purchase=excluded.cost_per_purchase,
+                    purchase_value=excluded.purchase_value,
+                    synced_at=CURRENT_TIMESTAMP
+            """, (
+                date, act_id, act_id,
+                _safe_float(r.get("spend")),
+                purchase_value,
+                _safe_int(r.get("impressions")),
+                _safe_int(r.get("clicks")),
+                _safe_float(r.get("ctr")),
+                _safe_float(r.get("cpm")),
+                _safe_float(r.get("cost_per_inline_link_click")),
+                _safe_int(r.get("inline_link_clicks")),
+                _safe_float(r.get("inline_link_click_ctr")),
+                add_to_cart,
+                _extract_cost_per_action(r.get("cost_per_action_type"), "add_to_cart"),
+                purchases,
+                _extract_cost_per_action(r.get("cost_per_action_type"), "purchase"),
+                purchase_value,
+            ))
+            count += 1
+        return count
+
+def get_meta_sync_state(act_id: str) -> Optional[str]:
+    """获取 Meta 账户上次同步日期"""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT last_sync_date FROM sync_state WHERE sync_type = ?", (f"meta_{act_id}",)
+        ).fetchone()
+        return row["last_sync_date"] if row else None
+
+def set_meta_sync_state(act_id: str, date_str: str) -> None:
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO sync_state (sync_type, last_sync_date, last_sync_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(sync_type) DO UPDATE SET
+                last_sync_date=excluded.last_sync_date, last_sync_at=CURRENT_TIMESTAMP
+        """, (f"meta_{act_id}", date_str))
