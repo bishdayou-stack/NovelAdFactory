@@ -372,8 +372,8 @@ def _simple_get(access_token: str, endpoint: str, params: dict = None) -> Tuple[
 def discover_ad_accounts(access_token: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
     data, err = _simple_get(access_token, "/me/adaccounts", {
         "fields": "id,name,account_id,account_status,currency,business_name,"
-                  "amount_spent,balance,timezone_name,age,"
-                  "owner,owner_business,disable_reason",
+                  "amount_spent,balance,timezone_name,"
+                  "disable_reason",
         "limit": "200"
     })
     if err:
@@ -427,18 +427,25 @@ def discover_all_assets(access_token: str) -> Dict[str, Any]:
         "businesses": [],
         "pages": [],
         "bm_ad_accounts": {},
+        "errors": [],
     }
 
     accounts, err = discover_ad_accounts(access_token)
-    if accounts is not None:
+    if err:
+        result["errors"].append(f"广告账户: {err}")
+    elif accounts is not None:
         result["ad_accounts"] = accounts
 
     pages, err = discover_pages(access_token)
-    if pages is not None:
+    if err:
+        result["errors"].append(f"主页: {err}")
+    elif pages is not None:
         result["pages"] = pages
 
     businesses, err = discover_businesses(access_token)
-    if businesses is not None:
+    if err:
+        result["errors"].append(f"BM: {err}")
+    elif businesses is not None:
         result["businesses"] = businesses
         for bm in businesses:
             bm_id = bm.get("id", "")
