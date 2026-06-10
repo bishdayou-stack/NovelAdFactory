@@ -289,3 +289,117 @@ def get_insights(act_id: str, access_token: str,
         full_next = f"{next_url}&access_token={access_token}"
 
     return all_data, None
+
+
+# ---- 账户发现 API（基于 token 自动拉取有权访问的资产） ----
+
+def _simple_get(access_token: str, endpoint: str, params: dict = None) -> Tuple[Optional[Dict], Optional[str]]:
+    """无需 act_id 的简单 GET 请求（用于 /me/* 端点），含重试"""
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{endpoint}"
+    all_params = {"access_token": access_token}
+    if params:
+        all_params.update(params)
+    for attempt in range(3):
+        try:
+            resp = http_requests.get(url, params=all_params, timeout=30)
+            data = resp.json()
+            if "error" in data:
+                err = data["error"]
+                code = err.get("code", 0)
+                if code == 190:
+                    return None, f"Token 已过期: {err.get('message', '')}"
+                return None, f"API 错误 [{code}]: {err.get('message', '')}"
+            return data, None
+        except http_requests.RequestException as e:
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+                continue
+            return None, f"请求失败: {e}"
+    return None, "重试耗尽"
+
+
+def discover_ad_accounts(access_token: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    """获取 token 有权访问的所有广告账户。
+    返回 [{id, name, account_status, currency, business_name, ...}]"""
+    data, err = _simple_get(access_token, "/me/adaccounts", {
+        "fields": "id,name,account_id,account_status,currency,business_name,"
+                  "amount_spent,balance,timezone_name,age,"
+                  "owner,owner_business,disable_reason",
+        "limit": "200"
+    })
+    if err:
+        return None, err
+    return data.get("data", []), None
+
+
+def discover_businesses(access_token: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    """获取 token 有权访问的所有商务管理平台 (BM)。
+    返回 [{id, name, ...}]"""
+    data, err = _simple_get(access_token, "/me/businesses", {
+        "fields": "id,name,verification_status,created_time",
+        "limit": "200"
+    })
+    if err:
+        return None, err
+    return data.get("data", []), None
+
+
+def discover_bm_ad_accounts(access_token: str, business_id: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    """获取 BM 下所有客户端广告账户。
+    返回 [{id, name, account_id, account_status, ...}]"""
+    data, err = _simple_get(access_token, f"/{business_id}/client_ad_accounts", {
+        "fields": "id,name,account_id,account_status,currency,amount_spent,balance",
+        "limit": "200"
+    })
+    if err:
+        return None, err
+    return data.get("data", []), None
+
+
+def discover_pages(access_token: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    """获取 token 有权访问的所有 Facebook 主页。
+    返回 [{id, name, category, ...}]"""
+    data, err = _simple_get(access_token, "/me/accounts", {
+        "fields": "id,name,category,access_token,tasks",
+        "limit": "200"
+    })
+    if err:
+        return None, err
+    return data.get("data", []), None
+
+
+def discover_all_assets(access_token: str) -> Dict[str, Any]:
+    """一键发现所有资产：广告账户 + BM + 主页 + BM 下账户"""
+    result = {
+        "ad_accounts": [],
+        "businesses": [],
+        "pages": [],
+        "bm_ad_accounts": {},  # {business_id: [accounts]}
+    }
+
+    # 1. 个人直连的广告账户
+    accounts, err = discover_ad_accounts(access_token)
+    if accounts is not None:
+        result["ad_accounts"] = accounts
+
+    # 2. 主页
+    pages, err = discover_pages(access_token)
+    if pages is not None:
+        result["pages"] = pages
+
+    # 3. BM
+    businesses, err = discover_businesses(access_token)
+    if businesses is not None:
+        result["businesses"] = businesses
+        # 4. 每个 BM 下的广告账户
+        for bm in businesses:
+            bm_id = bm.get("id", "")
+            if bm_id:
+                bm_accounts, _ = discover_bm_ad_accounts(access_token, bm_id)
+                if bm_accounts:
+                    result["bm_ad_accounts"][bm_id] = {
+                        "name": bm.get("name", ""),
+                        "accounts": bm_accounts
+                    }
+
+    return result

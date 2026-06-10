@@ -762,12 +762,28 @@
     <div id="tab-meta-accounts" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
       <div class="section-header">
         <h2 class="text-lg font-bold text-slate-800">Meta 账户配置</h2>
-        <button onclick="openAddAccount()" class="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">+ 添加账户</button>
+        <div class="flex items-center gap-2">
+          <button onclick="discoverAccounts()" id="btn-discover" class="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">发现账户</button>
+          <span id="discover-status" class="text-xs text-slate-400"></span>
+        </div>
       </div>
+
+      <!-- 发现结果 -->
+      <div id="discover-results" class="card p-4 mb-3" hidden>
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-semibold text-slate-700">发现的广告账户 (<span id="discover-count">0</span>)</h3>
+          <div class="flex gap-2">
+            <button onclick="toggleSelectAllDiscovered()" class="text-xs text-indigo-600 cursor-pointer">全选</button>
+            <button onclick="importSelectedAccounts()" class="rounded-lg bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700 cursor-pointer">导入选中</button>
+          </div>
+        </div>
+        <div id="discover-list" class="max-h-60 overflow-y-auto text-xs"></div>
+      </div>
+
       <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table class="w-full text-xs whitespace-nowrap" id="meta-accounts-table">
           <thead class="bg-slate-50 border-b border-slate-200">
-            <tr class="text-slate-500 text-left"><th class="py-2.5 px-3 font-medium">账户 ID</th><th class="py-2.5 px-3 font-medium">名称</th><th class="py-2.5 px-3 font-medium">状态</th><th class="py-2.5 px-3 font-medium">PingYKJ 映射</th><th class="py-2.5 px-3 font-medium">Token 过期</th><th class="py-2.5 px-3 font-medium">操作</th></tr>
+            <tr class="text-slate-500 text-left"><th class="py-2.5 px-3 font-medium">账户 ID</th><th class="py-2.5 px-3 font-medium">名称</th><th class="py-2.5 px-3 font-medium">状态</th><th class="py-2.5 px-3 font-medium">BM</th><th class="py-2.5 px-3 font-medium">货币</th><th class="py-2.5 px-3 font-medium">操作</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -3283,6 +3299,9 @@
     }
 
     // ====== Meta 账户管理 ======
+
+    var _discoveredAccounts = [];
+
     async function loadMetaAccounts() {
       var resp = await fetch('/api/meta/accounts');
       var accounts = await resp.json();
@@ -3294,44 +3313,97 @@
           '<td class="py-2 px-3"><span style="color:' + (a.status === 'active' ? 'green' : 'red') + '">' + (a.status || '') + '</span></td>' +
           '<td class="py-2 px-3">' + (a.pingykj_account || '-') + '</td>' +
           '<td class="py-2 px-3">' + (a.token_expires_at || '-') + '</td>' +
-          '<td class="py-2 px-3"><button onclick="editMetaAccount(\'' + (a.act_id || '') + '\')" class="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer mr-1">编辑</button><button onclick="deleteMetaAccount(\'' + (a.act_id || '') + '\')" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">删除</button></td>' +
+          '<td class="py-2 px-3"><button onclick="toggleAccountStatus(\'' + (a.act_id || '') + '\', \'' + (a.status || '') + '\')" class="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer mr-1">' + (a.status === 'active' ? '停用' : '启用') + '</button><button onclick="deleteMetaAccount(\'' + (a.act_id || '') + '\')" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">删除</button></td>' +
           '</tr>';
       }).join('');
     }
 
-    async function openAddAccount() {
-      var actId = prompt('Meta 广告账户 ID (如 act_12345):');
-      if (!actId) return;
-      var actName = prompt('账户名称:') || '';
-      var token = prompt('Access Token:') || '';
-      var pingykj = prompt('映射到 pingykj 账户 (留空跳过):') || '';
-      await fetch('/api/meta/accounts', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({act_id: actId, act_name: actName, access_token: token, pingykj_account: pingykj})
-      });
-      loadMetaAccounts();
-    }
-
-    async function editMetaAccount(actId) {
-      var actName = prompt('新名称:') || '';
-      var token = prompt('新 Token (留空不更新):');
-      var pingykj = prompt('映射到 pingykj 账户:') || '';
+    async function toggleAccountStatus(actId, currentStatus) {
+      var newStatus = currentStatus === 'active' ? 'paused' : 'active';
       await fetch('/api/meta/accounts/' + actId, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({act_id: actId, act_name: actName, access_token: token || '', pingykj_account: pingykj})
+        body: JSON.stringify({act_id: actId, act_name: '', access_token: '', status: newStatus})
       });
-      if (token) {
-        await fetch('/api/meta/accounts/' + actId + '/refresh-token', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({access_token: token})
-        });
-      }
       loadMetaAccounts();
     }
 
     async function deleteMetaAccount(actId) {
       if (!confirm('确认删除 ' + actId + '?')) return;
       await fetch('/api/meta/accounts/' + actId, {method: 'DELETE'});
+      loadMetaAccounts();
+    }
+
+    // ====== 账户发现 ======
+
+    async function discoverAccounts() {
+      var token = document.getElementById('meta-access-token').value.trim();
+      if (!token) { alert('请先在「Meta 数据」Tab 的 Meta API 配置中填写 Access Token'); return; }
+
+      var btn = document.getElementById('btn-discover');
+      var status = document.getElementById('discover-status');
+      btn.disabled = true; btn.textContent = '发现中...';
+      status.textContent = '正在拉取，可能需要几秒...';
+      status.className = 'text-xs text-blue-500';
+
+      try {
+        var resp = await fetch('/api/meta/discover', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({access_token: token})
+        });
+        var result = await resp.json();
+        _discoveredAccounts = result.ad_accounts || [];
+        var list = document.getElementById('discover-list');
+        if (_discoveredAccounts.length === 0) {
+          list.innerHTML = '<p class="text-slate-400 py-4 text-center">未发现任何广告账户。请确认 token 正确且该账号下有广告资产。</p>';
+          document.getElementById('discover-count').textContent = '0';
+        } else {
+          list.innerHTML = _discoveredAccounts.map(function(a, i) {
+            return '<label class="flex items-center gap-2 py-1.5 px-2 hover:bg-slate-50 rounded cursor-pointer">' +
+              '<input type="checkbox" class="discover-cb" data-idx="' + i + '" checked>' +
+              '<span class="font-mono text-slate-600">' + (a.id || '') + '</span>' +
+              '<span class="text-slate-700">' + (a.name || '') + '</span>' +
+              (a.business_name ? '<span class="text-xs text-indigo-500">BM:' + a.business_name + '</span>' : '') +
+              '<span class="text-xs ' + (a.status === 'active' ? 'text-green-500' : 'text-red-400') + '">' + (a.status || '') + '</span>' +
+              '<span class="text-xs text-slate-400">' + (a.currency || '') + '</span>' +
+              '</label>';
+          }).join('');
+          document.getElementById('discover-count').textContent = _discoveredAccounts.length;
+        }
+        document.getElementById('discover-results').hidden = false;
+        status.textContent = '发现 ' + _discoveredAccounts.length + ' 个账户';
+        status.className = 'text-xs text-green-600';
+      } catch(e) {
+        status.textContent = '网络错误: ' + e.message;
+        status.className = 'text-xs text-red-500';
+      }
+      btn.disabled = false; btn.textContent = '发现账户';
+    }
+
+    function toggleSelectAllDiscovered() {
+      var cbs = document.querySelectorAll('.discover-cb');
+      var allChecked = Array.from(cbs).every(function(cb) { return cb.checked; });
+      cbs.forEach(function(cb) { cb.checked = !allChecked; });
+    }
+
+    async function importSelectedAccounts() {
+      var cbs = document.querySelectorAll('.discover-cb');
+      var selected = [];
+      cbs.forEach(function(cb) {
+        if (cb.checked) {
+          var idx = parseInt(cb.dataset.idx);
+          if (_discoveredAccounts[idx]) selected.push(_discoveredAccounts[idx]);
+        }
+      });
+      if (selected.length === 0) { alert('至少勾选一个账户'); return; }
+
+      var resp = await fetch('/api/meta/accounts/import', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({accounts: selected})
+      });
+      var result = await resp.json();
+      alert('已导入 ' + result.count + ' 个账户');
+      document.getElementById('discover-results').hidden = true;
+      _discoveredAccounts = [];
       loadMetaAccounts();
     }
 

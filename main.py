@@ -3319,6 +3319,7 @@ class MetaAccountBody(BaseModel):
     act_name: str = ""
     access_token: str = ""
     pingykj_account: str = ""
+    status: str = "active"
 
 @app.get("/api/meta/accounts")
 def _get_meta_accounts():
@@ -3327,14 +3328,14 @@ def _get_meta_accounts():
 @app.post("/api/meta/accounts")
 def _add_meta_account(body: MetaAccountBody):
     database.upsert_meta_account(
-        body.act_id, body.act_name, body.access_token, body.pingykj_account
+        body.act_id, body.act_name, body.access_token, body.pingykj_account, body.status
     )
     return {"success": True}
 
 @app.put("/api/meta/accounts/{act_id}")
 def _update_meta_account(act_id: str, body: MetaAccountBody):
     database.upsert_meta_account(
-        act_id, body.act_name, body.access_token, body.pingykj_account
+        act_id, body.act_name, body.access_token, body.pingykj_account, body.status
     )
     return {"success": True}
 
@@ -3578,6 +3579,75 @@ async def _delivery_stream(batch_id: str):
 @app.get("/api/delivery/records")
 def _get_delivery_records(page: int = 1, page_size: int = 20, status: str = None):
     return database.get_delivery_records(page, page_size, status)
+
+
+# ---- Meta 账户发现 API ----
+
+class DiscoverBody(BaseModel):
+    access_token: str
+
+
+@app.post("/api/meta/discover")
+def _discover_meta_assets(body: DiscoverBody):
+    """用 access token 一键拉取所有有权访问的广告账户、BM、主页"""
+    result = meta_api.discover_all_assets(body.access_token)
+    # 合并所有来源的广告账户并去重
+    all_accounts = []
+    seen = set()
+    for acct in result.get("ad_accounts", []):
+        aid = acct.get("account_id") or acct.get("id", "")
+        if aid and aid not in seen:
+            seen.add(aid)
+            all_accounts.append({
+                "id": aid,
+                "name": acct.get("name", ""),
+                "status": "active" if acct.get("account_status") == 1 else "disabled",
+                "currency": acct.get("currency", ""),
+                "business_name": acct.get("business_name", ""),
+            })
+    # 合并 BM 下的账户
+    for bm_id, bm_data in result.get("bm_ad_accounts", {}).items():
+        for acct in bm_data.get("accounts", []):
+            aid = acct.get("account_id") or acct.get("id", "")
+            if aid and aid not in seen:
+                seen.add(aid)
+                all_accounts.append({
+                    "id": aid,
+                    "name": acct.get("name", ""),
+                    "status": "active" if acct.get("account_status") == 1 else "disabled",
+                    "currency": acct.get("currency", ""),
+                    "business_name": bm_data.get("name", ""),
+                })
+
+    return {
+        "ad_accounts": all_accounts,
+        "businesses": [{"id": b.get("id"), "name": b.get("name")} for b in result.get("businesses", [])],
+        "pages": [{"id": p.get("id"), "name": p.get("name"), "category": p.get("category", "")}
+                  for p in result.get("pages", [])],
+        "total_accounts": len(all_accounts),
+    }
+
+
+class ImportAccountBody(BaseModel):
+    accounts: list  # [{id, name, currency, business_name, ...}]
+
+
+@app.post("/api/meta/accounts/import")
+def _import_meta_accounts(body: ImportAccountBody):
+    """批量导入/更新广告账户"""
+    count = 0
+    for acct in body.accounts:
+        act_id = acct.get("id", "")
+        if not act_id:
+            continue
+        database.upsert_meta_account(
+            act_id=act_id,
+            act_name=acct.get("name", ""),
+            access_token="",  # 使用系统默认 token，不存独立 token
+            status="active"
+        )
+        count += 1
+    return {"success": True, "count": count}
 
 
 # ---- Meta 配置管理 API ----
