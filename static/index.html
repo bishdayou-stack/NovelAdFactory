@@ -3247,6 +3247,75 @@
       }).join('');
     }
 
+    // ====== Meta 账户管理 ======
+    async function loadMetaAccounts() {
+      var resp = await fetch('/api/meta/accounts');
+      var accounts = await resp.json();
+      var tbody = document.querySelector('#meta-accounts-table tbody');
+      tbody.innerHTML = accounts.map(function(a) {
+        return '<tr>' +
+          '<td class="py-2 px-3">' + (a.act_id || '') + '</td>' +
+          '<td class="py-2 px-3">' + (a.act_name || '') + '</td>' +
+          '<td class="py-2 px-3"><span style="color:' + (a.status === 'active' ? 'green' : 'red') + '">' + (a.status || '') + '</span></td>' +
+          '<td class="py-2 px-3">' + (a.pingykj_account || '-') + '</td>' +
+          '<td class="py-2 px-3">' + (a.token_expires_at || '-') + '</td>' +
+          '<td class="py-2 px-3"><button onclick="editMetaAccount(\'' + (a.act_id || '') + '\')" class="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer mr-1">编辑</button><button onclick="deleteMetaAccount(\'' + (a.act_id || '') + '\')" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">删除</button></td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    async function openAddAccount() {
+      var actId = prompt('Meta 广告账户 ID (如 act_12345):');
+      if (!actId) return;
+      var actName = prompt('账户名称:') || '';
+      var token = prompt('Access Token:') || '';
+      var pingykj = prompt('映射到 pingykj 账户 (留空跳过):') || '';
+      await fetch('/api/meta/accounts', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({act_id: actId, act_name: actName, access_token: token, pingykj_account: pingykj})
+      });
+      loadMetaAccounts();
+    }
+
+    async function editMetaAccount(actId) {
+      var actName = prompt('新名称:') || '';
+      var token = prompt('新 Token (留空不更新):');
+      var pingykj = prompt('映射到 pingykj 账户:') || '';
+      await fetch('/api/meta/accounts/' + actId, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({act_id: actId, act_name: actName, access_token: token || '', pingykj_account: pingykj})
+      });
+      if (token) {
+        await fetch('/api/meta/accounts/' + actId + '/refresh-token', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({access_token: token})
+        });
+      }
+      loadMetaAccounts();
+    }
+
+    async function deleteMetaAccount(actId) {
+      if (!confirm('确认删除 ' + actId + '?')) return;
+      await fetch('/api/meta/accounts/' + actId, {method: 'DELETE'});
+      loadMetaAccounts();
+    }
+
+    // ====== Meta 数据同步 ======
+    async function triggerMetaSync() {
+      var btn = event.target;
+      btn.disabled = true; btn.textContent = '同步中...';
+      var resp = await fetch('/api/meta/sync', {method: 'POST'});
+      var result = await resp.json();
+      document.getElementById('meta-sync-status').textContent = '同步完成: ' + (result.total_count || 0) + ' 条';
+      btn.disabled = false; btn.textContent = '手动同步';
+    }
+
+    async function loadMetaSyncStatus() {
+      var resp = await fetch('/api/meta/sync-status');
+      var data = await resp.json();
+      document.getElementById('meta-sync-status').textContent = (data.active_accounts || 0) + '/' + (data.total_accounts || 0) + ' 账户活跃';
+    }
+
   </script>
 </body>
 </html>
