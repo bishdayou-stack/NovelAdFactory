@@ -3597,6 +3597,11 @@ def _discover_meta_assets(body: DiscoverBody):
         token = config.get("meta", {}).get("default_access_token", "")
     if not token:
         raise HTTPException(400, "未提供 Access Token。请在「Meta 数据」Tab 填写并保存配置。")
+    # Meta 账户状态映射
+    _ACCOUNT_STATUS_MAP = {1: "active", 2: "disabled", 3: "unsettled", 7: "pending_review",
+                           8: "pending_settlement", 9: "grace_period", 100: "pending_closure",
+                           101: "closed"}
+
     result = meta_api.discover_all_assets(token)
     # 合并所有来源的广告账户并去重
     all_accounts = []
@@ -3605,12 +3610,15 @@ def _discover_meta_assets(body: DiscoverBody):
         aid = acct.get("id") or acct.get("account_id", "")
         if aid and aid not in seen:
             seen.add(aid)
+            raw_status = acct.get("account_status", 1)
             all_accounts.append({
                 "id": aid,
                 "name": acct.get("name", ""),
-                "status": "active" if acct.get("account_status") == 1 else "disabled",
+                "status": _ACCOUNT_STATUS_MAP.get(raw_status, f"unknown_{raw_status}"),
+                "raw_status": raw_status,
                 "currency": acct.get("currency", ""),
                 "business_name": acct.get("business_name", ""),
+                "disable_reason": acct.get("disable_reason", ""),
             })
     # 合并 BM 下的账户
     for bm_id, bm_data in result.get("bm_ad_accounts", {}).items():
@@ -3618,12 +3626,15 @@ def _discover_meta_assets(body: DiscoverBody):
             aid = acct.get("id") or acct.get("account_id", "")
             if aid and aid not in seen:
                 seen.add(aid)
+                raw_status = acct.get("account_status", 1)
                 all_accounts.append({
                     "id": aid,
                     "name": acct.get("name", ""),
-                    "status": "active" if acct.get("account_status") == 1 else "disabled",
+                    "status": _ACCOUNT_STATUS_MAP.get(raw_status, f"unknown_{raw_status}"),
+                    "raw_status": raw_status,
                     "currency": acct.get("currency", ""),
                     "business_name": bm_data.get("name", ""),
+                    "disable_reason": acct.get("disable_reason", ""),
                 })
 
     return {
@@ -3647,11 +3658,16 @@ def _import_meta_accounts(body: ImportAccountBody):
         act_id = acct.get("id", "")
         if not act_id:
             continue
+        # 使用 Meta 返回的真实状态
+        status = acct.get("status", "active")
+        if status == "unknown" or not status:
+            status = "active"
         database.upsert_meta_account(
             act_id=act_id,
             act_name=acct.get("name", ""),
-            access_token="",  # 使用系统默认 token，不存独立 token
-            status="active"
+            access_token="",
+            pingykj_account=acct.get("business_name", ""),
+            status=status
         )
         count += 1
     return {"success": True, "count": count}

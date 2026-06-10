@@ -3308,17 +3308,22 @@
 
     var _discoveredAccounts = [];
 
+    var _STATUS_LABELS = {active:'正常',disabled:'已停用',unsettled:'未结算',pending_review:'审核中',pending_settlement:'结算中',grace_period:'宽限期',pending_closure:'待关闭',closed:'已关闭'};
+    var _STATUS_COLORS = {active:'green',disabled:'red',unsettled:'orange',pending_review:'#f0ad4e',pending_settlement:'#f0ad4e',grace_period:'#f0ad4e',pending_closure:'red',closed:'#999'};
+
     async function loadMetaAccounts() {
       var resp = await fetch('/api/meta/accounts');
       var accounts = await resp.json();
       var tbody = document.querySelector('#meta-accounts-table tbody');
       tbody.innerHTML = accounts.map(function(a) {
+        var label = _STATUS_LABELS[a.status] || a.status;
+        var color = _STATUS_COLORS[a.status] || '#888';
         return '<tr>' +
-          '<td class="py-2 px-3">' + (a.act_id || '') + '</td>' +
+          '<td class="py-2 px-3 font-mono text-xs">' + (a.act_id || '') + '</td>' +
           '<td class="py-2 px-3">' + (a.act_name || '') + '</td>' +
-          '<td class="py-2 px-3"><span style="color:' + (a.status === 'active' ? 'green' : 'red') + '">' + (a.status || '') + '</span></td>' +
-          '<td class="py-2 px-3">' + (a.pingykj_account || '-') + '</td>' +
-          '<td class="py-2 px-3">' + (a.token_expires_at || '-') + '</td>' +
+          '<td class="py-2 px-3"><span style="color:' + color + ';font-weight:600">' + label + '</span></td>' +
+          '<td class="py-2 px-3 text-xs text-slate-500">' + (a.pingykj_account || '-') + '</td>' +
+          '<td class="py-2 px-3 text-xs text-slate-400">' + (a.token_expires_at ? a.token_expires_at.substring(0,10) : '-') + '</td>' +
           '<td class="py-2 px-3"><button onclick="toggleAccountStatus(\'' + (a.act_id || '') + '\', \'' + (a.status || '') + '\')" class="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer mr-1">' + (a.status === 'active' ? '停用' : '启用') + '</button><button onclick="deleteMetaAccount(\'' + (a.act_id || '') + '\')" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">删除</button></td>' +
           '</tr>';
       }).join('');
@@ -3369,12 +3374,15 @@
           document.getElementById('discover-count').textContent = '0';
         } else {
           list.innerHTML = _discoveredAccounts.map(function(a, i) {
+            var label = _STATUS_LABELS[a.status] || a.status;
+            var color = _STATUS_COLORS[a.status] || '#888';
+            var reason = a.disable_reason ? ' (' + a.disable_reason + ')' : '';
             return '<label class="flex items-center gap-2 py-1.5 px-2 hover:bg-slate-50 rounded cursor-pointer">' +
-              '<input type="checkbox" class="discover-cb" data-idx="' + i + '" checked>' +
-              '<span class="font-mono text-slate-600">' + (a.id || '') + '</span>' +
+              '<input type="checkbox" class="discover-cb" data-idx="' + i + '" ' + (a.status === 'active' ? 'checked' : '') + '>' +
+              '<span class="font-mono text-xs text-slate-600">' + (a.id || '') + '</span>' +
               '<span class="text-slate-700">' + (a.name || '') + '</span>' +
               (a.business_name ? '<span class="text-xs text-indigo-500">BM:' + a.business_name + '</span>' : '') +
-              '<span class="text-xs ' + (a.status === 'active' ? 'text-green-500' : 'text-red-400') + '">' + (a.status || '') + '</span>' +
+              '<span style="color:' + color + ';font-weight:600" class="text-xs">' + label + reason + '</span>' +
               '<span class="text-xs text-slate-400">' + (a.currency || '') + '</span>' +
               '</label>';
           }).join('');
