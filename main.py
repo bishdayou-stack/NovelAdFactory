@@ -3580,6 +3580,49 @@ def _get_delivery_records(page: int = 1, page_size: int = 20, status: str = None
     return database.get_delivery_records(page, page_size, status)
 
 
+# ---- Meta 配置管理 API ----
+
+class MetaConfigBody(BaseModel):
+    app_id: str = ""
+    app_secret: str = ""
+    default_access_token: str = ""
+    api_version: str = "v25.0"
+    sync_interval_seconds: int = Field(default=300, ge=30, le=86400)
+    rate_limit_per_second: int = Field(default=4, ge=1, le=20)
+
+
+@app.get("/api/meta/config")
+def _get_meta_config():
+    config = _load_config()
+    meta = config.get("meta", {})
+    return {
+        "app_id": meta.get("app_id", ""),
+        "app_secret": "",  # 不返回密钥明文
+        "default_access_token": "",  # 不返回 token 明文
+        "api_version": meta.get("api_version", "v25.0"),
+        "sync_interval_seconds": meta.get("sync_interval_seconds", 300),
+        "rate_limit_per_second": meta.get("rate_limit_per_second", 4),
+    }
+
+
+@app.post("/api/meta/config")
+def _save_meta_config(body: MetaConfigBody):
+    config_path = Path("config.json")
+    config = _load_config()
+    meta = config.get("meta", {})
+    if body.app_secret:
+        meta["app_secret"] = body.app_secret
+    if body.default_access_token:
+        meta["default_access_token"] = body.default_access_token
+    meta["app_id"] = body.app_id
+    meta["api_version"] = body.api_version
+    meta["sync_interval_seconds"] = body.sync_interval_seconds
+    meta["rate_limit_per_second"] = body.rate_limit_per_second
+    config["meta"] = meta
+    _save_config(config)
+    return {"status": "ok", "message": "Meta 配置已保存"}
+
+
 if __name__ == "__main__":
     import uvicorn
     print("\n" + "="*50)
