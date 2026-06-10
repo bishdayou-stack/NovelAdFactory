@@ -3339,7 +3339,6 @@
 
     async function discoverAccounts() {
       var token = document.getElementById('meta-access-token').value.trim();
-      if (!token) { alert('请先在「Meta 数据」Tab 的 Meta API 配置中填写 Access Token'); return; }
 
       var btn = document.getElementById('btn-discover');
       var status = document.getElementById('discover-status');
@@ -3353,6 +3352,12 @@
           body: JSON.stringify({access_token: token})
         });
         var result = await resp.json();
+        if (!resp.ok) {
+          status.textContent = result.detail || '发现失败';
+          status.className = 'text-xs text-red-500';
+          btn.disabled = false; btn.textContent = '发现账户';
+          return;
+        }
         _discoveredAccounts = result.ad_accounts || [];
         var list = document.getElementById('discover-list');
         if (_discoveredAccounts.length === 0) {

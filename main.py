@@ -3584,13 +3584,20 @@ def _get_delivery_records(page: int = 1, page_size: int = 20, status: str = None
 # ---- Meta 账户发现 API ----
 
 class DiscoverBody(BaseModel):
-    access_token: str
+    access_token: str = ""
 
 
 @app.post("/api/meta/discover")
 def _discover_meta_assets(body: DiscoverBody):
-    """用 access token 一键拉取所有有权访问的广告账户、BM、主页"""
-    result = meta_api.discover_all_assets(body.access_token)
+    """用 access token 一键拉取所有有权访问的广告账户、BM、主页。
+    如果未传 token，自动使用 config.json 中保存的默认 token。"""
+    token = body.access_token.strip()
+    if not token:
+        config = _load_config()
+        token = config.get("meta", {}).get("default_access_token", "")
+    if not token:
+        raise HTTPException(400, "未提供 Access Token。请在「Meta 数据」Tab 填写并保存配置。")
+    result = meta_api.discover_all_assets(token)
     # 合并所有来源的广告账户并去重
     all_accounts = []
     seen = set()
