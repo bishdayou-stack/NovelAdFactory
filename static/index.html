@@ -3341,7 +3341,14 @@
       btn.disabled = true; btn.textContent = '同步中...';
       var resp = await fetch('/api/meta/sync', {method: 'POST'});
       var result = await resp.json();
-      document.getElementById('meta-sync-status').textContent = '同步完成: ' + (result.total_count || 0) + ' 条';
+      var status = document.getElementById('meta-sync-status');
+      if (result.success) {
+        status.textContent = result.message || ('同步完成: ' + (result.total_count || 0) + ' 条');
+        status.className = 'text-xs text-green-600';
+      } else {
+        status.textContent = result.message || '同步失败';
+        status.className = 'text-xs text-red-500';
+      }
       btn.disabled = false; btn.textContent = '手动同步';
     }
 

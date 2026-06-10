@@ -757,8 +757,18 @@ def run_full_sync() -> Dict[str, Any]:
 
 # ---- Meta Ads Insights 数据同步 ----
 
+import json
 import meta_api
 from datetime import datetime as dt, timedelta
+
+
+def _load_default_token() -> Optional[str]:
+    """从 config.json 读取 Meta 默认 access token"""
+    try:
+        config = json.loads((Path(__file__).parent / "config.json").read_text(encoding="utf-8"))
+        return config.get("meta", {}).get("default_access_token", "")
+    except Exception:
+        return ""
 
 
 def _sync_one_meta_account(act_id: str, access_token: str) -> Tuple[str, int, str]:
@@ -787,11 +797,24 @@ def _sync_one_meta_account(act_id: str, access_token: str) -> Tuple[str, int, st
 
 def sync_all_meta_insights(concurrency: int = 8) -> Dict[str, Any]:
     """并行同步所有 active 状态的 Meta 账户数据"""
+    default_token = _load_default_token()
     accounts = database.get_meta_accounts()
-    active_accounts = [a for a in accounts if a.get("status") == "active" and a.get("access_token")]
+
+    # 用默认 token 补充没有独立 token 的 active 账户
+    active_accounts = []
+    for a in accounts:
+        if a.get("status") != "active":
+            continue
+        token = a.get("access_token") or default_token
+        if token:
+            active_accounts.append((a["act_id"], token))
 
     if not active_accounts:
-        return {"success": True, "total": 0, "accounts": {}, "message": "没有活跃的 Meta 账户"}
+        if default_token:
+            return {"success": False, "total": 0, "accounts": {},
+                    "message": "系统级 token 已配置但未找到活跃的 Meta 账户。请在「账户配置」Tab 添加广告账户（act_XXXXX）。"}
+        return {"success": False, "total": 0, "accounts": {},
+                "message": "没有活跃的 Meta 账户，且未配置默认 Access Token。请在「Meta 数据」Tab 填写配置。"}
 
     result = {"success": True, "total": len(active_accounts), "accounts": {}}
     total_count = 0
@@ -799,8 +822,8 @@ def sync_all_meta_insights(concurrency: int = 8) -> Dict[str, Any]:
 
     with ThreadPoolExecutor(max_workers=min(concurrency, len(active_accounts))) as executor:
         futures = {
-            executor.submit(_sync_one_meta_account, a["act_id"], a["access_token"]): a["act_id"]
-            for a in active_accounts
+            executor.submit(_sync_one_meta_account, act_id, token): act_id
+            for act_id, token in active_accounts
         }
         for future in as_completed(futures):
             act_id, count, err = future.result()
@@ -811,7 +834,7 @@ def sync_all_meta_insights(concurrency: int = 8) -> Dict[str, Any]:
 
     result["total_count"] = total_count
     if errors:
-        result["message"] = "; ".join(errors)
+        result["message"] = "部分同步失败: " + "; ".join(errors)
     else:
         result["message"] = f"全部同步完成，共 {total_count} 条"
 
