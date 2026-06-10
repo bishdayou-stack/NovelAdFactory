@@ -38,7 +38,9 @@ app = FastAPI()
 import database
 import scraper
 import analytics
-from fastapi import Query
+import meta_api
+import delivery
+from fastapi import Query, Request
 
 # 启动时初始化数据库
 database.init_db()
@@ -2901,12 +2903,12 @@ async def api_stream_generation(batch_id: int):
             while True:
                 try:
                     data = await asyncio.wait_for(
-                        loop.run_in_executor(None, q.get, True, 30), timeout=35
+                        loop.run_in_executor(None, q.get), timeout=35
                     )
                     yield {"event": data["type"], "data": json.dumps(data, ensure_ascii=False)}
                     if data.get("status") in ("success", "failed", "cancelled", "partial"):
                         break
-                except asyncio.TimeoutError:
+                except (asyncio.TimeoutError, Exception):
                     yield {"event": "ping", "data": "{}"}
         finally:
             with _SSE_LOCK:
@@ -3294,6 +3296,86 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
         raise
     except Exception as e:
         return {"status": "failed", "error": str(e)}
+
+
+# ---- Meta 账户管理 API ----
+
+class MetaAccountBody(BaseModel):
+    act_id: str
+    act_name: str = ""
+    access_token: str = ""
+    pingykj_account: str = ""
+
+@app.get("/api/meta/accounts")
+def _get_meta_accounts():
+    return database.get_meta_accounts()
+
+@app.post("/api/meta/accounts")
+def _add_meta_account(body: MetaAccountBody):
+    database.upsert_meta_account(
+        body.act_id, body.act_name, body.access_token, body.pingykj_account
+    )
+    return {"success": True}
+
+@app.put("/api/meta/accounts/{act_id}")
+def _update_meta_account(act_id: str, body: MetaAccountBody):
+    database.upsert_meta_account(
+        act_id, body.act_name, body.access_token, body.pingykj_account
+    )
+    return {"success": True}
+
+@app.delete("/api/meta/accounts/{act_id}")
+def _delete_meta_account(act_id: str):
+    database.delete_meta_account(act_id)
+    return {"success": True}
+
+class TokenRefreshBody(BaseModel):
+    access_token: str
+
+@app.post("/api/meta/accounts/{act_id}/refresh-token")
+def _refresh_meta_token(act_id: str, body: TokenRefreshBody):
+    database.update_meta_token(act_id, body.access_token)
+    return {"success": True}
+
+# ---- Meta 数据同步控制 API ----
+
+@app.post("/api/meta/sync")
+def _trigger_meta_sync():
+    result = scraper.sync_all_meta_insights()
+    return result
+
+@app.get("/api/meta/sync-status")
+def _meta_sync_status():
+    accounts = database.get_meta_accounts()
+    active = [a for a in accounts if a.get("status") == "active"]
+    return {
+        "total_accounts": len(accounts),
+        "active_accounts": len(active),
+        "accounts": [
+            {
+                "act_id": a["act_id"],
+                "act_name": a["act_name"],
+                "last_sync": database.get_meta_sync_state(a["act_id"]),
+            }
+            for a in active
+        ]
+    }
+
+@app.get("/api/meta/sync-interval")
+def _get_meta_sync_interval():
+    config_path = Path("config.json")
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    return {"interval": config.get("meta", {}).get("sync_interval_seconds", 300)}
+
+@app.post("/api/meta/sync-interval")
+async def _set_meta_sync_interval(request: Request):
+    body = await request.json()
+    seconds = int(body.get("interval", 300))
+    config_path = Path("config.json")
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config.setdefault("meta", {})["sync_interval_seconds"] = seconds
+    config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"success": True, "interval": seconds}
 
 
 if __name__ == "__main__":
