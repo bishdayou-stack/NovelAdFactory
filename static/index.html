@@ -3071,6 +3071,75 @@
     document.getElementById('novelMgrSearch').addEventListener('input', function() { loadNovelBooks(1); });
     document.getElementById('novelMgrStatus').addEventListener('change', function() { loadNovelBooks(1); });
 
+    // ====== 投放模板 ======
+    async function loadTemplates() {
+      var resp = await fetch('/api/delivery/templates');
+      var data = await resp.json();
+      var tbody = document.querySelector('#templates-table tbody');
+      tbody.innerHTML = (data || []).map(function(t) {
+        return '<tr>' +
+          '<td class="py-2 px-3">' + (t.name || '') + '</td>' +
+          '<td class="py-2 px-3">' + (t.source === 'imported_from_fb' ? 'FB导入' : '手动') + '</td>' +
+          '<td class="py-2 px-3">' + ((t.budget_value || 0) / 100).toFixed(2) + ' ' + (t.budget_type === 'daily_budget' ? '日' : '总') + '</td>' +
+          '<td class="py-2 px-3">' + (t.bid_strategy || '') + '</td>' +
+          '<td class="py-2 px-3">' + (t.ad_account_id || '通用') + '</td>' +
+          '<td class="py-2 px-3"><button onclick="editTemplate(' + t.id + ')" class="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer mr-1">编辑</button><button onclick="deleteTemplate(' + t.id + ')" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">删除</button></td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    async function openCreateTemplate() {
+      var name = prompt('模板名称:');
+      if (!name) return;
+      var budgetValue = parseInt(prompt('日预算（美元分，如 5000 = $50）:')) || 5000;
+      var adAccountId = prompt('关联账户 act_id（留空=通用）:') || '';
+      var resp = await fetch('/api/delivery/templates', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name, budget_value: budgetValue, ad_account_id: adAccountId, targeting: {age_min: 35, age_max: 65, genders: [1], geo_locations: {countries: ['US','UK','CA','AU']}, locales: [6]}})
+      });
+      if (resp.ok) loadTemplates();
+      else alert('创建失败');
+    }
+
+    async function editTemplate(id) {
+      var name = prompt('新名称:') || '';
+      var budgetValue = parseInt(prompt('日预算（美元分）:')) || 0;
+      if (!name && !budgetValue) return;
+      var body = {};
+      if (name) body.name = name;
+      if (budgetValue) body.budget_value = budgetValue;
+      await fetch('/api/delivery/templates/' + id, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      loadTemplates();
+    }
+
+    async function deleteTemplate(id) {
+      if (!confirm('确认删除?')) return;
+      await fetch('/api/delivery/templates/' + id, {method: 'DELETE'});
+      loadTemplates();
+    }
+
+    async function openImportTemplate() {
+      var accountsResp = await fetch('/api/meta/accounts');
+      var accounts = await accountsResp.json();
+      if (!accounts.length) { alert('请先添加 Meta 账户'); return; }
+      var accountId = prompt('选择账户 act_id:\n' + accounts.map(function(a) { return a.act_id + ' - ' + a.act_name; }).join('\n'));
+      if (!accountId) return;
+      var adsetsResp = await fetch('/api/delivery/templates/fb-adsets/' + accountId);
+      var adsetsData = await adsetsResp.json();
+      var adsets = adsetsData.data || [];
+      if (!adsets.length) { alert('该账户没有 AdSet'); return; }
+      var adsetId = prompt('选择 AdSet:\n' + adsets.map(function(a) { return a.id + ' - ' + a.name; }).join('\n'));
+      if (!adsetId) return;
+      var name = prompt('导入后模板名称:') || '';
+      await fetch('/api/delivery/templates/import', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_id: accountId, adset_id: adsetId, name: name})
+      });
+      loadTemplates();
+    }
+
   </script>
 </body>
 </html>
