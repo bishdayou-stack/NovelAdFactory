@@ -826,3 +826,101 @@ def update_delivery_template(template_id: int, data: Dict[str, Any]) -> None:
 def delete_delivery_template(template_id: int) -> None:
     with get_conn() as conn:
         conn.execute("DELETE FROM delivery_templates WHERE id = ?", (template_id,))
+
+
+# ====== Delivery Queue CRUD ======
+
+def add_to_delivery_queue(items: List[Dict[str, Any]]) -> int:
+    """批量添加素材到投放队列，返回添加条数"""
+    if not items:
+        return 0
+    with get_conn() as conn:
+        count = 0
+        for item in items:
+            conn.execute("""
+                INSERT INTO delivery_queue (batch_id, image_type, image_path,
+                    image_prompt, overlay_text, status)
+                VALUES (?, ?, ?, ?, ?, 'pending')
+            """, (
+                item.get("batch_id"), item.get("image_type"), item.get("image_path"),
+                item.get("image_prompt"), item.get("overlay_text")
+            ))
+            count += 1
+        return count
+
+def get_delivery_queue(page: int = 1, page_size: int = 20,
+                       status_filter: str = None) -> dict:
+    with get_conn() as conn:
+        where = []
+        params = []
+        if status_filter:
+            where.append("status = ?")
+            params.append(status_filter)
+        where_clause = (" WHERE " + " AND ".join(where)) if where else ""
+        total = conn.execute(
+            f"SELECT COUNT(*) AS cnt FROM delivery_queue{where_clause}", params
+        ).fetchone()["cnt"]
+        offset = (page - 1) * page_size
+        rows = conn.execute(
+            f"SELECT * FROM delivery_queue{where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            params + [page_size, offset]
+        ).fetchall()
+        return {"data": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
+
+def update_queue_status(queue_id: int, status: str, reviewer: str = "",
+                        error_message: str = "") -> None:
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE delivery_queue SET status=?, reviewer=?, error_message=?, updated_at=CURRENT_TIMESTAMP
+            WHERE id=?
+        """, (status, reviewer, error_message, queue_id))
+
+def batch_approve_queue(ids: List[int], template_id: int, reviewer: str = "") -> None:
+    with get_conn() as conn:
+        for qid in ids:
+            conn.execute("""
+                UPDATE delivery_queue SET status='approved', template_id=?,
+                reviewer=?, updated_at=CURRENT_TIMESTAMP WHERE id=?
+            """, (template_id, reviewer, qid))
+
+def batch_reject_queue(ids: List[int], reviewer: str = "") -> None:
+    with get_conn() as conn:
+        for qid in ids:
+            conn.execute("""
+                UPDATE delivery_queue SET status='rejected', reviewer=?,
+                updated_at=CURRENT_TIMESTAMP WHERE id=?
+            """, (reviewer, qid))
+
+def update_queue_delivery_result(queue_id: int, status: str,
+                                  fb_campaign_id: str = None, fb_adset_id: str = None,
+                                  fb_ad_id: str = None, fb_creative_id: str = None,
+                                  delivery_params_json: str = None,
+                                  error_message: str = None) -> None:
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE delivery_queue SET status=?, fb_campaign_id=?, fb_adset_id=?,
+            fb_ad_id=?, fb_creative_id=?, delivery_params_json=?,
+            error_message=?, updated_at=CURRENT_TIMESTAMP
+            WHERE id=?
+        """, (status, fb_campaign_id, fb_adset_id, fb_ad_id, fb_creative_id,
+              delivery_params_json, error_message, queue_id))
+
+def get_delivery_records(page: int = 1, page_size: int = 20,
+                          status_filter: str = None) -> dict:
+    """获取投放记录（已投放到 FB 的项）"""
+    with get_conn() as conn:
+        where = ["fb_ad_id IS NOT NULL"]
+        params = []
+        if status_filter:
+            where.append("status = ?")
+            params.append(status_filter)
+        where_clause = " WHERE " + " AND ".join(where)
+        total = conn.execute(
+            f"SELECT COUNT(*) AS cnt FROM delivery_queue{where_clause}", params
+        ).fetchone()["cnt"]
+        offset = (page - 1) * page_size
+        rows = conn.execute(
+            f"SELECT * FROM delivery_queue{where_clause} ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+            params + [page_size, offset]
+        ).fetchall()
+        return {"data": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
