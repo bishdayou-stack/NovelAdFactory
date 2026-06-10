@@ -171,6 +171,57 @@ def init_db() -> None:
                 synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(novel_id, chapter_no)
             );
+
+            CREATE TABLE IF NOT EXISTS meta_accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                act_id TEXT UNIQUE NOT NULL,
+                act_name TEXT,
+                access_token TEXT,
+                token_expires_at TIMESTAMP,
+                pingykj_account TEXT,
+                status TEXT DEFAULT 'active',
+                rate_limit_remaining INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS delivery_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                source TEXT DEFAULT 'manual',
+                source_adset_id TEXT,
+                targeting_json TEXT,
+                placements_json TEXT,
+                budget_type TEXT DEFAULT 'daily_budget',
+                budget_value INTEGER DEFAULT 0,
+                bid_strategy TEXT DEFAULT 'LOWEST_COST_WITHOUT_CAP',
+                optimization_goal TEXT DEFAULT 'OFFSITE_CONVERSIONS',
+                billing_event TEXT DEFAULT 'IMPRESSIONS',
+                conversion_event TEXT,
+                ad_account_id TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS delivery_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                batch_id TEXT,
+                image_type TEXT,
+                image_path TEXT,
+                image_prompt TEXT,
+                overlay_text TEXT,
+                status TEXT DEFAULT 'pending',
+                reviewer TEXT,
+                template_id INTEGER,
+                delivery_params_json TEXT,
+                fb_campaign_id TEXT,
+                fb_adset_id TEXT,
+                fb_ad_id TEXT,
+                fb_creative_id TEXT,
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
 # ====== Session CRUD ======
@@ -511,7 +562,7 @@ def get_novel_books(page: int = 1, page_size: int = 20, keyword: str = None,
         ).fetchone()["cnt"]
         offset = (page - 1) * page_size
         rows = conn.execute(
-            f"SELECT * FROM novel_books{where_clause} ORDER BY synced_at DESC LIMIT ? OFFSET ?",
+            f"SELECT * FROM novel_books{where_clause} ORDER BY create_time DESC LIMIT ? OFFSET ?",
             params + [page_size, offset]
         ).fetchall()
         return {"data": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
