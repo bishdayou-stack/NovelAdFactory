@@ -48,8 +48,8 @@ echo.
 
 :: 4. Check config
 if not exist "config.json" (
-    echo {"api_key": "请填入API_KEY", "api_url": "https://api.geeknow.top/v1", "chat_model_name": "gemini-3.1-pro-preview", "image_model_name": "gpt-image-2", "analysis_prompt": "", "concurrency": 4} > config.json
-    echo [WARN] 已创建 config.json，请编辑填入 api_key 后重新运行！
+    echo {"api_key": "请填入API_KEY", "api_url": "https://api.geeknow.top/v1", "chat_model_name": "gemini-3.1-pro-preview", "image_model_name": "gpt-image-2", "analysis_prompt": "", "concurrency": 4, "meta": {"app_id": "", "app_secret": "", "default_access_token": "", "api_version": "v25.0", "sync_interval_seconds": 300, "rate_limit_per_second": 4}} > config.json
+    echo [WARN] 已创建 config.json，请编辑填入 api_key 和 Meta 配置后重新运行！
     start notepad config.json
     pause
     exit /b 0
