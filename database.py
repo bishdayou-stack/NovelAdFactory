@@ -61,6 +61,73 @@ def init_db() -> None:
                 except Exception:
                     pass
 
+        # 迁移：为 ad_daily_stats 新增 Meta 指标列 + source 列
+        _ad_stats_new_columns = {
+            "source": "TEXT DEFAULT 'pingykj'",
+            "meta_account_id": "TEXT",
+            "ctr": "REAL",
+            "cpm": "REAL",
+            "cpc": "REAL",
+            "inline_link_clicks": "INTEGER",
+            "inline_link_click_ctr": "REAL",
+            "add_to_cart": "INTEGER",
+            "add_to_cart_cost": "REAL",
+            "purchases": "INTEGER",
+            "cost_per_purchase": "REAL",
+            "purchase_value": "REAL",
+        }
+        existing_ad = {r["name"] for r in conn.execute("PRAGMA table_info('ad_daily_stats')").fetchall()}
+        for col_name, col_def in _ad_stats_new_columns.items():
+            if col_name not in existing_ad:
+                try:
+                    conn.execute(f"ALTER TABLE ad_daily_stats ADD COLUMN {col_name} {col_def}")
+                except Exception:
+                    pass
+
+        # 迁移：重建唯一约束为 (date, ad_account, source)
+        try:
+            existing_indexes = [r["name"] for r in conn.execute("PRAGMA index_list('ad_daily_stats')").fetchall()]
+            if "sqlite_autoindex_ad_daily_stats_1" in existing_indexes:
+                pragma_info = conn.execute("PRAGMA index_info('sqlite_autoindex_ad_daily_stats_1')").fetchall()
+                if len(pragma_info) == 2:
+                    conn.execute("ALTER TABLE ad_daily_stats RENAME TO ad_daily_stats_old")
+                    conn.execute("""
+                        CREATE TABLE ad_daily_stats (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            date DATE NOT NULL,
+                            ad_account TEXT NOT NULL,
+                            total_spend REAL DEFAULT 0,
+                            total_revenue REAL DEFAULT 0,
+                            ad_count INTEGER DEFAULT 0,
+                            impressions INTEGER DEFAULT 0,
+                            clicks INTEGER DEFAULT 0,
+                            extra_data TEXT,
+                            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            source TEXT DEFAULT 'pingykj',
+                            meta_account_id TEXT,
+                            ctr REAL, cpm REAL, cpc REAL,
+                            inline_link_clicks INTEGER,
+                            inline_link_click_ctr REAL,
+                            add_to_cart INTEGER,
+                            add_to_cart_cost REAL,
+                            purchases INTEGER,
+                            cost_per_purchase REAL,
+                            purchase_value REAL,
+                            UNIQUE(date, ad_account, source)
+                        )
+                    """)
+                    conn.execute("""
+                        INSERT INTO ad_daily_stats (
+                            id, date, ad_account, total_spend, total_revenue, ad_count,
+                            impressions, clicks, extra_data, synced_at
+                        ) SELECT id, date, ad_account, total_spend, total_revenue, ad_count,
+                            impressions, clicks, extra_data, synced_at
+                        FROM ad_daily_stats_old
+                    """)
+                    conn.execute("DROP TABLE ad_daily_stats_old")
+        except Exception:
+            pass
+
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS login_session (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
