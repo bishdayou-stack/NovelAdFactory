@@ -768,3 +768,61 @@ def update_meta_token(act_id: str, access_token: str) -> None:
             "UPDATE meta_accounts SET access_token = ?, token_expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE act_id = ?",
             (access_token, token_expires_at, act_id)
         )
+
+
+# ====== Delivery Templates CRUD ======
+
+def get_delivery_templates() -> List[Dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM delivery_templates ORDER BY created_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+def get_delivery_template(template_id: int) -> Optional[Dict[str, Any]]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM delivery_templates WHERE id = ?", (template_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+def create_delivery_template(data: Dict[str, Any]) -> int:
+    with get_conn() as conn:
+        cur = conn.execute("""
+            INSERT INTO delivery_templates (name, source, source_adset_id, targeting_json,
+                placements_json, budget_type, budget_value, bid_strategy,
+                optimization_goal, billing_event, conversion_event, ad_account_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data.get("name"), data.get("source", "manual"),
+            data.get("source_adset_id"), json.dumps(data.get("targeting", {}), ensure_ascii=False),
+            json.dumps(data.get("placements", {}), ensure_ascii=False),
+            data.get("budget_type", "daily_budget"), data.get("budget_value", 0),
+            data.get("bid_strategy", "LOWEST_COST_WITHOUT_CAP"),
+            data.get("optimization_goal", "OFFSITE_CONVERSIONS"),
+            data.get("billing_event", "IMPRESSIONS"), data.get("conversion_event"),
+            data.get("ad_account_id")
+        ))
+        return cur.lastrowid
+
+def update_delivery_template(template_id: int, data: Dict[str, Any]) -> None:
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE delivery_templates SET
+                name=?, targeting_json=?, placements_json=?, budget_type=?,
+                budget_value=?, bid_strategy=?, optimization_goal=?, billing_event=?,
+                conversion_event=?, ad_account_id=?, updated_at=CURRENT_TIMESTAMP
+            WHERE id=?
+        """, (
+            data.get("name"), json.dumps(data.get("targeting", {}), ensure_ascii=False),
+            json.dumps(data.get("placements", {}), ensure_ascii=False),
+            data.get("budget_type", "daily_budget"), data.get("budget_value", 0),
+            data.get("bid_strategy", "LOWEST_COST_WITHOUT_CAP"),
+            data.get("optimization_goal", "OFFSITE_CONVERSIONS"),
+            data.get("billing_event", "IMPRESSIONS"), data.get("conversion_event"),
+            data.get("ad_account_id"), template_id
+        ))
+
+def delete_delivery_template(template_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM delivery_templates WHERE id = ?", (template_id,))
