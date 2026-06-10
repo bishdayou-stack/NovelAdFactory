@@ -800,6 +800,12 @@ def sync_all_meta_insights(concurrency: int = 8) -> Dict[str, Any]:
     default_token = _load_default_token()
     accounts = database.get_meta_accounts()
 
+    # 安全兜底：确保 act_id 带 act_ 前缀
+    for a in accounts:
+        aid = a.get("act_id", "")
+        if aid and not aid.startswith("act_"):
+            a["act_id"] = "act_" + aid
+
     # 用默认 token 补充没有独立 token 的 active 账户
     active_accounts = []
     for a in accounts:
