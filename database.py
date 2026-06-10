@@ -126,7 +126,7 @@ def init_db() -> None:
                     """)
                     conn.execute("DROP TABLE ad_daily_stats_old")
         except Exception:
-            pass
+            raise
 
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS login_session (
