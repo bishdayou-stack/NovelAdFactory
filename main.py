@@ -3602,7 +3602,7 @@ def _discover_meta_assets(body: DiscoverBody):
     all_accounts = []
     seen = set()
     for acct in result.get("ad_accounts", []):
-        aid = acct.get("account_id") or acct.get("id", "")
+        aid = acct.get("id") or acct.get("account_id", "")
         if aid and aid not in seen:
             seen.add(aid)
             all_accounts.append({
@@ -3615,7 +3615,7 @@ def _discover_meta_assets(body: DiscoverBody):
     # 合并 BM 下的账户
     for bm_id, bm_data in result.get("bm_ad_accounts", {}).items():
         for acct in bm_data.get("accounts", []):
-            aid = acct.get("account_id") or acct.get("id", "")
+            aid = acct.get("id") or acct.get("account_id", "")
             if aid and aid not in seen:
                 seen.add(aid)
                 all_accounts.append({
