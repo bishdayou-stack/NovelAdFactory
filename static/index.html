@@ -3471,7 +3471,7 @@
         var sel = document.getElementById('metaAccountFilter');
         sel.innerHTML = '<option value="">全部账户</option>';
         (data||[]).forEach(function(a){
-          if (a.status === 'active') sel.innerHTML += '<option value="'+a.act_id+'">'+a.act_id+'</option>';
+          if (a.status === 'active') { var optLabel = (a.act_name ? a.act_name + ' ' : '') + a.act_id; sel.innerHTML += '<option value="'+a.act_id+'">'+optLabel+'</option>'; }
         });
       }).catch(function(){});
     }
@@ -3539,7 +3539,7 @@
         var tbody = document.getElementById('metaDailyBody');
         if (!rows||!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">暂无数据</td></tr>'; return; }
         tbody.innerHTML = rows.map(function(r){
-          var displayName = r.act_name || (r.ad_account||'').replace('act_','');
+          var displayName = (r.act_name ? r.act_name + ' ' : '') + (r.ad_account||'');
 return '<tr class="border-b border-slate-50"><td class="py-1">'+(r.date||'')+'</td><td class="py-1 text-slate-500">'+displayName+'</td><td class="py-1 text-right">$'+(r.total_spend||0).toLocaleString()+'</td><td class="py-1 text-right">'+(r.purchases||0)+'</td><td class="py-1 text-right font-medium '+(r.roi>=2?'text-emerald-600':'text-red-500')+'">'+(r.roi||0).toFixed(2)+'</td></tr>';
         }).join('');
       }).catch(function(){});
@@ -3549,7 +3549,7 @@ return '<tr class="border-b border-slate-50"><td class="py-1">'+(r.date||'')+'</
         var tbody = document.getElementById('metaRankBody');
         if (!data||!data.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">暂无数据</td></tr>'; return; }
         tbody.innerHTML = data.map(function(r,i){
-          var rankName = r.act_name || (r.ad_account||'').replace('act_','');
+          var rankName = (r.act_name ? r.act_name + ' ' : '') + (r.ad_account||'');
 return '<tr class="border-b border-slate-50"><td class="py-1 text-slate-400">'+(i+1)+'</td><td class="py-1 font-medium">'+rankName+'</td><td class="py-1 text-right">$'+(r.spend||0).toLocaleString()+'</td><td class="py-1 text-right font-medium '+(r.roi>=2?'text-emerald-600':'text-red-500')+'">'+(r.roi||0).toFixed(2)+'</td></tr>';
         }).join('');
       }).catch(function(){});
