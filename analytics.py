@@ -419,15 +419,17 @@ def meta_daily_stats(start_date=None, end_date=None, account=None, keyword=None,
         wc = ' AND '.join(where)
         total = conn.execute(f"SELECT COUNT(DISTINCT date||ad_account) AS cnt FROM ad_daily_stats WHERE {wc}", params).fetchone()["cnt"]
         rows = conn.execute(f"""
-            SELECT date, ad_account, SUM(total_spend) AS total_spend, SUM(total_revenue) AS total_revenue,
-                   SUM(impressions) AS impressions, SUM(clicks) AS clicks,
-                   SUM(inline_link_clicks) AS link_clicks, SUM(purchases) AS purchases,
-                   SUM(purchase_value) AS purchase_value, SUM(ad_count) AS ad_count,
-                   CASE WHEN SUM(total_spend)>0 THEN ROUND(SUM(total_revenue)/SUM(total_spend),2) ELSE 0 END AS roi,
-                   CASE WHEN SUM(impressions)>0 THEN ROUND(SUM(total_spend)/SUM(impressions)*1000,2) ELSE 0 END AS cpm,
-                   CASE WHEN SUM(impressions)>0 THEN ROUND(SUM(clicks)*100.0/SUM(impressions),2) ELSE 0 END AS ctr
-            FROM ad_daily_stats WHERE {wc}
-            GROUP BY date, ad_account ORDER BY date DESC, ad_account LIMIT ? OFFSET ?
+            SELECT a.date, a.ad_account, m.act_name,
+                   SUM(a.total_spend) AS total_spend, SUM(a.total_revenue) AS total_revenue,
+                   SUM(a.impressions) AS impressions, SUM(a.clicks) AS clicks,
+                   SUM(a.inline_link_clicks) AS link_clicks, SUM(a.purchases) AS purchases,
+                   SUM(a.purchase_value) AS purchase_value, SUM(a.ad_count) AS ad_count,
+                   CASE WHEN SUM(a.total_spend)>0 THEN ROUND(SUM(a.total_revenue)/SUM(a.total_spend),2) ELSE 0 END AS roi,
+                   CASE WHEN SUM(a.impressions)>0 THEN ROUND(SUM(a.total_spend)/SUM(a.impressions)*1000,2) ELSE 0 END AS cpm,
+                   CASE WHEN SUM(a.impressions)>0 THEN ROUND(SUM(a.clicks)*100.0/SUM(a.impressions),2) ELSE 0 END AS ctr
+            FROM ad_daily_stats a LEFT JOIN meta_accounts m ON a.ad_account = m.act_id
+            WHERE {wc}
+            GROUP BY a.date, a.ad_account ORDER BY a.date DESC, a.ad_account LIMIT ? OFFSET ?
         """, params + [page_size, (page-1)*page_size]).fetchall()
         return {"data": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
 
@@ -457,10 +459,12 @@ def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20):
         where, params = [], []
         _meta_where(where, params, start_date, end_date, None, None)
         rows = conn.execute(f"""
-            SELECT ad_account, SUM(total_spend) AS spend, SUM(total_revenue) AS revenue,
-                   SUM(purchases) AS purchases, SUM(impressions) AS impressions,
-                   CASE WHEN SUM(total_spend)>0 THEN ROUND(SUM(total_revenue)/SUM(total_spend),2) ELSE 0 END AS roi
-            FROM ad_daily_stats WHERE {' AND '.join(where)}
-            GROUP BY ad_account ORDER BY spend DESC LIMIT ? OFFSET ?
+            SELECT a.ad_account, m.act_name, SUM(a.total_spend) AS spend,
+                   SUM(a.total_revenue) AS revenue, SUM(a.purchases) AS purchases,
+                   SUM(a.impressions) AS impressions,
+                   CASE WHEN SUM(a.total_spend)>0 THEN ROUND(SUM(a.total_revenue)/SUM(a.total_spend),2) ELSE 0 END AS roi
+            FROM ad_daily_stats a LEFT JOIN meta_accounts m ON a.ad_account = m.act_id
+            WHERE {' AND '.join(where)}
+            GROUP BY a.ad_account ORDER BY spend DESC LIMIT ? OFFSET ?
         """, params + [page_size, (page-1)*page_size]).fetchall()
         return [dict(r) for r in rows]
