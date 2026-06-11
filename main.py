@@ -3581,6 +3581,30 @@ def _get_delivery_records(page: int = 1, page_size: int = 20, status: str = None
     return database.get_delivery_records(page, page_size, status)
 
 
+# ---- Meta 数据看板 API（独立，不混入 pingykj 看板） ----
+
+@app.get("/api/meta/summary")
+def _meta_summary(start: str = Query(default=None), end: str = Query(default=None),
+                  account: str = Query(default=None), keyword: str = Query(default=None)):
+    return analytics.meta_summary(start_date=start, end_date=end, account=account, keyword=keyword)
+
+@app.get("/api/meta/daily-stats")
+def _meta_daily_stats(start: str = Query(default=None), end: str = Query(default=None),
+                      account: str = Query(default=None), keyword: str = Query(default=None),
+                      page: int = Query(default=1), page_size: int = Query(default=20)):
+    return analytics.meta_daily_stats(start_date=start, end_date=end, account=account,
+                                      keyword=keyword, page=page, page_size=page_size)
+
+@app.get("/api/meta/trend")
+def _meta_trend(days: int = Query(default=30), account: str = Query(default=None)):
+    return analytics.meta_trend(days=days, account=account)
+
+@app.get("/api/meta/account-ranking")
+def _meta_account_ranking(start: str = Query(default=None), end: str = Query(default=None),
+                          page: int = Query(default=1), page_size: int = Query(default=20)):
+    return analytics.meta_account_ranking(start_date=start, end_date=end, page=page, page_size=page_size)
+
+
 # ---- Meta 账户发现 API ----
 
 class DiscoverBody(BaseModel):
