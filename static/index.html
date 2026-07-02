@@ -3183,22 +3183,10 @@
         body: JSON.stringify(payload)
       }).then(function(r) { return r.json(); }).then(function(data) {
         if (data.batch_id) {
-          naCurrentBatchId = data.batch_id;
-          content.innerHTML = '<div class="space-y-4">' +
-            '<div class="flex items-center justify-between"><div class="flex items-center gap-3"><div class="animate-spin w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full"></div><span class="text-sm font-semibold text-slate-700">批次 #' + data.batch_id + ' 生成中...</span></div>' +
-            '<button id="naCancelBtn" type="button" class="rounded-lg border border-red-200 px-3 py-1 text-[11px] text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">取消</button></div>' +
-            '<div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div id="naProgressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all" style="width:0%"></div></div>' +
-            '<div id="naProgressText" class="text-xs text-slate-500">准备中...</div>' +
-            '<div id="naGeneratedImages" class="grid grid-cols-2 gap-3 sm:grid-cols-3"></div>' +
-            '</div>';
-          document.getElementById('naCancelBtn').addEventListener('click', function() {
-            if (naCurrentBatchId) { fetch('/api/cancel', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({batch_id: naCurrentBatchId}) }); }
-            if (naEventSource) { naEventSource.close(); naEventSource = null; }
-            if (naFallbackTimer) { clearInterval(naFallbackTimer); naFallbackTimer = null; }
-          });
-          startSSEStream(data.batch_id);
+          content.innerHTML = '<div class="rounded-xl bg-blue-50 p-4 text-sm text-blue-800 border border-blue-100">已提交后台生成（批次 #' + data.batch_id + '），<a href="javascript:void(0)" class="underline font-semibold text-indigo-600" onclick="switchTab(\'history\')">去历史记录查看</a></div>';
+          loadStats();
         } else {
-          content.innerHTML = '<div class="text-red-500 text-sm">提交失败: ' + (data.error || '未知错误') + '</div>';
+          content.innerHTML = '<div class="text-red-500 text-sm">提交失败: ' + (data.error || data.detail || '未知错误') + '</div>';
         }
       }).catch(function(e) {
         content.innerHTML = '<div class="text-red-500 text-sm">请求异常: ' + e.message + '</div>';
