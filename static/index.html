@@ -2114,8 +2114,9 @@
         section.className = 'card p-4';
 
         var timeStr = '';
-        if (data.progress && data.progress.updated_at) {
-          try { timeStr = new Date(data.progress.updated_at).toLocaleString('zh-CN'); } catch(e) {}
+        var t = (data.progress && data.progress.updated_at) ? data.progress.updated_at : (data.created_at || data.updated_at || '');
+        if (t) {
+          try { timeStr = new Date(t).toLocaleString('zh-CN'); } catch(e) {}
         }
 
         var headerDiv = document.createElement('div');
