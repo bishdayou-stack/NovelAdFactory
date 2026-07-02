@@ -4071,7 +4071,9 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
             return {"status": "failed", "error": f"Chat API HTTP {code}: {str(j)[:300] if j else (curl_err or '')}"}
         if not isinstance(j, dict):
             return {"status": "failed", "error": "Chat API 响应格式异常"}
-        raw = j["choices"][0]["message"]["content"].strip()
+        raw = (j["choices"][0]["message"]["content"] or "").strip()
+        if not raw:
+            return {"status": "failed", "error": "Chat API 返回了空内容，请重试或检查 API 配置"}
         if raw.startswith("```"):
             lines = raw.split("\n")
             if lines and lines[0].startswith("```"):
