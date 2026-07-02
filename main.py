@@ -2359,6 +2359,7 @@ def _background_generation(body: GenerateRequest, batch_id: int) -> None:
         _update_progress(batch_id, 0, f"任务失败: {e}", "failed")
     finally:
         _deregister_batch(batch_id)
+        result["source"] = "生成中心"
         _save_batch_meta(result)
 
 
@@ -2673,6 +2674,7 @@ def api_history(
                 "video_urls": vid_list,
                 "used_prompts": meta.get("used_prompts", []) if isinstance(meta.get("used_prompts"), list) else [],
                 "chat_status": meta.get("chat_status", ""),
+                "source": meta.get("source", ""),
                 "progress": None,
                 "created_at": meta.get("created_at", ""),
                 "updated_at": meta.get("updated_at", ""),
@@ -3874,6 +3876,7 @@ def _run_analysis_generation(body: AnalysisGenerateRequest, batch_id: int) -> di
         "warnings": warnings,
         "used_prompts": used_prompts,
         "chat_status": "skipped",
+        "source": "提示词生图",
     }
     _save_batch_meta(result)
     return result
@@ -3997,6 +4000,7 @@ def api_generate_from_prompts(body: PromptGenerateRequest, user: dict = Depends(
             "errors": errors,
             "used_prompts": used_prompts,
             "chat_status": "skipped",
+            "source": "小说分析",
         }
         _save_batch_meta(meta)
 
