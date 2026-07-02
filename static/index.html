@@ -3051,7 +3051,6 @@
 
     var naCurrentBatchId = null;
     var naEventSource = null;
-    var naSseFailed = false;
     var naFallbackTimer = null;
 
     function naFallbackPoll() {
@@ -3100,10 +3099,15 @@
     }
 
     function startSSEStream(batchId) {
-      naSseFailed = false;
       if (naFallbackTimer) { clearInterval(naFallbackTimer); naFallbackTimer = null; }
       if (naEventSource) { naEventSource.close(); }
+      // 双通道：SSE 实时推送 + 3秒后轮询兜底
       naEventSource = new EventSource('/api/generate/stream/' + batchId);
+      setTimeout(function() {
+        if (naCurrentBatchId && naEventSource && naEventSource.readyState !== EventSource.OPEN) {
+          naFallbackPoll();
+        }
+      }, 3000);
 
       naEventSource.addEventListener('image_ready', function(e) {
         var d = JSON.parse(e.data);
@@ -3139,9 +3143,9 @@
       });
 
       naEventSource.onerror = function() {
-        if (!naSseFailed) {
-          naSseFailed = true;
-          if (naEventSource) { naEventSource.close(); naEventSource = null; }
+        // SSE 断线时自动启用轮询模式
+        if (naEventSource) { naEventSource.close(); naEventSource = null; }
+        if (!naFallbackTimer) {
           naFallbackPoll();
         }
       };
@@ -3183,8 +3187,21 @@
         body: JSON.stringify(payload)
       }).then(function(r) { return r.json(); }).then(function(data) {
         if (data.batch_id) {
-          content.innerHTML = '<div class="rounded-xl bg-blue-50 p-4 text-sm text-blue-800 border border-blue-100">已提交后台生成（批次 #' + data.batch_id + '），<a href="javascript:void(0)" class="underline font-semibold text-indigo-600" onclick="switchTab(\'history\')">去历史记录查看</a></div>';
-          loadStats();
+          naCurrentBatchId = data.batch_id;
+          content.innerHTML = '<div class="space-y-4">' +
+            '<div class="flex items-center justify-between"><div class="flex items-center gap-3"><div class="animate-spin w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full"></div><span class="text-sm font-semibold text-slate-700">批次 #' + data.batch_id + ' 生成中...</span></div>' +
+            '<button id="naCancelBtn" type="button" class="rounded-lg border border-red-200 px-3 py-1 text-[11px] text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">取消</button></div>' +
+            '<div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div id="naProgressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all" style="width:0%"></div></div>' +
+            '<div id="naProgressText" class="text-xs text-slate-500">准备中...</div>' +
+            '<div id="naGeneratedImages" class="grid grid-cols-2 gap-3 sm:grid-cols-3"></div>' +
+            '<div class="text-xs text-slate-400">提示：如长时间无变化，刷新页面或去<a href="javascript:void(0)" class="underline text-indigo-500" onclick="switchTab(\'history\')">历史记录</a>查看</div>' +
+            '</div>';
+          document.getElementById('naCancelBtn').addEventListener('click', function() {
+            if (naCurrentBatchId) { fetch('/api/cancel', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({batch_id: naCurrentBatchId}) }); }
+            if (naEventSource) { naEventSource.close(); naEventSource = null; }
+            if (naFallbackTimer) { clearInterval(naFallbackTimer); naFallbackTimer = null; }
+          });
+          startSSEStream(data.batch_id);
         } else {
           content.innerHTML = '<div class="text-red-500 text-sm">提交失败: ' + (data.error || data.detail || '未知错误') + '</div>';
         }
