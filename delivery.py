@@ -15,9 +15,9 @@ _delivery_queues: Dict[str, list] = {}
 _delivery_events: Dict[str, threading.Event] = {}
 
 
-def _get_token(act_id: str) -> Optional[str]:
+def _get_token(act_id: str, user_id: int = None) -> Optional[str]:
     """从数据库获取账户 token"""
-    account = database.get_meta_account(act_id)
+    account = database.get_meta_account(act_id, user_id)
     if not account:
         return None
     return account.get("access_token")
@@ -33,7 +33,7 @@ def _push_event(batch_id: str, event_type: str, data: dict = None):
         })
 
 
-def _deliver_one(queue_item: dict, template: dict) -> dict:
+def _deliver_one(queue_item: dict, template: dict, user_id: int = None) -> dict:
     """执行单条广告的投放：上传创意 → 创建 Campaign → 创建 AdSet → 创建 Ad"""
     result = {
         "queue_id": queue_item["id"],
@@ -49,7 +49,7 @@ def _deliver_one(queue_item: dict, template: dict) -> dict:
         result["error"] = "模板未绑定广告账户"
         return result
 
-    token = _get_token(act_id)
+    token = _get_token(act_id, user_id)
     if not token:
         result["error"] = f"未找到账户 {act_id} 的 token"
         return result
@@ -126,10 +126,10 @@ def _deliver_one(queue_item: dict, template: dict) -> dict:
     return result
 
 
-def submit_delivery_batch(queue_ids: List[int], template_id: int):
+def submit_delivery_batch(queue_ids: List[int], template_id: int, user_id: int = None):
     """提交投放批次，返回 (batch_id, error)，后台异步执行"""
     batch_id = uuid.uuid4().hex[:12]
-    template = database.get_delivery_template(template_id)
+    template = database.get_delivery_template(template_id, user_id)
 
     if not template:
         return "", "模板不存在"
@@ -140,7 +140,7 @@ def submit_delivery_batch(queue_ids: List[int], template_id: int):
     def _run():
         _push_event(batch_id, "start", {"total": len(queue_ids)})
 
-        # Read queue items outside the readonly context
+        # Read queue items
         items = []
         with database.get_conn() as conn:
             for qid in queue_ids:
@@ -153,7 +153,7 @@ def submit_delivery_batch(queue_ids: List[int], template_id: int):
         max_workers = min(4, len(items))
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(_deliver_one, item, template): item for item in items}
+            futures = {executor.submit(_deliver_one, item, template, user_id): item for item in items}
             for future in as_completed(futures):
                 item = futures[future]
                 try:

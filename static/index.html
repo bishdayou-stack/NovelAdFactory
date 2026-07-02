@@ -28,6 +28,36 @@
   </style>
 </head>
 <body class="min-h-screen bg-slate-50 flex">
+
+  <!-- ====== 登录覆盖层 ====== -->
+  <div id="loginOverlay" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm transition-opacity duration-500" style="display:flex">
+    <div class="w-full max-w-sm mx-4 animate-fadeIn">
+      <div class="bg-white rounded-2xl shadow-2xl shadow-black/20 overflow-hidden">
+        <!-- 头部 -->
+        <div class="bg-gradient-to-br from-indigo-600 via-purple-600 to-violet-700 px-8 py-7 text-center">
+          <div class="w-14 h-14 mx-auto rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-white text-2xl font-bold mb-3 shadow-inner">NA</div>
+          <h2 class="text-white font-bold text-lg tracking-tight">Novel Ad Factory</h2>
+          <p class="text-indigo-200/80 text-xs mt-1">小说广告素材生产控制台</p>
+        </div>
+        <!-- 表单 -->
+        <div class="px-8 py-6">
+          <div id="loginError" class="hidden mb-4 text-xs bg-red-50 border border-red-100 text-red-600 rounded-lg px-3 py-2.5"></div>
+          <div class="mb-4">
+            <label class="block text-xs font-medium text-slate-500 mb-1.5 tracking-wide uppercase">用户名</label>
+            <input id="appLoginUsername" type="text" autocomplete="username" placeholder="请输入用户名" class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm input-focus bg-slate-50/50" />
+          </div>
+          <div class="mb-5">
+            <label class="block text-xs font-medium text-slate-500 mb-1.5 tracking-wide uppercase">密码</label>
+            <input id="appLoginPassword" type="password" autocomplete="current-password" placeholder="请输入密码" class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm input-focus bg-slate-50/50" />
+          </div>
+          <button id="btnLogin" type="button" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-sm shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 active:scale-[0.98] transition-all duration-150">
+            登 录
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ====== 左侧边栏 ====== -->
   <aside class="w-56 bg-slate-900 text-slate-300 flex flex-col shrink-0 min-h-screen sticky top-0">
     <div class="px-4 py-5 border-b border-white/5">
@@ -79,6 +109,14 @@
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
         <span class="truncate">小说管理</span>
       </button>
+      <button type="button" id="nav-hit-gallery" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+        <span class="truncate">爆款素材库</span>
+      </button>
+      <button type="button" id="nav-config" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <span class="truncate">配置管理</span>
+      </button>
       <button type="button" id="nav-delivery" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
         <span class="truncate">投放管理</span>
@@ -91,16 +129,23 @@
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
         <span class="truncate">账户配置</span>
       </button>
+      <button type="button" id="nav-users" class="w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer" style="display:none">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <span class="truncate">用户管理</span>
+      </button>
     </nav>
 
     <div class="p-4 border-t border-white/5">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-white font-semibold text-[11px] shadow-inner">A</div>
+        <div id="userAvatarCircle" class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-[11px] shadow-inner" style="background:linear-gradient(135deg, #6366f1, #8b5cf6)">A</div>
         <div class="min-w-0">
-          <div class="text-slate-300 font-medium text-xs">Admin</div>
-          <div id="outputRootDisplay" class="text-[10px] text-slate-500 truncate max-w-[130px]">-</div>
+          <div id="userDisplayName" class="text-slate-300 font-medium text-xs truncate max-w-[130px]">未登录</div>
+          <div id="userRoleBadge" class="text-[10px] text-slate-500 truncate max-w-[130px]"></div>
         </div>
       </div>
+      <button id="btnSidebarLogout" type="button" class="w-full mt-2.5 px-3 py-1.5 text-[11px] text-slate-500 hover:text-red-400 hover:bg-white/5 rounded-lg transition-all border-0 cursor-pointer text-left">
+        登出
+      </button>
     </div>
   </aside>
 
@@ -113,14 +158,10 @@
         </div>
         <h2 id="pageTitle" class="text-base font-bold text-slate-800 tracking-tight">生产中心</h2>
       </div>
-      <div class="flex items-center gap-2.5">
-        <button type="button" id="btnRefreshStats" class="px-3 py-1.5 text-[11px] rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all font-medium">刷新统计</button>
-        <button type="button" id="btnNewTask" class="px-4 py-2 text-[13px] rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-all shadow-sm shadow-indigo-500/10">新建生产任务</button>
-      </div>
     </header>
 
     <!-- Stats 卡片 -->
-    <div class="px-6 py-4 grid grid-cols-4 gap-4 shrink-0">
+    <div id="statsBar" class="px-6 py-4 grid grid-cols-4 gap-4 shrink-0">
       <div class="card p-4 flex items-center gap-4"><div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center"><svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div><div><div class="text-[11px] text-slate-500 font-medium">总任务数</div><div class="text-xl font-bold text-slate-800" id="statJobs">-</div></div></div>
       <div class="card p-4 flex items-center gap-4"><div class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center"><svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div><div class="text-[11px] text-slate-500 font-medium">成功率</div><div class="text-xl font-bold text-emerald-600" id="statRate">-</div></div></div>
       <div class="card p-4 flex items-center gap-4"><div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center"><svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div><div><div class="text-[11px] text-slate-500 font-medium">总出图数</div><div class="text-xl font-bold text-indigo-600" id="statImages">-</div></div></div>
@@ -142,18 +183,6 @@
               <textarea id="novelContent" rows="5" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm input-focus resize-none bg-slate-50/50" placeholder="在此粘贴小说原文内容..."></textarea>
               <button id="clearNovelBtn" type="button" class="clear-novel-btn absolute top-2 right-2 w-6 h-6 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-500 hover:text-slate-700 items-center justify-center text-xs leading-none transition-all border-0 cursor-pointer" style="display:none" title="清空内容">&times;</button>
             </div>
-            <details>
-              <summary class="text-[11px] font-medium text-slate-400 cursor-pointer hover:text-slate-600 select-none">API 配置 (点击展开)</summary>
-              <div class="mt-3 space-y-3">
-                <div><label class="mb-1 block text-[11px] font-medium text-slate-500">API 密钥</label><input id="apiKey" type="password" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" placeholder="sk-..." /></div>
-                <div><label class="mb-1 block text-[11px] font-medium text-slate-500">API 地址</label><input id="apiUrl" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="https://api.geeknow.top/v1" /></div>
-                <div class="grid grid-cols-3 gap-2">
-                  <div><label class="mb-1 block text-[11px] font-medium text-slate-500">对话模型</label><input id="chatModel" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" value="gpt-4o-mini" /></div>
-                  <div><label class="mb-1 block text-[11px] font-medium text-slate-500">出图模型</label><input id="imageModel" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" value="gpt-image-1" /></div>
-                  <div><label class="mb-1 block text-[11px] font-medium text-slate-500">并发数</label><input id="concurrencySlider" type="number" min="1" max="16" value="2" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" /></div>
-                </div>
-              </div>
-            </details>
             <div class="flex items-center gap-3 pt-1">
               <span class="text-[11px] font-medium text-slate-500">出图模式</span>
               <div class="flex rounded-lg border border-slate-200 overflow-hidden shadow-sm">
@@ -227,17 +256,18 @@
     <!-- ====== Tab: 历史记录 ====== -->
     <div id="tab-history" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
       <div class="card overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-50 flex items-center justify-between">
+        <div class="px-5 py-4 border-b border-slate-50 flex items-center justify-between flex-wrap gap-2">
           <h3 class="text-sm font-semibold text-slate-800">生成历史</h3>
           <div class="flex items-center gap-2">
+            <select id="historyCreatorFilter" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] input-focus bg-white" onchange="loadHistory(1)"><option value="">全部创建者</option></select>
             <button type="button" id="btnBatchDeleteHistory" class="rounded-lg border border-red-200 px-3 py-1.5 text-[11px] font-semibold text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer" hidden onclick="showBatchDeleteConfirm()">批量删除</button>
             <button type="button" id="btnRefreshHistory" class="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium transition-colors">刷新</button>
           </div>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead><tr class="border-b border-slate-50 text-left bg-slate-50/50"><th class="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-8"><input type="checkbox" id="historySelectAll" class="accent-indigo-600 w-3.5 h-3.5 cursor-pointer" onchange="toggleSelectAllHistory(this)" title="全选" /></th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">批次 ID</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">小说 ID</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">状态</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">进度</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Chat API</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">图片</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">视频</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">详情</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">操作</th></tr></thead>
-            <tbody id="historyTableBody"><tr><td colspan="8" class="px-5 py-16 text-center text-slate-400"><div class="flex flex-col items-center gap-2"><svg class="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-sm">点击刷新加载...</span></div></td></tr></tbody>
+            <thead><tr class="border-b border-slate-50 text-left bg-slate-50/50"><th class="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-8"><input type="checkbox" id="historySelectAll" class="accent-indigo-600 w-3.5 h-3.5 cursor-pointer" onchange="toggleSelectAllHistory(this)" title="全选" /></th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">批次 ID</th><th id="historyCreatorHeader" class="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider" style="display:none">创建者</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">时间</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">小说 ID</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">状态</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">进度</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Chat API</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">图片</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">视频</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">详情</th><th class="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">操作</th></tr></thead>
+            <tbody id="historyTableBody"><tr><td colspan="12" class="px-5 py-16 text-center text-slate-400"><div class="flex flex-col items-center gap-2"><svg class="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-sm">点击刷新加载...</span></div></td></tr></tbody>
           </table>
         </div>
         <div id="historyPagination" class="px-5 py-3 border-t border-slate-50 flex items-center justify-between gap-4 flex-wrap" hidden>
@@ -308,21 +338,31 @@
           </select>
           <input id="assetFilterDate" type="date" class="rounded-xl border border-slate-200 px-3 py-2 text-xs input-focus bg-slate-50/50" />
           <input id="assetFilterNovelId" type="text" class="rounded-xl border border-slate-200 px-3 py-2 text-xs input-focus bg-slate-50/50 w-40" placeholder="小说ID筛选..." />
+          <select id="assetFilterCreator" class="rounded-xl border border-slate-200 px-3 py-2 text-xs input-focus bg-slate-50/50"><option value="">全部创建者</option></select>
           <span class="text-[10px] text-slate-400">快选：</span>
           <button type="button" class="date-quick-btn rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all bg-white cursor-pointer" data-days="0">今天</button>
           <button type="button" class="date-quick-btn rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all bg-white cursor-pointer" data-days="1">昨天</button>
           <button type="button" class="date-quick-btn rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all bg-white cursor-pointer" data-days="2">前天</button>
           <button type="button" class="date-quick-btn rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all bg-white cursor-pointer" data-days="3">前3天</button>
           <button type="button" class="date-quick-btn rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all bg-white cursor-pointer" data-days="7">前7天</button>
-          <button id="btnApplyFilter" type="button" class="rounded-xl bg-indigo-600 px-4 py-2 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm border-0 cursor-pointer">应用筛选</button>
+          <button id="btnApplyFilter" type="button" class="rounded-xl bg-indigo-600 px-4 py-2 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm border-0 cursor-pointer">筛选</button>
           <button id="btnClearFilter" type="button" class="rounded-xl border border-slate-200 px-3 py-2 text-[11px] text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer">清除</button>
-          <button type="button" id="btnRefreshAssets" class="rounded-xl border border-slate-200 px-3 py-2 text-[11px] text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer ml-auto">刷新</button>
+          <button type="button" id="btnRefreshAssets" class="rounded-xl border border-slate-200 px-3 py-2 text-[11px] text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer">刷新</button>
         </div>
       </div>
 
       <!-- 素材列表 -->
       <div id="assetsLoading" class="text-center py-16 text-slate-400">点击刷新加载素材...</div>
       <div id="assetsGallery" class="space-y-4"></div>
+      <div class="flex items-center justify-center gap-3 mt-4 mb-4">
+        <span class="text-xs text-slate-400">每页</span>
+        <select id="assetsPageSize" class="rounded-lg border border-slate-200 px-2 py-1 text-xs input-focus bg-white" onchange="assetPageSize=parseInt(this.value);assetPage=1;applyAssetFilter(1);">
+          <option value="20" selected>20条</option>
+          <option value="40">40条</option>
+          <option value="60">60条</option>
+        </select>
+        <div id="assetsPager" class="flex items-center gap-1"></div>
+      </div>
     </div>
 
     <!-- ====== Tab: 视频样式 ====== -->
@@ -484,10 +524,10 @@
         </div>
         <div class="flex items-center gap-2">
           <div id="dashDatePills" class="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-            <button data-range="today" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">今天</button>
+            <button data-range="today" class="dashDatePill dashDatePillActive px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-white text-indigo-600 shadow-sm">今天</button>
             <button data-range="yesterday" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">昨天</button>
             <button data-range="7" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">近7天</button>
-            <button data-range="30" class="dashDatePill dashDatePillActive px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-white text-indigo-600 shadow-sm">近30天</button>
+            <button data-range="30" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">近30天</button>
             <button data-range="custom" class="dashDatePill px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">自定义</button>
           </div>
           <div id="dashCustomDate" class="flex items-center gap-1" hidden>
@@ -505,11 +545,10 @@
           <div class="flex items-center gap-1">
             <span class="text-[10px] text-slate-400">自动更新</span>
             <select id="dashSyncInterval" class="rounded-lg border border-slate-200 px-2 py-1.5 text-xs input-focus bg-white">
-              <option value="60">1分钟</option>
-              <option value="180" selected>3分钟</option>
-              <option value="600">10分钟</option>
+              <option value="180">3分钟</option>
+              <option value="600" selected>10分钟</option>
               <option value="1800">30分钟</option>
-              <option value="3600">1小时</option>
+              <option value="3600">60分钟</option>
             </select>
             <span id="dashIntervalHint" class="text-[10px] text-slate-400">默认3分钟</span>
           </div>
@@ -517,27 +556,55 @@
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             同步数据
           </button>
-          <span id="loginGroup" hidden>
-            <input id="loginUsername" type="text" placeholder="账号" class="w-28 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none transition-all">
-            <input id="loginPassword" type="password" placeholder="密码" class="w-28 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none transition-all ml-1">
-            <img id="captchaImg" alt="验证码" title="点击刷新" style="display:none;height:32px;border:1px solid #e2e8f0;border-radius:4px;margin-left:4px;cursor:pointer">
-            <input id="loginCaptcha" type="text" placeholder="验证码" class="w-16 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none transition-all ml-1" style="display:none">
-            <button id="btnLogin" class="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-all shadow-sm ml-1">
-              登录
-            </button>
-          </span>
-          <button id="btnLogout" class="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-xl border border-red-300 text-red-500 hover:bg-red-50 transition-all" hidden>
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-            登出
+          <button id="btnFullSync" class="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-xl border border-orange-300 text-orange-600 hover:bg-orange-50 transition-all" title="清除增量标记，重新全量拉取">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            全量同步
           </button>
+          <!-- 书城凭据设置（用户自助） -->
+          <button id="btnPingykjCreds" class="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-xl border border-dashed border-amber-300 text-amber-600 hover:bg-amber-50 transition-all" title="设置书城登录凭据">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+            <span id="pingykjCredsLabel">书城凭据</span>
+          </button>
+          <!-- 凭据设置弹窗 -->
+          <div id="pingykjCredsModal" hidden class="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 animate-fadeIn">
+              <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="text-base font-bold text-slate-800">书城凭据设置</h3>
+                <button id="btnPingykjCredsClose" type="button" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 cursor-pointer border-0 bg-transparent">✕</button>
+              </div>
+              <div class="px-6 py-5 space-y-4">
+                <p class="text-xs text-slate-500">输入 pingykj 书城平台的登录账号密码，获取验证码后登录验证。验证通过后自动保存凭据。</p>
+                <div>
+                  <label class="block text-xs font-medium text-slate-500 mb-1">书城账号</label>
+                  <input id="pingykjUserInput" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="输入 pingykj 平台账号" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-500 mb-1">书城密码</label>
+                  <input id="pingykjPassInput" type="password" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="输入登录密码" />
+                </div>
+                <div id="pingykjCaptchaRow" class="flex items-center gap-2 hidden">
+                  <img id="pingykjCaptchaImg" src="" alt="验证码" title="点击刷新" class="h-10 rounded-lg border border-slate-200 cursor-pointer" style="display:none" />
+                  <input id="pingykjCaptchaInput" type="text" class="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="验证码" style="display:none" />
+                  <button id="btnPingykjRefreshCaptcha" type="button" class="hidden px-3 py-2 text-xs rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer">刷新</button>
+                </div>
+                <div id="pingykjCredsMsg" class="hidden text-xs rounded-lg px-3 py-2"></div>
+              </div>
+              <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+                <button id="btnPingykjCredsCancel" type="button" class="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all bg-white cursor-pointer">取消</button>
+                <button id="btnPingykjGetCaptcha" type="button" class="rounded-xl bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-600 transition-all shadow-sm cursor-pointer">获取验证码</button>
+                <button id="btnPingykjCredsSave" type="button" class="hidden rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-600 transition-all shadow-sm cursor-pointer">登录验证</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="grid grid-cols-4 gap-3 mb-4">
+      <div class="grid grid-cols-5 gap-3 mb-4">
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">总消耗</div><div id="kpiSpend" class="text-xl font-bold text-slate-800 mt-1">-</div></div>
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">总收入</div><div id="kpiRevenue" class="text-xl font-bold text-emerald-600 mt-1">-</div></div>
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">ROI</div><div id="kpiRoi" class="text-xl font-bold text-indigo-600 mt-1">-</div></div>
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">成功订单</div><div id="kpiOrders" class="text-xl font-bold text-violet-600 mt-1">-</div></div>
+        <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">单次成效成本</div><div id="kpiCpa" class="text-xl font-bold text-amber-600 mt-1">-</div></div>
       </div>
 
       <div class="grid grid-cols-2 gap-4 mb-4">
@@ -545,16 +612,30 @@
         <div class="card p-4"><h3 class="text-xs font-semibold text-slate-700 mb-3">各账户消耗占比</h3><div style="height: 220px;"><canvas id="chartPie"></canvas></div></div>
       </div>
 
-      <div class="card p-4 mb-4">
-        <div class="flex justify-between items-center mb-3">
-          <h3 class="text-xs font-semibold text-slate-700">按账户日报明细</h3>
-          <div id="dashTablePager" class="flex items-center gap-1"></div>
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <!-- 按账户日报明细 -->
+        <div id="dashDailyCard" class="card p-4">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-xs font-semibold text-slate-700">按账户日报明细</h3>
+            <div id="dashTablePager" class="flex items-center gap-1"></div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead><tr class="border-b-2 border-slate-100 text-left"><th class="pb-2 font-medium text-slate-500 cursor-pointer select-none sortable-header" data-sort="date">日期</th><th class="pb-2 font-medium text-slate-500">账户</th><th class="pb-2 font-medium text-right text-indigo-600 cursor-pointer select-none sortable-header" data-sort="total_spend">消耗 ▾</th><th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none sortable-header" data-sort="total_revenue">收入</th><th class="pb-2 font-medium text-right text-slate-500">ROI</th><th class="pb-2 font-medium pl-4 text-slate-500">归属人</th></tr></thead>
+              <tbody id="dashTableBody"></tbody>
+            </table>
+          </div>
         </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs">
-            <thead><tr class="border-b-2 border-slate-100 text-slate-500 text-left"><th class="pb-2 font-medium">日期</th><th class="pb-2 font-medium">账户</th><th class="pb-2 font-medium text-right">消耗</th><th class="pb-2 font-medium text-right">收入</th><th class="pb-2 font-medium text-right">ROI</th><th class="pb-2 font-medium text-right">广告数</th></tr></thead>
-            <tbody id="dashTableBody"></tbody>
-          </table>
+
+        <!-- 用户汇总排名 -->
+        <div id="dashUserRankCard" class="card p-4">
+          <h3 class="text-xs font-semibold text-slate-700 mb-3">用户汇总排名</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead><tr class="border-b-2 border-slate-100 text-slate-500 text-left"><th class="pb-2 font-medium">#</th><th class="pb-2 font-medium">用户</th><th class="pb-2 font-medium text-right">总消耗</th><th class="pb-2 font-medium text-right">总收入</th><th class="pb-2 font-medium text-right">成功订单</th><th class="pb-2 font-medium text-right">ROI</th><th class="pb-2 font-medium text-right">单次成效成本</th></tr></thead>
+              <tbody id="dashUserRankBody"><tr><td colspan="7" class="py-4 text-center text-slate-300">-</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -564,24 +645,43 @@
             <h3 class="text-xs font-semibold text-slate-700">账户排名</h3>
             <div id="dashRankPager" class="flex items-center gap-1"></div>
           </div>
-          <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-100 text-slate-500 text-left"><th class="pb-1.5 font-medium">#</th><th class="pb-1.5 font-medium">账户</th><th class="pb-1.5 font-medium text-right">消耗</th><th class="pb-1.5 font-medium text-right">收入</th><th class="pb-1.5 font-medium text-right">ROI</th></tr></thead><tbody id="dashRankBody"></tbody></table></div>
+          <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-100 text-slate-500 text-left"><th class="pb-1.5 font-medium">#</th><th class="pb-1.5 font-medium">账户</th><th class="pb-1.5 font-medium">归属人</th><th class="pb-1.5 font-medium text-right">消耗</th><th class="pb-1.5 font-medium text-right">收入</th><th class="pb-1.5 font-medium text-right">ROI</th></tr></thead><tbody id="dashRankBody"></tbody></table></div>
         </div>
         <div class="card p-4">
           <div class="flex justify-between items-center mb-3">
             <h3 class="text-xs font-semibold text-slate-700">最近订单</h3>
             <div id="dashOrderPager" class="flex items-center gap-1"></div>
           </div>
-          <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-100 text-slate-500 text-left"><th class="pb-1.5 font-medium">订单号</th><th class="pb-1.5 font-medium">日期 <span class="text-[9px] text-slate-400">时区</span></th><th class="pb-1.5 font-medium">所属推广链接</th><th class="pb-1.5 font-medium">广告ID</th><th class="pb-1.5 font-medium text-right">金额</th><th class="pb-1.5 font-medium">状态</th></tr></thead><tbody id="dashOrderBody"></tbody></table></div>
+          <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-100 text-slate-500 text-left"><th class="pb-1.5 font-medium">订单号</th><th class="pb-1.5 font-medium">日期 <span class="text-[9px] text-slate-400">时区</span></th><th class="pb-1.5 font-medium">所属推广链接</th><th class="pb-1.5 font-medium">书籍</th><th class="pb-1.5 font-medium">广告ID</th><th class="pb-1.5 font-medium">书城账户</th><th class="pb-1.5 font-medium text-right">金额</th><th class="pb-1.5 font-medium">状态</th></tr></thead><tbody id="dashOrderBody"></tbody></table></div>
         </div>
       </div>
 
-      <div class="card p-4 mb-4">
-        <h3 class="text-xs font-semibold text-slate-700 mb-3">小说订单排行榜</h3>
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs">
-            <thead><tr class="border-b-2 border-slate-100 text-slate-500 text-left"><th class="pb-2 font-medium">#</th><th class="pb-2 font-medium">书名</th><th class="pb-2 font-medium">书ID</th><th class="pb-2 font-medium text-right">订单量</th><th class="pb-2 font-medium text-right">订单金额</th></tr></thead>
-            <tbody id="dashNovelBody"></tbody>
-          </table>
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div class="card p-4">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-xs font-semibold text-slate-700">小说总订单排行榜</h3>
+            <label id="novelMineLabel" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 text-xs text-slate-500 cursor-pointer select-none hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-600 transition-all">
+              <input type="checkbox" id="novelMineOnly" class="w-3.5 h-3.5 rounded accent-indigo-600" onchange="var lb=document.getElementById('novelMineLabel'); if(this.checked){lb.classList.add('bg-indigo-50','border-indigo-300','text-indigo-600');}else{lb.classList.remove('bg-indigo-50','border-indigo-300','text-indigo-600');} novelTotalPage=1;novel7dPage=1;loadNovelStats();" />
+              仅显示自己
+            </label>
+          </div>
+          <div class="overflow-x-auto">
+            <table id="novelTotalTable" class="w-full text-xs">
+              <thead><tr class="border-b-2 border-slate-100 text-left"><th class="pb-2 font-medium text-slate-500">#</th><th class="pb-2 font-medium text-slate-500">书名</th><th class="pb-2 font-medium text-slate-500">书ID</th><th class="pb-2 font-medium text-right text-indigo-600 cursor-pointer select-none sortable-header" data-sort="order_count">订单量 ▾</th><th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none sortable-header" data-sort="total_amount">订单金额</th></tr></thead>
+              <tbody id="dashNovelBody"></tbody>
+            </table>
+          </div>
+          <div id="novelTotalPager" class="flex justify-center gap-1 mt-2"></div>
+        </div>
+        <div class="card p-4">
+          <h3 class="text-xs font-semibold text-slate-700 mb-3">最近7天小说订单排行</h3>
+          <div class="overflow-x-auto">
+            <table id="novel7dTable" class="w-full text-xs">
+              <thead><tr class="border-b-2 border-slate-100 text-left"><th class="pb-2 font-medium text-slate-500">#</th><th class="pb-2 font-medium text-slate-500">书名</th><th class="pb-2 font-medium text-slate-500">书ID</th><th class="pb-2 font-medium text-right text-indigo-600 cursor-pointer select-none sortable-header" data-sort="order_count">订单量 ▾</th><th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none sortable-header" data-sort="total_amount">订单金额</th></tr></thead>
+              <tbody id="dashNovel7dBody"></tbody>
+            </table>
+          </div>
+          <div id="novel7dPager" class="flex justify-center gap-1 mt-2"></div>
         </div>
       </div>
     </div>
@@ -591,29 +691,31 @@
       <div class="flex items-center justify-between mb-4 mt-2">
         <div class="flex items-center gap-3">
           <h2 class="text-lg font-bold text-slate-800">小说管理</h2>
-          <span id="novelMgrCount" class="text-xs text-slate-400"></span>
+          <span id="novelMgrCount" class="text-sm text-slate-500"></span>
         </div>
         <div class="flex items-center gap-2">
-          <input id="novelMgrSearch" type="text" placeholder="搜索书名/作者..." class="w-40 px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none">
-          <select id="novelMgrStatus" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-indigo-400 outline-none bg-white">
+          <input id="novelMgrSearch" type="text" placeholder="搜索书名/作者..." class="w-40 px-3 py-1.5 text-sm rounded-lg border border-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none">
+          <select id="novelMgrStatus" class="px-3 py-1.5 text-sm rounded-lg border border-slate-200 focus:border-indigo-400 outline-none bg-white">
             <option value="">全部状态</option>
-            <option value="连载">连载</option>
-            <option value="完结">完结</option>
+            <option value="连载中">连载中</option>
+            <option value="已完结">已完结</option>
+            <option value="已下架">已下架</option>
           </select>
-          <button id="novelMgrSyncBooksBtn" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer">同步书籍列表</button>
-          <button id="novelMgrSyncContentBtn" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">同步全部内容</button>
+          <button id="novelMgrSyncAllBtn" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">同步小说</button>
         </div>
       </div>
 
       <!-- 书籍列表表格 -->
-      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white mb-4">
-        <table class="w-full text-xs whitespace-nowrap">
-          <thead class="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+      <div class="overflow-x-auto card mb-4">
+        <table id="novelMgrTable" class="w-full text-sm whitespace-nowrap">
+          <thead class="border-b border-slate-100 sticky top-0 z-10 bg-white">
             <tr class="text-slate-500 text-left">
-              <th class="py-2.5 px-3 font-medium">创建日期</th>
-              <th class="py-2.5 px-3 font-medium">小说标题</th>
-              <th class="py-2.5 px-3 font-medium text-right">书籍消耗</th>
-              <th class="py-2.5 px-3 font-medium text-right">推广链接数</th>
+              <th class="py-2.5 px-3 font-medium cursor-pointer hover:text-indigo-600 select-none" data-sort="create_time" onclick="sortNovelBooks('create_time')">创建日期<span class="sort-arrow"> ▼</span></th>
+              <th class="py-2.5 px-3 font-medium cursor-pointer hover:text-indigo-600 select-none" data-sort="novel_name" onclick="sortNovelBooks('novel_name')">小说标题<span class="sort-arrow"></span></th>
+              <th class="py-2.5 px-3 font-medium text-right cursor-pointer hover:text-indigo-600 select-none" data-sort="book_ad_spend" onclick="sortNovelBooks('book_ad_spend')">书籍消耗<span class="sort-arrow"></span></th>
+              <th class="py-2.5 px-3 font-medium text-right cursor-pointer hover:text-indigo-600 select-none" data-sort="order_count" onclick="sortNovelBooks('order_count')">订单数<span class="sort-arrow"></span></th>
+              <th class="py-2.5 px-3 font-medium text-right cursor-pointer hover:text-indigo-600 select-none" data-sort="conversion_cost" onclick="sortNovelBooks('conversion_cost')">转化成本<span class="sort-arrow"></span></th>
+              <th class="py-2.5 px-3 font-medium text-right cursor-pointer hover:text-indigo-600 select-none" data-sort="promotion_link_count" onclick="sortNovelBooks('promotion_link_count')">推广链接数<span class="sort-arrow"></span></th>
               <th class="py-2.5 px-3 font-medium">小说ID</th>
               <th class="py-2.5 px-3 font-medium">小说来源</th>
               <th class="py-2.5 px-3 font-medium">封面</th>
@@ -626,15 +728,23 @@
               <th class="py-2.5 px-3 font-medium">状态</th>
               <th class="py-2.5 px-3 font-medium">独享状态</th>
               <th class="py-2.5 px-3 font-medium">创建用户</th>
-              <th class="py-2.5 px-3 font-medium text-right">总字数</th>
-              <th class="py-2.5 px-3 font-medium text-right">章节数</th>
+              <th class="py-2.5 px-3 font-medium text-right cursor-pointer hover:text-indigo-600 select-none" data-sort="word_count" onclick="sortNovelBooks('word_count')">总字数<span class="sort-arrow"></span></th>
+              <th class="py-2.5 px-3 font-medium text-right cursor-pointer hover:text-indigo-600 select-none" data-sort="total_chapters" onclick="sortNovelBooks('total_chapters')">章节数<span class="sort-arrow"></span></th>
               <th class="py-2.5 px-3 font-medium text-right">收藏数</th>
             </tr>
           </thead>
           <tbody id="novelMgrBookBody"></tbody>
         </table>
       </div>
-      <div id="novelMgrBookPager" class="flex justify-center gap-1 mb-4"></div>
+      <div class="flex items-center justify-center gap-2 mb-4">
+        <span class="text-xs text-slate-400">每页</span>
+        <select id="novelMgrPageSize" class="rounded-lg border border-slate-200 px-2 py-1 text-xs input-focus bg-white">
+          <option value="15">15条</option>
+          <option value="30">30条</option>
+          <option value="50">50条</option>
+        </select>
+        <div id="novelMgrBookPager" class="flex justify-center gap-1"></div>
+      </div>
 
     </div>
 
@@ -808,6 +918,50 @@
       </div>
     </div>
 
+    <!-- ====== Tab: 爆款素材库 ====== -->
+    <div id="tab-hit-gallery" class="flex-1 px-6 pb-6 overflow-y-auto min-w-0" hidden>
+      <div class="flex items-center justify-between mb-4 mt-2">
+        <div class="flex items-center gap-3">
+          <h2 class="text-lg font-bold text-slate-800">爆款素材库</h2>
+          <span id="hitGalleryCount" class="text-xs text-slate-400"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="hitGallerySearch" type="text" placeholder="搜索..." class="w-36 px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-amber-400 outline-none">
+          <select id="hitGallerySort" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 outline-none bg-white">
+            <option value="registered_at">时间最新</option>
+            <option value="roi">ROI 最高</option>
+            <option value="spend">消耗最高</option>
+            <option value="score">评分最高</option>
+          </select>
+          <button id="hitGalleryRefresh" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 transition-all bg-white cursor-pointer">刷新</button>
+        </div>
+      </div>
+      <div id="hitGalleryGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
+        <div class="text-center text-slate-300 text-xs col-span-full py-12">加载中...</div>
+      </div>
+      <div id="hitGalleryPager" class="flex justify-center gap-1"></div>
+    </div>
+
+    <!-- ====== Tab: 配置管理 ====== -->
+    <div id="tab-config" class="flex-1 px-6 pb-6 overflow-y-auto min-w-0" hidden>
+      <div class="max-w-xl mx-auto mt-2">
+        <h2 class="text-lg font-bold text-slate-800 mb-4">API 配置</h2>
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-sm">
+          <div><label class="mb-1 block text-sm font-medium text-slate-600">API 密钥</label><input id="apiKey" type="password" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none" placeholder="sk-..."><p id="apiKeyHint" class="mt-1 text-xs text-amber-600 hidden">⚠ 每个用户需配置自己的 API 密钥，不共享全局密钥。</p></div>
+          <div><label class="mb-1 block text-sm font-medium text-slate-600">API 地址</label><input id="apiUrl" type="text" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none"></div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="mb-1 block text-sm font-medium text-slate-600">对话模型</label><input id="chatModel" type="text" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none"></div>
+            <div><label class="mb-1 block text-sm font-medium text-slate-600">出图模型</label><input id="imageModel" type="text" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none"></div>
+          </div>
+          <div><label class="mb-1 block text-sm font-medium text-slate-600">并发数</label><input id="concurrencySlider" type="number" min="1" max="16" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none"></div>
+          <div class="flex justify-end pt-2">
+            <button id="configSaveBtn" class="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">保存配置</button>
+          </div>
+          <div id="configSaveMsg" class="text-xs text-green-600 hidden text-center">已保存 ✓</div>
+        </div>
+      </div>
+    </div>
+
     <!-- 章节弹窗（双视图：章节列表 / 内容） -->
     <div id="chapterModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" hidden>
       <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col">
@@ -851,7 +1005,64 @@
       </div>
     </div>
 
+    <!-- 账户别名批量编辑弹窗 -->
+    <div id="aliasModal" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" hidden>
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col animate-fadeIn">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+          <h3 class="text-base font-bold text-slate-800">编辑账户别名</h3>
+          <button id="aliasModalClose" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all cursor-pointer">&times;</button>
+        </div>
+        <div id="aliasModalBody" class="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+          <div class="text-xs text-slate-400 text-center py-12">加载中...</div>
+        </div>
+        <div class="flex items-center justify-between px-6 py-3 border-t border-slate-100 shrink-0">
+          <div class="flex items-center gap-3">
+            <button id="aliasBatchClear" class="text-[11px] text-red-400 hover:text-red-600 transition-all cursor-pointer bg-transparent border-0">清空别名</button>
+            <button id="aliasBatchDelete" class="text-[11px] text-red-400 hover:text-red-600 transition-all cursor-pointer bg-transparent border-0 hidden">删除选中 (<span id="aliasBatchCount">0</span>)</button>
+          </div>
+          <div class="flex gap-3">
+            <button id="aliasModalCancel" class="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all bg-white cursor-pointer">取消</button>
+            <button id="aliasModalSave" class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">保存全部</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 删除确认弹窗 -->
+    <!-- 爆款素材登记弹窗 -->
+    <div id="hitRegisterModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" hidden>
+      <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] flex flex-col">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+          <h3 class="text-base font-bold text-slate-800">⭐ 登记爆款素材</h3>
+          <button id="hitRegisterClose" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all cursor-pointer">&times;</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          <!-- 素材预览 -->
+          <div class="flex gap-3">
+            <img id="hitPreviewImg" src="" class="w-24 h-24 object-cover rounded-lg border border-slate-200" onerror="this.style.display='none'">
+            <video id="hitPreviewVideo" class="w-24 h-24 object-cover rounded-lg border border-slate-200" controls style="display:none"></video>
+            <div class="flex-1 min-w-0">
+              <div class="text-xs text-slate-500">批次: <span id="hitBatchId" class="font-mono"></span></div>
+              <div class="text-xs text-slate-500 truncate">小说: <span id="hitNovelName"></span></div>
+              <div class="text-xs text-slate-400 font-mono">ID: <span id="hitNovelId"></span></div>
+              <div class="text-xs text-slate-400 truncate">提示词: <span id="hitPrompt" class="text-[10px]"></span></div>
+            </div>
+          </div>
+          <!-- 效果数据 -->
+          <div class="grid grid-cols-4 gap-2">
+            <div><label class="text-[10px] text-slate-500">消耗 ($)</label><input id="hitSpend" type="number" step="0.01" class="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-amber-400 outline-none" oninput="calcHitROI()"></div>
+            <div><label class="text-[10px] text-slate-500">下单数量</label><input id="hitOrderCount" type="number" step="1" class="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-amber-400 outline-none"></div>
+            <div><label class="text-[10px] text-slate-500">下单金额 ($)</label><input id="hitRevenue" type="number" step="0.01" class="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-amber-400 outline-none" oninput="calcHitROI()"></div>
+            <div><label class="text-[10px] text-slate-500">ROI</label><input id="hitROI" type="text" readonly class="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-100 bg-slate-50 text-slate-600"></div>
+          </div>
+        </div>
+        <div class="flex gap-3 justify-end px-6 py-3 border-t border-slate-100 shrink-0">
+          <button id="hitRegisterCancel" class="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all bg-white cursor-pointer">取消</button>
+          <button id="hitRegisterSave" class="rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-600 transition-all shadow-sm cursor-pointer">保存</button>
+        </div>
+      </div>
+    </div>
+
     <div id="deleteConfirmModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" hidden>
       <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 p-6">
         <div class="flex items-center gap-3 mb-4">
@@ -867,12 +1078,545 @@
         </div>
       </div>
     </div>
+
+    <!-- ====== 用户管理 Tab ====== -->
+    <div id="tab-users" hidden class="px-6 py-6">
+      <div class="section-header">
+        <h3 class="text-base font-bold text-slate-800">用户管理</h3>
+        <button id="btnAddUser" type="button" class="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">+ 新增用户</button>
+      </div>
+      <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="border-b border-slate-100 bg-slate-50/50">
+                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">用户名</th>
+                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">显示名</th>
+                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">角色</th>
+                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">书城账号</th>
+                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">状态</th>
+                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">创建时间</th>
+                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">最后登录</th>
+                <th class="text-right py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">操作</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody">
+              <tr><td colspan="8" class="py-10 text-center text-slate-400">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 用户编辑模态框 ====== -->
+    <div id="userModal" hidden class="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto animate-fadeIn">
+        <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+          <h3 id="userModalTitle" class="text-base font-bold text-slate-800">新增用户</h3>
+          <button id="btnUserModalClose" type="button" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 cursor-pointer border-0 bg-transparent">✕</button>
+        </div>
+        <div class="px-6 py-5 space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">用户名</label>
+            <input id="umUsername" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="登录用户名" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1">密码</label>
+              <input id="umPassword" type="password" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="留空不修改" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1">角色</label>
+              <select id="umRole" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus bg-white">
+                <option value="user">普通用户</option>
+                <option value="admin">管理员</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">显示名称</label>
+            <input id="umDisplayName" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="可选" />
+          </div>
+          <!-- 书城凭据（管理员可为普通用户设置） -->
+          <div class="border-t border-slate-100 pt-4 mt-1">
+            <p class="text-xs font-semibold text-slate-500 mb-3">📚 书城凭据（pingykj 平台）</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">书城账号</label>
+                <input id="umPingykjUser" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="书城登录账号" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">书城密码</label>
+                <input id="umPingykjPass" type="password" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="留空不修改" />
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input id="umIsActive" type="checkbox" checked class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+              <span class="text-xs text-slate-600">账号启用</span>
+            </label>
+          </div>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+          <button id="btnUserModalCancel" type="button" class="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all bg-white cursor-pointer">取消</button>
+          <button id="btnUserModalSave" type="button" class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 管理员验证码登录弹窗 ====== -->
+    <div id="adminCaptchaModal" hidden class="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 animate-fadeIn">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-slate-800">🔐 验证码登录书城</h3>
+          <button id="btnAdminCaptchaClose" type="button" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 cursor-pointer border-0 bg-transparent">✕</button>
+        </div>
+        <div class="px-5 py-4 space-y-3">
+          <p id="adminCaptchaUser" class="text-xs text-slate-500">用户: —</p>
+          <div class="text-center">
+            <img id="adminCaptchaImg" src="" alt="验证码" class="mx-auto rounded-lg border border-slate-200" style="display:none; max-height:80px;" />
+          </div>
+          <div id="adminCaptchaRow" class="hidden space-y-2">
+            <input id="adminCaptchaInput" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-center input-focus" placeholder="输入验证码" maxlength="10" autocomplete="off" />
+            <div class="flex gap-2">
+              <button id="btnAdminCaptchaRefresh" type="button" class="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 bg-white cursor-pointer">刷新验证码</button>
+              <button id="btnAdminCaptchaLogin" type="button" class="flex-1 rounded-xl bg-orange-600 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-700 transition-all cursor-pointer">确认登录</button>
+            </div>
+          </div>
+          <div id="adminCaptchaMsg" class="text-xs rounded-lg px-3 py-2 hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 图片预览弹窗 -->
+    <div id="imagePreviewModal" hidden class="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 backdrop-blur-sm" onclick="this.hidden=true">
+      <button class="absolute top-4 right-4 w-10 h-10 rounded-xl bg-white/10 text-white text-xl hover:bg-white/20 transition-all flex items-center justify-center cursor-pointer border-0" onclick="document.getElementById('imagePreviewModal').hidden=true">✕</button>
+      <img id="imagePreviewImg" src="" class="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl" onclick="event.stopPropagation()" />
+    </div>
+
   </main>
 
   <script>
+    // ====== 认证系统 ======
+
+    var authToken = localStorage.getItem('auth_token') || '';
+    var currentUser = null;
+    try { currentUser = JSON.parse(localStorage.getItem('current_user') || 'null'); } catch(e) { currentUser = null; }
+
+    // 全局 fetch 拦截器 - 自动注入 auth header
+    var _justLoggedIn = false;
+    var _justLoggedInTimer = null;
+    (function() {
+      var origFetch = window.fetch;
+      window.fetch = function(url, options) {
+        options = options || {};
+        var token = authToken;
+        if (token) {
+          options.headers = options.headers || {};
+          if (typeof options.headers === 'object' && !(options.headers instanceof Headers)) {
+            options.headers['Authorization'] = 'Bearer ' + token;
+          } else if (options.headers instanceof Headers) {
+            options.headers.set('Authorization', 'Bearer ' + token);
+          }
+        }
+        return origFetch.call(window, url, options).then(function(resp) {
+          if (resp.status === 401 && !_justLoggedIn && !url.toString().includes('/api/auth/')) {
+            authToken = '';
+            currentUser = null;
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('current_user');
+            showLoginOverlay();
+          }
+          return resp;
+        });
+      };
+    })();
+
+    // 登录覆盖层
+    function showLoginOverlay() {
+      document.getElementById('loginOverlay').style.display = 'flex';
+    }
+    function hideLoginOverlay() {
+      document.getElementById('loginOverlay').style.display = 'none';
+    }
+
+    // 登录按钮
+    document.getElementById('btnLogin').addEventListener('click', function() {
+      var username = document.getElementById('appLoginUsername').value.trim();
+      var password = document.getElementById('appLoginPassword').value;
+      if (!username || !password) {
+        document.getElementById('loginError').textContent = '请输入用户名和密码';
+        document.getElementById('loginError').classList.remove('hidden');
+        return;
+      }
+      var btn = this;
+      btn.textContent = '登录中...';
+      btn.disabled = true;
+      fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      }).then(function(r) { return r.json().then(function(d) { return { status: r.status, data: d }; }); })
+        .then(function(result) {
+          if (result.status === 200) {
+            authToken = result.data.token;
+            currentUser = result.data.user;
+            localStorage.setItem('auth_token', authToken);
+            localStorage.setItem('current_user', JSON.stringify(currentUser));
+            hideLoginOverlay();
+            updateSidebarUser();
+            _justLoggedIn = true;
+            if (_justLoggedInTimer) clearTimeout(_justLoggedInTimer);
+            _justLoggedInTimer = setTimeout(function() { _justLoggedIn = false; }, 3000);
+            loadSyncInterval();
+            refreshAllData();
+          } else {
+            document.getElementById('loginError').textContent = result.data.detail || '登录失败';
+            document.getElementById('loginError').classList.remove('hidden');
+          }
+        }).catch(function(e) {
+          document.getElementById('loginError').textContent = '网络错误，请重试';
+          document.getElementById('loginError').classList.remove('hidden');
+        }).finally(function() {
+          btn.textContent = '登 录';
+          btn.disabled = false;
+        });
+    });
+
+    // 密码框回车登录
+    document.getElementById('appLoginPassword').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') document.getElementById('btnLogin').click();
+    });
+    document.getElementById('appLoginUsername').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') document.getElementById('appLoginPassword').focus();
+    });
+
+    // 侧边栏登出
+    document.getElementById('btnSidebarLogout').addEventListener('click', function() {
+      if (dashRefreshTimer) { clearInterval(dashRefreshTimer); dashRefreshTimer = null; }
+      if (authToken) {
+        fetch('/api/auth/logout', { method: 'POST' }).catch(function(){});
+      }
+      authToken = '';
+      currentUser = null;
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('current_user');
+      showLoginOverlay();
+      document.getElementById('userDisplayName').textContent = '未登录';
+      document.getElementById('userRoleBadge').textContent = '';
+      document.getElementById('nav-users').style.display = 'none';
+    });
+
+    // 更新侧边栏用户信息
+    function updateSidebarUser() {
+      if (!currentUser) return;
+      var name = currentUser.display_name || currentUser.username;
+      document.getElementById('userDisplayName').textContent = name;
+      document.getElementById('userRoleBadge').textContent = currentUser.role === 'admin' ? '管理员' : '普通用户';
+      document.getElementById('userAvatarCircle').textContent = (name[0] || 'U').toUpperCase();
+
+      if (currentUser.role === 'admin') {
+        document.getElementById('nav-users').style.display = 'flex';
+      } else {
+        document.getElementById('nav-users').style.display = 'none';
+      }
+    }
+
+    // 初始化：检查登录状态
+    if (authToken && currentUser) {
+      hideLoginOverlay();
+      updateSidebarUser();
+      // 验证 token 有效性
+      fetch('/api/auth/me').then(function(r) {
+        if (r.status === 200) return r.json();
+        throw new Error('expired');
+      }).then(function(u) {
+        currentUser = u;
+        localStorage.setItem('current_user', JSON.stringify(currentUser));
+        updateSidebarUser();
+      }).catch(function() {
+        authToken = '';
+        currentUser = null;
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('current_user');
+        showLoginOverlay();
+      });
+    }
+
+    function refreshAllData() {
+      // 触发当前视图的数据刷新
+      if (currentTab === 'generate') { /* 无需刷新 */ }
+      else if (currentTab === 'history') { loadHistoryView(); }
+      else if (currentTab === 'dashboard') { loadDashboardData(); }
+    }
+
+    // ====== 用户管理 ======
+
+    var userEditingId = null;
+
+    function showUserModal(title, userData) {
+      document.getElementById('userModalTitle').textContent = title;
+      document.getElementById('umUsername').value = userData ? userData.username : '';
+      document.getElementById('umUsername').disabled = !!userData;
+      document.getElementById('umPassword').value = '';
+      document.getElementById('umPassword').placeholder = userData ? '留空不修改' : '设置密码';
+      document.getElementById('umRole').value = userData ? userData.role : 'user';
+      document.getElementById('umDisplayName').value = userData ? (userData.display_name || '') : '';
+      // 书城凭据
+      document.getElementById('umPingykjUser').value = userData ? (userData.pingykj_username || '') : '';
+      document.getElementById('umPingykjPass').value = '';
+      document.getElementById('umPingykjPass').placeholder = userData && userData.pingykj_password_masked ? '留空不修改（已设置）' : '留空不修改';
+      document.getElementById('umIsActive').checked = userData ? (userData.is_active !== 0) : true;
+      document.getElementById('userModal').hidden = false;
+    }
+
+    function hideUserModal() {
+      document.getElementById('userModal').hidden = true;
+      userEditingId = null;
+    }
+
+    document.getElementById('btnUserModalClose').addEventListener('click', hideUserModal);
+    document.getElementById('btnUserModalCancel').addEventListener('click', hideUserModal);
+
+    document.getElementById('btnAddUser').addEventListener('click', function() {
+      userEditingId = null;
+      showUserModal('新增用户', null);
+    });
+
+    document.getElementById('btnUserModalSave').addEventListener('click', function() {
+      var username = document.getElementById('umUsername').value.trim();
+      var role = document.getElementById('umRole').value;
+      var displayName = document.getElementById('umDisplayName').value.trim();
+      var isActive = document.getElementById('umIsActive').checked;
+      var pwd = document.getElementById('umPassword').value;
+      var pingykjUser = document.getElementById('umPingykjUser').value.trim();
+      var pingykjPass = document.getElementById('umPingykjPass').value;
+
+      if (!userEditingId && !username) { alert('请输入用户名'); return; }
+      if (!userEditingId && !pwd) { alert('请输入密码'); return; }
+
+      var data = {};
+      if (userEditingId) {
+        data = { role: role, display_name: displayName, is_active: isActive,
+                 pingykj_username: pingykjUser };  // 总是发送，空则清除
+        if (pwd) data.new_password = pwd;
+        if (pingykjPass) data.pingykj_password = pingykjPass;
+      } else {
+        data = { username: username, password: pwd, role: role, display_name: displayName };
+        if (pingykjUser) data.pingykj_username = pingykjUser;
+        if (pingykjPass) data.pingykj_password = pingykjPass;
+      }
+
+      var url = userEditingId ? '/api/users/' + userEditingId : '/api/users';
+      var method = userEditingId ? 'PUT' : 'POST';
+
+      fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }).then(function(r) { return r.json().then(function(d) { return {status:r.status, data:d}; }); })
+        .then(function(r) {
+          if (r.status === 200) {
+            hideUserModal();
+            loadUserList();
+          } else {
+            var msg = r.data.detail;
+            if (typeof msg === 'object') {
+              msg = msg.map ? msg.map(function(e) { return e.msg || e.message || JSON.stringify(e); }).join('; ') : JSON.stringify(msg);
+            }
+            alert(msg || '操作失败');
+          }
+        }).catch(function(e) { alert('网络错误: ' + (e.message || e)); });
+    });
+
+    function loadUserList() {
+      fetch('/api/users').then(function(r) { return r.json(); }).then(function(users) {
+        var tbody = document.getElementById('userTableBody');
+        if (!users.length) {
+          tbody.innerHTML = '<tr><td colspan="8" class="py-10 text-center text-slate-400">暂无用户</td></tr>';
+          return;
+        }
+        tbody.innerHTML = users.map(function(u) {
+          var roleBadge = u.role === 'admin'
+            ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-[10px] font-medium">管理员</span>'
+            : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-medium">用户</span>';
+          var statusBadge = u.is_active
+            ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-medium">启用</span>'
+            : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-600 text-[10px] font-medium">禁用</span>';
+          var created = u.created_at ? u.created_at.substring(0, 10) : '-';
+          var lastLogin = u.last_login_at ? u.last_login_at.substring(0, 16).replace('T', ' ') : '-';
+          var lastIp = u.last_login_ip || '';
+          return '<tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">' +
+            '<td class="py-3 px-4 font-medium text-slate-800">' + htmlEscape(u.username) + '</td>' +
+            '<td class="py-3 px-4 text-slate-600">' + htmlEscape(u.display_name || '-') + '</td>' +
+            '<td class="py-3 px-4">' + roleBadge + '</td>' +
+            '<td class="py-3 px-4 text-slate-600 font-mono text-[11px]">' + htmlEscape(u.pingykj_username || '-') + '</td>' +
+            '<td class="py-3 px-4">' + statusBadge + '</td>' +
+            '<td class="py-3 px-4 text-slate-500">' + created + '</td>' +
+            '<td class="py-3 px-4 text-slate-500 text-[11px]">' + lastLogin + (lastIp ? '<br><span class="text-slate-400 text-[10px]">' + lastIp + '</span>' : '') + '</td>' +
+            '<td class="py-3 px-4 text-right whitespace-nowrap">' +
+            (u.pingykj_username ? (
+              u.pingykj_online
+                ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-medium mr-2">● 在线</span>'
+                : '<button class="text-amber-600 hover:text-amber-800 mr-2 font-medium text-[10px] border border-amber-200 rounded-lg px-2 py-1 bg-amber-50 hover:bg-amber-100 cursor-pointer" onclick="reconnectPingykj(' + u.id + ',\'' + htmlEscape(u.username) + '\')">🔐 重新登录</button>'
+            ) : '') +
+            '<button class="text-indigo-600 hover:text-indigo-800 mr-2 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="editUser(' + u.id + ')">编辑</button>' +
+            (u.id !== 1 ? '<button class="text-red-500 hover:text-red-700 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="deleteUser(' + u.id + ',\'' + htmlEscape(u.username) + '\')">删除</button>' : '<span class="text-slate-300 text-[11px]">—</span>') +
+            '</td></tr>';
+        }).join('');
+      }).catch(function(e) {
+        document.getElementById('userTableBody').innerHTML = '<tr><td colspan="8" class="py-10 text-center text-red-400">加载失败</td></tr>';
+      });
+    }
+
+    function editUser(uid) {
+      userEditingId = uid;
+      fetch('/api/users').then(function(r) { return r.json(); }).then(function(users) {
+        var u = users.find(function(x) { return x.id === uid; });
+        if (u) showUserModal('编辑用户 - ' + u.username, u);
+      });
+    }
+
+    function reconnectPingykj(uid, uname) {
+      if (!confirm('将为 "' + uname + '" 登录书城，确定吗？')) return;
+      var btn = event.target;
+      var origText = btn.textContent;
+      btn.textContent = '登录中...';
+      btn.disabled = true;
+      // 第一步：尝试无验证码快速登录
+      fetch('/api/users/' + uid + '/reconnect-pingykj', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.status === 'ok') {
+            alert('✅ ' + d.message);
+            btn.textContent = origText;
+            btn.disabled = false;
+            loadUserList();  // 刷新在线状态
+          } else {
+            // 快速登录失败 → 自动弹出验证码窗口
+            btn.textContent = origText;
+            btn.disabled = false;
+            showCaptchaLogin(uid, uname);
+          }
+        }).catch(function() {
+          // 网络错误也弹出验证码窗口
+          btn.textContent = origText;
+          btn.disabled = false;
+          showCaptchaLogin(uid, uname);
+        });
+    }
+
+    // ====== 管理员验证码登录书城 ======
+    var _adminCaptchaUserId = null;
+    var _adminCaptchaCheckKey = '';
+
+    function showCaptchaLogin(uid, uname) {
+      _adminCaptchaUserId = uid;
+      _adminCaptchaCheckKey = '';
+      document.getElementById('adminCaptchaUser').textContent = '用户: ' + uname;
+      document.getElementById('adminCaptchaImg').style.display = 'none';
+      document.getElementById('adminCaptchaRow').classList.add('hidden');
+      document.getElementById('adminCaptchaInput').value = '';
+      document.getElementById('adminCaptchaMsg').className = 'text-xs rounded-lg px-3 py-2 hidden';
+      document.getElementById('adminCaptchaModal').hidden = false;
+      // 自动获取验证码
+      fetchAdminCaptcha();
+    }
+
+    document.getElementById('btnAdminCaptchaClose').addEventListener('click', function() {
+      document.getElementById('adminCaptchaModal').hidden = true;
+    });
+
+    document.getElementById('btnAdminCaptchaRefresh').addEventListener('click', fetchAdminCaptcha);
+
+    document.getElementById('btnAdminCaptchaLogin').addEventListener('click', function() {
+      var captcha = document.getElementById('adminCaptchaInput').value.trim();
+      if (!captcha) { showAdminCaptchaMsg('请输入验证码', 'error'); return; }
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = '登录中...';
+      fetch('/api/users/' + _adminCaptchaUserId + '/reconnect-pingykj?captcha=' + encodeURIComponent(captcha) + '&check_key=' + encodeURIComponent(_adminCaptchaCheckKey), { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.status === 'ok') {
+            showAdminCaptchaMsg('✅ ' + d.message, 'success');
+            loadUserList();  // 刷新在线状态
+            setTimeout(function() { document.getElementById('adminCaptchaModal').hidden = true; }, 1500);
+          } else {
+            showAdminCaptchaMsg('❌ ' + (d.message || '登录失败') + '。可刷新验证码重试', 'error');
+            document.getElementById('adminCaptchaInput').value = '';
+            fetchAdminCaptcha();
+          }
+        }).catch(function() {
+          showAdminCaptchaMsg('网络错误', 'error');
+        }).finally(function() {
+          btn.disabled = false;
+          btn.textContent = '确认登录';
+        });
+    });
+
+    function fetchAdminCaptcha() {
+      var btn = document.getElementById('btnAdminCaptchaRefresh');
+      btn.disabled = true;
+      btn.textContent = '获取中...';
+      document.getElementById('adminCaptchaInput').value = '';
+      showAdminCaptchaMsg('正在获取验证码...', 'info');
+      fetch('/api/users/' + _adminCaptchaUserId + '/pingykj-captcha')
+        .then(function(r) { return r.json().then(function(d) { return {status: r.status, data: d}; }); })
+        .then(function(r) {
+          if (r.status === 200 && r.data.image) {
+            _adminCaptchaCheckKey = r.data.check_key;
+            document.getElementById('adminCaptchaImg').src = r.data.image;
+            document.getElementById('adminCaptchaImg').style.display = '';
+            document.getElementById('adminCaptchaRow').classList.remove('hidden');
+            document.getElementById('adminCaptchaMsg').className = 'text-xs rounded-lg px-3 py-2 hidden';
+          } else {
+            showAdminCaptchaMsg('❌ ' + (r.data.detail || r.data.message || '获取验证码失败'), 'error');
+          }
+        }).catch(function(e) {
+          showAdminCaptchaMsg('网络错误: ' + (e.message || e), 'error');
+        }).finally(function() {
+          btn.disabled = false;
+          btn.textContent = '刷新验证码';
+        });
+    }
+
+    function showAdminCaptchaMsg(msg, type) {
+      var el = document.getElementById('adminCaptchaMsg');
+      el.textContent = msg;
+      el.className = 'text-xs rounded-lg px-3 py-2 ' + (type === 'error' ? 'bg-red-50 text-red-600' : type === 'success' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600');
+      el.classList.remove('hidden');
+    }
+
+    function deleteUser(uid, uname) {
+      if (!confirm('确定要删除用户 "' + uname + '" 吗？此操作不可撤销。')) return;
+      fetch('/api/users/' + uid, { method: 'DELETE' })
+        .then(function(r) { return r.json().then(function(d) { return {status:r.status, data:d}; }); })
+        .then(function(r) {
+          if (r.status === 200) loadUserList();
+          else alert(r.data.detail || '删除失败');
+        }).catch(function(e) { alert('网络错误'); });
+    }
+
+    function htmlEscape(s) {
+      if (!s) return '';
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    document.getElementById('nav-users').addEventListener('click', function() { switchTab('users'); });
+
+    // 初始侧边栏状态
+    if (authToken && currentUser) {
+      hideLoginOverlay();
+      updateSidebarUser();
+      switchTab('dashboard');
+    }
+  </script>
+  <script>
     // ====== 全局状态 ======
     var lastPayloadUrls = [];
-    var currentTab = 'generate';
+    var currentTab = 'dashboard';
     var styleLibrary = [];
     var selectedStyleId = null;
     var activeScrollStyleId = null;
@@ -907,6 +1651,13 @@
       });
     }
 
+    document.getElementById('configSaveBtn').addEventListener('click', function() {
+      saveApiConfig();
+      var msg = document.getElementById('configSaveMsg');
+      msg.classList.remove('hidden');
+      setTimeout(function() { msg.classList.add('hidden'); }, 2000);
+    });
+
     function saveApiConfig() {
       apiConfig.api_key = document.getElementById("apiKey").value;
       apiConfig.api_url = document.getElementById("apiUrl").value;
@@ -919,27 +1670,41 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(apiConfig)
-      }).catch(function() {});
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        var msg = document.getElementById('configSaveMsg');
+        msg.textContent = d.message || '已保存 ✓';
+        msg.classList.remove('hidden');
+        setTimeout(function() { msg.classList.add('hidden'); }, 2500);
+      }).catch(function(err) {
+        var msg = document.getElementById('configSaveMsg');
+        msg.textContent = '保存失败';
+        msg.classList.remove('hidden');
+        setTimeout(function() { msg.classList.add('hidden'); }, 2500);
+      });
 
       localStorage.setItem('novelAdConfig', JSON.stringify(apiConfig));
     }
 
     function applyConfigToForm() {
       var el;
-      el = document.getElementById("apiKey"); if (el && apiConfig.api_key) el.value = apiConfig.api_key;
+      el = document.getElementById("apiKey"); if (el) el.value = apiConfig.api_key || "";
       el = document.getElementById("apiUrl"); if (el && apiConfig.api_url) el.value = apiConfig.api_url;
       el = document.getElementById("chatModel"); if (el && apiConfig.chat_model_name) el.value = apiConfig.chat_model_name;
       el = document.getElementById("imageModel"); if (el && apiConfig.image_model_name) el.value = apiConfig.image_model_name;
       el = document.getElementById("concurrencySlider"); if (el && apiConfig.concurrency) el.value = apiConfig.concurrency;
+      // 普通用户显示 API 密钥提示
+      var hint = document.getElementById("apiKeyHint");
+      if (hint) {
+        if (currentUser && currentUser.role !== 'admin') {
+          hint.classList.remove('hidden');
+        } else {
+          hint.classList.add('hidden');
+        }
+      }
     }
 
     function bindConfigAutoSave() {
-      ['apiKey', 'apiUrl', 'chatModel', 'imageModel'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) el.addEventListener('change', saveApiConfig);
-      });
-      var concurrencyEl = document.getElementById("concurrencySlider");
-      if (concurrencyEl) concurrencyEl.addEventListener('input', saveApiConfig);
+      // 配置管理页面使用手动保存按钮，不再自动保存
     }
 
 
@@ -949,23 +1714,20 @@
       currentTab = tab;
 
       // 隐藏所有 tab
-      document.getElementById('tab-generate').hidden = true;
-      document.getElementById('tab-history').hidden = true;
-      document.getElementById('tab-assets').hidden = true;
-      document.getElementById('tab-video-style').hidden = true;
-      document.getElementById('tab-prompt-generate').hidden = true;
-      document.getElementById('tab-novel-analyze').hidden = true;
-      document.getElementById('tab-dashboard').hidden = true;
-      document.getElementById('tab-novel-mgr').hidden = true;
-      document.getElementById('tab-delivery').hidden = true;
-      document.getElementById('tab-meta-data').hidden = true;
-      document.getElementById('tab-meta-accounts').hidden = true;
+      var allTabs = ['generate', 'history', 'assets', 'video-style', 'prompt-generate',
+                     'novel-analyze', 'dashboard', 'novel-mgr', 'hit-gallery', 'config',
+                     'delivery', 'meta-data', 'meta-accounts', 'users'];
+      for (var i = 0; i < allTabs.length; i++) {
+        var el = document.getElementById('tab-' + allTabs[i]);
+        if (el) el.hidden = true;
+      }
 
       // 显示目标 tab
-      document.getElementById('tab-' + tab).hidden = false;
+      var target = document.getElementById('tab-' + tab);
+      if (target) target.hidden = false;
 
       // 更新导航按钮样式
-      ['generate', 'history', 'assets', 'video-style', 'prompt-generate', 'novel-analyze', 'dashboard', 'novel-mgr', 'delivery', 'meta-data', 'meta-accounts'].forEach(function(t) {
+      allTabs.forEach(function(t) {
         var btn = document.getElementById('nav-' + t);
         if (!btn) return;
         btn.classList.remove('bg-white/5', 'text-white', 'font-medium');
@@ -978,13 +1740,17 @@
       }
 
       // 更新面包屑
-      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'delivery': '投放管理', 'meta-data': 'Meta 数据', 'meta-accounts': '账户配置' };
+      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'delivery': '投放管理', 'meta-data': 'Meta 数据', 'meta-accounts': '账户配置', 'users': '用户管理' };
       document.getElementById('breadcrumb').textContent = titles[tab] || tab;
       document.getElementById('pageTitle').textContent = titles[tab] || tab;
 
+      // 只在特定页面显示统计栏
+      var showStats = ['generate', 'history', 'video-style', 'prompt-generate', 'novel-analyze'].indexOf(tab) >= 0;
+      document.getElementById('statsBar').style.display = showStats ? '' : 'none';
+
       // 加载数据
-      if (tab === 'history') { loadHistory(); document.getElementById('batchDetailPanel').hidden = true; }
-      if (tab === 'assets') loadAssets();
+      if (tab === 'history') { loadCreators(); loadHistory(); document.getElementById('batchDetailPanel').hidden = true; }
+      if (tab === 'assets') { loadCreators(); loadAssets(); }
       if (tab === 'video-style') { loadStyleLibrary().then(function() { loadFonts(); }); }
       if (tab === 'novel-analyze') {
         var el = document.getElementById('naAnalysisPrompt');
@@ -992,9 +1758,11 @@
       }
       if (tab === 'dashboard') { loadDashboard(); }
       if (tab === 'novel-mgr') { if (novelMgrPages.books === 1) loadNovelBooks(1); else loadNovelBooks(novelMgrPages.books); }
+      if (tab === 'hit-gallery') loadHitGallery();
       if (tab === 'delivery') loadDeliveryQueue();
       if (tab === 'meta-data') loadMetaDashboard();
       if (tab === 'meta-accounts') loadMetaAccounts();
+      if (tab === 'users') loadUserList();
     }
 
     // ====== 数据加载 ======
@@ -1057,6 +1825,17 @@
     var historyPage = 1;
     var historyPerPage = 20;
 
+    function loadCreators() {
+      fetch('/api/history/creators').then(function(r) { return r.json(); }).then(function(creators) {
+        var opts = '<option value="">全部创建者</option>';
+        creators.forEach(function(c) {
+          opts += '<option value="' + c.user_id + '">' + escapeHtml(c.user_name) + '</option>';
+        });
+        document.getElementById('historyCreatorFilter').innerHTML = opts;
+        document.getElementById('assetFilterCreator').innerHTML = opts;
+      }).catch(function() {});
+    }
+
     function loadHistory(page, perPage) {
       if (page === undefined) page = historyPage;
       if (perPage === undefined) perPage = historyPerPage;
@@ -1065,11 +1844,14 @@
       document.getElementById('historyPerPage').value = perPage;
       var offset = (page - 1) * perPage;
       var tbody = document.getElementById('historyTableBody');
-      tbody.innerHTML = '<tr><td colspan="10" class="px-5 py-16 text-center text-slate-400"><div class="flex flex-col items-center gap-2"><svg class="w-8 h-8 text-slate-200 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg><span class="text-sm">加载中...</span></div></td></tr>';
-      fetch("/api/history?limit=" + perPage + "&offset=" + offset).then(function(r) { return r.json(); }).then(function(d) {
+      tbody.innerHTML = '<tr><td colspan="12" class="px-5 py-16 text-center text-slate-400"><div class="flex flex-col items-center gap-2"><svg class="w-8 h-8 text-slate-200 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg><span class="text-sm">加载中...</span></div></td></tr>';
+      var creatorFilter = document.getElementById('historyCreatorFilter').value;
+      var qs = "limit=" + perPage + "&offset=" + offset;
+      if (creatorFilter) qs += "&creator=" + encodeURIComponent(creatorFilter);
+      fetch("/api/history?" + qs).then(function(r) { return r.json(); }).then(function(d) {
         var items = d.history || [];
         var total = d.total || 0;
-        if (!items.length) { tbody.innerHTML = '<tr><td colspan="10" class="px-5 py-16 text-center text-slate-400"><div class="flex flex-col items-center gap-2"><svg class="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-sm">暂无历史记录</span></div></td></tr>'; renderHistoryPagination(0, page, perPage); return; }
+        if (!items.length) { tbody.innerHTML = '<tr><td colspan="12" class="px-5 py-16 text-center text-slate-400"><div class="flex flex-col items-center gap-2"><svg class="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-sm">暂无历史记录</span></div></td></tr>'; renderHistoryPagination(0, page, perPage); return; }
         tbody.innerHTML = items.map(function(item) {
           var sb = item.status === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.status === 'partial' ? 'bg-amber-50 text-amber-700 border-amber-200' : item.status === 'failed' ? 'bg-red-50 text-red-700 border-red-200' : item.status === 'cancelled' ? 'bg-slate-200 text-slate-500 border-slate-300' : item.status === 'running' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200';
           var cb = item.chat_status === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.chat_status === 'failed' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200';
@@ -1087,11 +1869,16 @@
           if (item.status === 'running') {
             cancelBtn = '<button type="button" class="rounded-xl bg-red-50 px-2.5 py-1.5 text-[10px] font-semibold text-red-500 hover:bg-red-100 transition-all border-0 cursor-pointer ml-1.5" onclick="var b=this;event.stopPropagation();cancelProduction(' + parseInt(item.batch_id) + ');b.disabled=true;b.textContent=\'取消中...\'">取消</button>';
           }
+          document.getElementById('historyCreatorHeader').style.display = '';
+          var creatorCol = '<td class="px-3 py-3 text-[11px] text-slate-500">' + (item.user_name || (item.user_id ? 'ID:' + item.user_id : '-')) + '</td>';
+          var timeStr = item.created_at || item.updated_at || '';
+          if (timeStr) { timeStr = timeStr.substring(0,16).replace('T',' '); }
+          var timeCol = '<td class="px-3 py-3 text-[11px] text-slate-500">' + (timeStr || '-') + '</td>';
           var deleteBtn = '<button type="button" class="rounded-xl bg-red-50 px-2.5 py-1.5 text-[10px] font-semibold text-red-500 hover:bg-red-100 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();confirmDeleteSingle(\'' + item.batch_id + '\')">删除</button>';
-          return '<tr class="border-b border-slate-50 hover:bg-slate-50/30 transition-colors"><td class="px-3 py-3"><input type="checkbox" class="history-checkbox accent-indigo-600 w-3.5 h-3.5 cursor-pointer" value="' + item.batch_id + '" onchange="onHistoryCheckboxChange()" /></td><td class="px-5 py-3 font-mono text-[12px] text-slate-600 font-medium">#' + item.batch_id + '</td><td class="px-5 py-3 text-[12px] text-slate-500 font-mono">' + (item.novel_id || '-') + '</td><td class="px-5 py-3"><span class="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold border ' + sb + '">' + (item.status || 'unknown') + '</span></td>' + progressCell + '<td class="px-5 py-3"><span class="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold border ' + cb + '">' + (item.chat_status || '-') + '</span></td><td class="px-5 py-3 text-[13px] text-slate-600">' + (item.images || 0) + '</td><td class="px-5 py-3 text-[13px] text-slate-600">' + (item.videos || 0) + '</td><td class="px-5 py-3 text-[12px] text-slate-500 max-w-[200px] truncate">' + (item.message || '-') + '</td><td class="px-5 py-3 whitespace-nowrap"><button type="button" class="rounded-xl bg-indigo-50 px-3 py-1.5 text-[10px] font-semibold text-indigo-600 hover:bg-indigo-100 transition-all border-0 cursor-pointer" onclick="viewBatchDetail(\'' + item.batch_id + '\')">详情</button>' + deleteBtn + cancelBtn + '</td></tr>';
+          return '<tr class="border-b border-slate-50 hover:bg-slate-50/30 transition-colors"><td class="px-3 py-3"><input type="checkbox" class="history-checkbox accent-indigo-600 w-3.5 h-3.5 cursor-pointer" value="' + item.batch_id + '" onchange="onHistoryCheckboxChange()" /></td><td class="px-5 py-3 font-mono text-[12px] text-slate-600 font-medium">#' + item.batch_id + '</td>' + creatorCol + timeCol + '<td class="px-5 py-3 text-[12px] text-slate-500 font-mono">' + (item.novel_id || '-') + '</td><td class="px-5 py-3"><span class="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold border ' + sb + '">' + (item.status || 'unknown') + '</span></td>' + progressCell + '<td class="px-5 py-3"><span class="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold border ' + cb + '">' + (item.chat_status || '-') + '</span></td><td class="px-5 py-3 text-[13px] text-slate-600">' + (item.images || 0) + '</td><td class="px-5 py-3 text-[13px] text-slate-600">' + (item.videos || 0) + '</td><td class="px-5 py-3 text-[12px] text-slate-500 max-w-[200px] truncate">' + (item.message || '-') + '</td><td class="px-5 py-3 whitespace-nowrap"><button type="button" class="rounded-xl bg-indigo-50 px-3 py-1.5 text-[10px] font-semibold text-indigo-600 hover:bg-indigo-100 transition-all border-0 cursor-pointer" onclick="viewBatchDetail(\'' + item.batch_id + '\')">详情</button>' + deleteBtn + cancelBtn + '</td></tr>';
         }).join('');
         renderHistoryPagination(total, page, perPage);
-      }).catch(function(e) { tbody.innerHTML = '<tr><td colspan="10" class="px-5 py-16 text-center text-red-400"><div class="flex flex-col items-center gap-2"><span class="text-sm">加载失败: ' + e.message + '</span></div></td></tr>'; });
+      }).catch(function(e) { tbody.innerHTML = '<tr><td colspan="12" class="px-5 py-16 text-center text-red-400"><div class="flex flex-col items-center gap-2"><span class="text-sm">加载失败: ' + e.message + '</span></div></td></tr>'; });
     }
 
     function renderHistoryPagination(total, page, perPage) {
@@ -1222,6 +2009,7 @@
     }
 
     var allAssetsData = [];
+    var assetPage = 1, assetPageSize = 20;
 
     function loadAssets() {
       var loading = document.getElementById('assetsLoading');
@@ -1230,50 +2018,67 @@
       loading.hidden = false;
       gallery.innerHTML = '';
 
-      fetch("/api/history?limit=200").then(function(r) { return r.json(); }).then(function(d) {
+      fetch("/api/history?limit=500").then(function(r) { return r.json(); }).then(function(d) {
         var items = d.history || [];
         if (!items.length) { loading.textContent = '暂无素材'; return; }
         loading.hidden = true;
 
-        var detailPromises = items.map(function(item) {
-          return fetch('/api/history/' + item.batch_id).then(function(r) { return r.json(); }).catch(function() { return item; });
-        });
-
-        Promise.all(detailPromises).then(function(detailsList) {
-          // 按 batch_id 降序排列（最新批次在前）
-          detailsList.sort(function(a, b) {
-            var aid = parseInt(a.batch_id) || 0;
-            var bid = parseInt(b.batch_id) || 0;
-            return bid - aid;
-          });
-          allAssetsData = detailsList;
-          renderAssetsGallery(detailsList);
-          document.getElementById('btnApplyFilter').onclick = applyAssetFilter;
-          document.getElementById('btnClearFilter').onclick = function() {
-            document.getElementById('assetFilterType').value = 'all';
-            document.getElementById('assetFilterStatus').value = 'all';
-            document.getElementById('assetFilterDate').value = '';
-            document.getElementById('assetFilterNovelId').value = '';
-            renderAssetsGallery(detailsList);
+        // 直接使用列表数据（已含 image_urls/video_urls/used_prompts）
+        var detailsList = items.map(function(item) {
+          return {
+            batch_id: item.batch_id,
+            novel_id: item.novel_id,
+            status: item.status,
+            message: item.message,
+            images: item.image_urls || [],
+            videos: item.video_urls || [],
+            used_prompts: item.used_prompts || [],
+            user_id: item.user_id,
+            user_name: item.user_name,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+            progress: item.progress,
           };
-          // 日期快选按钮
-          var quickBtns = document.querySelectorAll('.date-quick-btn');
-          quickBtns.forEach(function(btn) {
-            btn.onclick = function() {
-              var days = parseInt(this.getAttribute('data-days'));
-              var d = new Date();
-              d.setDate(d.getDate() - days);
-              var yyyy = d.getFullYear();
-              var mm = String(d.getMonth() + 1).padStart(2, '0');
-              var dd = String(d.getDate()).padStart(2, '0');
-              document.getElementById('assetFilterDate').value = yyyy + '-' + mm + '-' + dd;
-              // 高亮当前按钮
-              quickBtns.forEach(function(b) { b.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-600'); b.classList.add('bg-white', 'text-slate-500', 'border-slate-200'); });
-              this.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600');
-              this.classList.remove('bg-white', 'text-slate-500', 'border-slate-200');
-              applyAssetFilter();
-            };
-          });
+        });
+        detailsList.sort(function(a, b) { return (parseInt(b.batch_id)||0) - (parseInt(a.batch_id)||0); });
+        allAssetsData = detailsList;
+        // 默认显示本周
+        var d = new Date();
+        var dayOfWeek = d.getDay();
+        var mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        d.setDate(d.getDate() - mondayOffset);
+        var yyyy = d.getFullYear();
+        var mm = String(d.getMonth() + 1).padStart(2, '0');
+        var dd = String(d.getDate()).padStart(2, '0');
+        document.getElementById('assetFilterDate').value = yyyy + '-' + mm + '-' + dd;
+        assetPage = 1; applyAssetFilter(1);
+        document.getElementById('btnApplyFilter').onclick = function() { assetPage = 1; applyAssetFilter(1); };
+        document.getElementById('btnClearFilter').onclick = function() {
+          document.getElementById('assetFilterType').value = 'all';
+          document.getElementById('assetFilterStatus').value = 'all';
+          document.getElementById('assetFilterDate').value = '';
+          document.getElementById('assetFilterNovelId').value = '';
+          assetPage = 1; assetPageSize = 20;
+          document.getElementById('assetsPageSize').value = '20';
+          document.getElementById('assetsPager').innerHTML = '';
+          renderAssetsGallery(detailsList);
+        };
+        // 日期快选按钮
+        var quickBtns = document.querySelectorAll('.date-quick-btn');
+        quickBtns.forEach(function(btn) {
+          btn.onclick = function() {
+            var days = parseInt(this.getAttribute('data-days'));
+            var d = new Date();
+            d.setDate(d.getDate() - days);
+            var yyyy = d.getFullYear();
+            var mm = String(d.getMonth() + 1).padStart(2, '0');
+            var dd = String(d.getDate()).padStart(2, '0');
+            document.getElementById('assetFilterDate').value = yyyy + '-' + mm + '-' + dd;
+            quickBtns.forEach(function(b) { b.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-600'); b.classList.add('bg-white', 'text-slate-500', 'border-slate-200'); });
+            this.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600');
+            this.classList.remove('bg-white', 'text-slate-500', 'border-slate-200');
+            assetPage = 1; applyAssetFilter(1);
+          };
         });
       }).catch(function(e) { loading.textContent = '加载失败: ' + e.message; });
     }
@@ -1310,12 +2115,13 @@
 
         var headerDiv = document.createElement('div');
         headerDiv.className = 'flex items-center justify-between mb-3';
-        var novelIdTag = data.novel_id ? '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 font-mono cursor-pointer hover:bg-indigo-100 transition-all" onclick="event.stopPropagation();document.getElementById(\'assetFilterNovelId\').value=\'' + data.novel_id + '\';applyAssetFilter();">小说ID:' + data.novel_id + '</span>' : '';
-        headerDiv.innerHTML = '<div class="flex items-center gap-3"><h4 class="text-sm font-semibold text-slate-700">批次 #' + batchId + '</h4>' + novelIdTag + '<span class="text-[10px] text-slate-400">' + timeStr + '</span></div><span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ' + (status === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500') + '">' + status + '</span>';
+        var novelIdTag = data.novel_id ? '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 font-mono cursor-pointer hover:bg-indigo-100 transition-all" onclick="event.stopPropagation();document.getElementById(\'assetFilterNovelId\').value=\'' + data.novel_id + '\';assetPage=1;applyAssetFilter(1);">小说ID:' + data.novel_id + '</span>' : '';
+        var creatorTag = (data.user_name || data.user_id) ? '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-100">👤 ' + escapeHtml(data.user_name || ('ID:' + data.user_id)) + '</span>' : '';
+        headerDiv.innerHTML = '<div class="flex items-center gap-3"><h4 class="text-sm font-semibold text-slate-700">批次 #' + batchId + '</h4>' + novelIdTag + creatorTag + '<span class="text-[10px] text-slate-400">' + timeStr + '</span></div><span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ' + (status === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500') + '">' + status + '</span>';
         section.appendChild(headerDiv);
 
         var grid = document.createElement('div');
-        grid.className = 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5';
+        grid.className = 'grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8';
 
         allMedia.forEach(function(media) {
           var card = document.createElement('div');
@@ -1325,11 +2131,20 @@
             var full = absUrl(media.src);
             var name = media.src.split('/').pop();
             var safePrompt = (media.prompt || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-            card.innerHTML = '<img src="' + full + '" class="aspect-square w-full object-cover" loading="lazy" />' +
-              '<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-8 opacity-0 group-hover:opacity-100 transition-opacity">' +
-              '<div class="flex items-center gap-2">' +
-              '<button type="button" class="rounded-lg bg-white/20 px-2.5 py-1 text-[10px] text-white hover:bg-white/30 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();var t=this.parentElement.parentElement.previousElementSibling?this.parentElement.parentElement.previousElementSibling.getAttribute(\'data-prompt\'):\'\';copyPromptText(t||\'\',this)">复制提示词</button>' +
-              '<button type="button" class="rounded-lg bg-indigo-500/80 px-2.5 py-1 text-[10px] text-white hover:bg-indigo-500 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();goGenerateFromPrompt(\'' + safePrompt + '\')">去生图</button>' +
+            card.innerHTML = '<img src="' + full + '" class="aspect-square w-full object-cover" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'\';" /><div style="display:none" class="w-full aspect-square bg-slate-200 flex items-center justify-center rounded-2xl"><span class="text-slate-400 text-xs">加载失败</span></div>' +
+              '<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">' +
+              '<div class="flex items-center gap-1">' +
+              '<button type="button" class="rounded-md bg-white/20 px-1.5 py-0.5 text-[8px] text-white hover:bg-white/30 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();var t=this.parentElement.parentElement.previousElementSibling?this.parentElement.parentElement.previousElementSibling.getAttribute(\'data-prompt\'):\'\';copyPromptText(t||\'\',this)">复制</button>' +
+              '<button type="button" class="rounded-md bg-indigo-500/80 px-1.5 py-0.5 text-[8px] text-white hover:bg-indigo-500 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();goGenerateFromPrompt(\'' + safePrompt + '\')">生图</button>' +
+              '<button type="button" class="rounded-md bg-amber-500/80 px-1.5 py-0.5 text-[8px] text-white hover:bg-amber-500 transition-all border-0 cursor-pointer hit-register-btn"' +
+              ' data-batch="' + (data.batch_id || '') + '"' +
+              ' data-url="' + full + '"' +
+              ' data-prompt="' + safePrompt + '"' +
+              ' data-label="' + (media.label || '').replace(/'/g, '') + '"' +
+              ' data-novel-id="' + (data.novel_id || '') + '"' +
+              ' data-novel-name="' + (data.novel_name || '').replace(/'/g, '') + '"' +
+              ' data-is-video="' + (media.isVideo ? 'y' : 'n') + '"' +
+              ' onclick="event.stopPropagation();var b=this;openHitRegister(b.dataset.batch,b.dataset.url,b.dataset.prompt,b.dataset.label,b.dataset.novelId,b.dataset.novelName,b.dataset.isVideo)">⭐ 登记</button>' +
               '</div></div>' +
               '<span class="absolute top-2 left-2 rounded-lg bg-black/60 px-2 py-0.5 text-[10px] text-white">' + media.label + '</span>';
             // Store prompt as data attribute on the img for copy function
@@ -1347,15 +2162,17 @@
       });
     }
 
-    function applyAssetFilter() {
+    function applyAssetFilter(page) {
       var typeFilter = document.getElementById('assetFilterType').value;
       var statusFilter = document.getElementById('assetFilterStatus').value;
       var dateFilter = document.getElementById('assetFilterDate').value;
       var novelIdFilter = document.getElementById('assetFilterNovelId').value.trim();
+      var creatorFilter = document.getElementById('assetFilterCreator').value;
 
       var filtered = allAssetsData.filter(function(data) {
         if (statusFilter !== 'all' && data.status !== statusFilter) return false;
         if (novelIdFilter && (data.novel_id || '') !== novelIdFilter) return false;
+        if (creatorFilter && String(data.user_id || '') !== creatorFilter) return false;
         if (typeFilter === 'image') {
           var imgs = Array.isArray(data.images) ? data.images : [];
           if (!imgs.length) return false;
@@ -1372,15 +2189,24 @@
             dateStr = data.created_at;
           }
           if (dateStr) {
-            if (!dateStr.startsWith(dateFilter)) return false;
+            var ds = dateStr.substring(0, 10);
+            // 日期范围：从筛选日开始到今天
+            if (ds < dateFilter) return false;
+            var today = new Date().toISOString().substring(0, 10);
+            if (ds > today) return false;
           } else {
-            return false; // 无日期信息则滤掉
+            return false;
           }
         }
         return true;
       });
 
-      renderAssetsGallery(filtered);
+      var total = filtered.length;
+      if (page) assetPage = page;
+      var offset = (assetPage - 1) * assetPageSize;
+      var shown = filtered.slice(offset, offset + assetPageSize);
+      renderAssetsGallery(shown);
+      renderPager('assetsPager', { total: total, page: assetPage, page_size: assetPageSize }, function(p) { assetPage = p; applyAssetFilter(p); });
     }
 
     function copyPromptText(promptText, btn) {
@@ -1400,17 +2226,17 @@
     }
 
     function goGenerateFromPrompt(promptText) {
-      if (confirm('是否使用此提示词前往生图页面生成图片？')) {
-        // 切换到提示词生图 tab (will be added in Task 5.1)
-        var tabEl = document.getElementById('tab-prompt-generate');
-        if (tabEl) {
-          switchTab('prompt-generate');
-          var el = document.getElementById('pgPrompt');
-          if (el) el.value = promptText;
-        } else {
-          alert('提示词生图页面尚未加载，请在后续版本中使用。');
+      if (!confirm('是否使用此提示词前往生图页面生成图片？')) return;
+      switchTab('prompt-generate');
+      // 填入第一个提示词卡片
+      setTimeout(function() {
+        var firstCard = document.querySelector('#pgCards .pg-prompt');
+        if (firstCard) {
+          firstCard.value = promptText;
+          if (typeof updatePgCount === 'function') updatePgCount();
         }
-      }
+        document.getElementById('tab-prompt-generate').scrollTop = 0;
+      }, 100);
     }
 
     // ====== Chapter 1 提取 ======
@@ -1441,6 +2267,11 @@
       if (path.startsWith("http")) return path;
       var base = window.location.origin.replace(/\/$/, "");
       return base + (path.startsWith("/") ? path : "/" + path);
+    }
+
+    function absUrlSafe(path) {
+      if (!path) return "";
+      return path.replace(/'/g, "\\'").replace(/"/g, "&quot;");
     }
 
     function downloadBlobUrl(url, filename) {
@@ -1757,7 +2588,7 @@
 
           pollBatchProgress(batchId);
         } else {
-          statusNotice.textContent = "提交失败: " + (data.message || "未知错误");
+          statusNotice.textContent = "提交失败: " + (data.message || data.detail || "未知错误");
           statusNotice.hidden = false;
         }
       } catch (error) {
@@ -2047,7 +2878,8 @@
       btn.disabled = true;
       btn.innerHTML = '<span class="flex items-center justify-center"><svg class="loading-spin h-5 w-5 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>生成中...</span>';
       statusEl.hidden = false;
-      statusEl.textContent = '正在生成 ' + duplicatedPrompts.length + ' 张图片...';
+      var startTime = new Date().toLocaleString('zh-CN');
+      statusEl.innerHTML = '正在生成 ' + duplicatedPrompts.length + ' 张图片...<br><span class="text-xs text-blue-400">' + startTime + '</span>';
       statusEl.className = 'rounded-xl bg-blue-50 p-3.5 text-sm font-medium text-blue-800 border border-blue-100';
       gallery.innerHTML = '';
 
@@ -2056,15 +2888,21 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).then(function(r) { return r.json(); }).then(function(data) {
-        var images = Array.isArray(data.images) ? data.images : [];
-        var errors = data.errors || [];
-
-        if (images.length) {
-          statusEl.textContent = '完成！生成 ' + images.length + ' 张图片。';
-          statusEl.className = 'rounded-xl bg-emerald-50 p-3.5 text-sm font-medium text-emerald-800 border border-emerald-100';
+        var nowStr = new Date().toLocaleString('zh-CN');
+        var images = [];
+        if (data.status === 'started') {
+          statusEl.innerHTML = '已提交后台生成（批次 #' + data.batch_id + '）<br><span class="text-xs text-blue-500">' + nowStr + '</span>，<a href="javascript:void(0)" class="underline text-indigo-600" onclick="switchTab(\'history\')">去历史记录查看</a>';
+          statusEl.className = 'rounded-xl bg-blue-50 p-3.5 text-sm font-medium text-blue-800 border border-blue-100';
         } else {
-          statusEl.textContent = '生成失败：' + (errors.join('; ') || '未知错误');
-          statusEl.className = 'rounded-xl bg-red-50 p-3.5 text-sm font-medium text-red-800 border border-red-100';
+          images = Array.isArray(data.images) ? data.images : [];
+          var errors = data.errors || [];
+          if (images.length) {
+            statusEl.innerHTML = '完成！生成 ' + images.length + ' 张图片。<br><span class="text-xs text-emerald-500">' + nowStr + '</span>';
+            statusEl.className = 'rounded-xl bg-emerald-50 p-3.5 text-sm font-medium text-emerald-800 border border-emerald-100';
+          } else {
+            statusEl.textContent = '生成失败：' + (errors.join('; ') || '未知错误');
+            statusEl.className = 'rounded-xl bg-red-50 p-3.5 text-sm font-medium text-red-800 border border-red-100';
+          }
         }
 
         images.forEach(function(src) {
@@ -2159,7 +2997,7 @@
           naPendingPrompts = data.data;
           showConfirmModal(data.data);
         } else {
-          alert('分析失败: ' + (data.error || '未知错误'));
+          alert('分析失败: ' + (data.error || data.detail || '未知错误'));
         }
       }).catch(function(e) {
         alert('请求异常: ' + e.message);
@@ -2462,29 +3300,6 @@
     document.getElementById('nav-generate').addEventListener('click', function() { switchTab('generate'); });
     document.getElementById('nav-history').addEventListener('click', function() { switchTab('history'); });
     document.getElementById('nav-assets').addEventListener('click', function() { switchTab('assets'); });
-    document.getElementById('btnNewTask').addEventListener('click', function() {
-      document.getElementById("novelContent").value = "";
-      document.getElementById("videoText").value = "";
-      document.getElementById("textSingleCount").value = "0";
-      document.getElementById("lrSplitCount").value = "0";
-      document.getElementById("tbSplitCount").value = "0";
-      document.getElementById("scrollCount").value = "0";
-      document.getElementById("popupCount").value = "1";
-      document.getElementById("aiScrollCount").value = "0";
-      document.getElementById("aiPopupCount").value = "0";
-      document.getElementById("imageGallery").innerHTML = "";
-      document.getElementById("videoList").innerHTML = "";
-      document.getElementById("warnBox").hidden = true;
-      document.getElementById("debugBox").hidden = true;
-      document.getElementById("statusNotice").hidden = true;
-      document.getElementById("batchTag").hidden = true;
-      document.getElementById("downloadAllBtn").hidden = true;
-      document.getElementById("resultEmpty").hidden = false;
-      document.getElementById("cancelBtn").hidden = true;
-      lastPayloadUrls = [];
-      switchTab('generate');
-    });
-    document.getElementById('btnRefreshStats').addEventListener('click', function() { loadStats(); });
     document.getElementById('btnRefreshHistory').addEventListener('click', function() { loadHistory(); });
     document.getElementById('historyPerPage').addEventListener('change', function() {
       var perPage = parseInt(this.value) || 20;
@@ -2528,6 +3343,8 @@
     document.getElementById('nav-novel-analyze').addEventListener('click', function() { switchTab('novel-analyze'); });
     document.getElementById('nav-dashboard').addEventListener('click', function() { switchTab('dashboard'); });
     document.getElementById('nav-novel-mgr').addEventListener('click', function() { switchTab('novel-mgr'); });
+    document.getElementById('nav-hit-gallery').addEventListener('click', function() { switchTab('hit-gallery'); });
+    document.getElementById('nav-config').addEventListener('click', function() { switchTab('config'); });
     document.getElementById('nav-delivery').addEventListener('click', function() { switchTab('delivery'); });
     document.getElementById('nav-meta-data').addEventListener('click', function() { switchTab('meta-data'); });
     document.getElementById('nav-meta-accounts').addEventListener('click', function() { switchTab('meta-accounts'); });
@@ -2577,51 +3394,223 @@
       refreshDashboard();
     }
 
-    var _captchaCheckKey = '';
 
-    function loadCaptcha() {
-      var img = document.getElementById('captchaImg');
-      var input = document.getElementById('loginCaptcha');
-      fetch('/api/scraper/captcha').then(function(r) { return r.json(); }).then(function(d) {
-        if (d.image) {
-          _captchaCheckKey = d.check_key;
-          img.src = d.image;
-          img.style.display = '';
-          input.style.display = '';
+    function setDashSessionStatus(status, text) {
+      var dot = document.getElementById('dashSessionDot');
+      var txt = document.getElementById('dashSessionText');
+      var colors = {
+        online:  { dot: 'bg-emerald-400', txt: 'text-emerald-600' },
+        offline: { dot: 'bg-red-400',     txt: 'text-red-500' },
+        noconfig:{ dot: 'bg-amber-400',   txt: 'text-amber-600' },
+        checking:{ dot: 'bg-slate-300',   txt: 'text-slate-500' },
+      };
+      var c = colors[status] || colors.checking;
+      dot.className = 'w-2.5 h-2.5 rounded-full ' + c.dot;
+      txt.textContent = text;
+      txt.className = 'text-xs ' + c.txt;
+    }
+
+    function checkDashboardSession() {
+      if (!currentUser) {
+        setDashSessionStatus('offline', '未登录应用');
+        updatePingykjCredsUI(false);
+        return;
+      }
+      setDashSessionStatus('checking', '检查中...');
+      fetch('/api/auth/me').then(function(r) { return r.json(); }).then(function(u) {
+        currentUser = u;
+        if (u.has_pingykj_creds) {
+          // 有凭据，再检查 scraper session 是否有效
+          fetch('/api/scraper/session-status').then(function(r) { return r.json(); }).then(function(s) {
+            if (s.valid) {
+              setDashSessionStatus('online', '书城在线 (' + u.pingykj_username + ')');
+            } else {
+              setDashSessionStatus('offline', '书城掉线 — 点击"书城凭据"重新登录');
+            }
+          }).catch(function() {
+            setDashSessionStatus('online', '书城已配置 (' + u.pingykj_username + ')');
+          });
+          updatePingykjCredsUI(true, u.pingykj_username);
+        } else {
+          setDashSessionStatus('noconfig', '未配置书城凭据');
+          updatePingykjCredsUI(false);
         }
       }).catch(function() {
-        _captchaCheckKey = '';
-        img.style.display = 'none';
-        input.style.display = 'none';
+        setDashSessionStatus('offline', '检查失败');
       });
     }
 
-    document.getElementById('captchaImg').addEventListener('click', function() {
-      loadCaptcha();
+    function markScraperOffline() {
+      setDashSessionStatus('offline', '书城掉线 — 点击"书城凭据"重新登录');
+      updatePingykjCredsUI(false);
+    }
+
+    function updatePingykjCredsUI(hasCreds, username) {
+      var label = document.getElementById('pingykjCredsLabel');
+      if (hasCreds) {
+        label.textContent = '书城: ' + (username || '已配置');
+      } else {
+        label.textContent = '书城凭据';
+      }
+    }
+
+    // ====== 书城凭据弹窗 ======
+    var _pingykjCheckKey = '';
+
+    function resetPingykjCaptchaUI() {
+      document.getElementById('pingykjCaptchaRow').classList.add('hidden');
+      document.getElementById('pingykjCaptchaImg').style.display = 'none';
+      document.getElementById('pingykjCaptchaInput').style.display = 'none';
+      document.getElementById('btnPingykjRefreshCaptcha').classList.add('hidden');
+      document.getElementById('btnPingykjGetCaptcha').classList.remove('hidden');
+      document.getElementById('btnPingykjCredsSave').classList.add('hidden');
+      document.getElementById('pingykjCaptchaInput').value = '';
+      _pingykjCheckKey = '';
+    }
+
+    document.getElementById('btnPingykjCreds').addEventListener('click', function() {
+      if (!currentUser) { alert('请先登录应用'); return; }
+      fetch('/api/auth/me').then(function(r) { return r.json(); }).then(function(u) {
+        document.getElementById('pingykjUserInput').value = u.pingykj_username || '';
+        document.getElementById('pingykjPassInput').value = '';
+        document.getElementById('pingykjCredsMsg').classList.add('hidden');
+        resetPingykjCaptchaUI();
+        document.getElementById('pingykjCredsModal').hidden = false;
+      });
+    });
+    document.getElementById('btnPingykjCredsClose').addEventListener('click', function() {
+      document.getElementById('pingykjCredsModal').hidden = true;
+      resetPingykjCaptchaUI();
+    });
+    document.getElementById('btnPingykjCredsCancel').addEventListener('click', function() {
+      document.getElementById('pingykjCredsModal').hidden = true;
+      resetPingykjCaptchaUI();
     });
 
-    function checkDashboardSession() {
-      fetch('/api/scraper/session-status').then(function(r) { return r.json(); }).then(function(d) {
-        var dot = document.getElementById('dashSessionDot');
-        var txt = document.getElementById('dashSessionText');
-        var loginGroup = document.getElementById('loginGroup');
-        var logoutBtn = document.getElementById('btnLogout');
-        if (d.valid) {
-          dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
-          txt.textContent = '会话有效';
-          txt.className = 'text-xs text-emerald-600';
-          loginGroup.hidden = true;
-          logoutBtn.hidden = false;
+    // 获取验证码
+    document.getElementById('btnPingykjGetCaptcha').addEventListener('click', function() {
+      var username = document.getElementById('pingykjUserInput').value.trim();
+      var password = document.getElementById('pingykjPassInput').value;
+      if (!username) { alert('请输入书城账号'); return; }
+      if (!password) { alert('请输入书城密码'); return; }
+
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = '获取中...';
+      var captchaUrl = '/api/scraper/captcha?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password);
+      fetch(captchaUrl).then(function(r) {
+        return r.json().then(function(d) { return {status: r.status, data: d}; });
+      }).then(function(r) {
+        if (r.status === 200 && r.data.image) {
+          _pingykjCheckKey = r.data.check_key;
+          document.getElementById('pingykjCaptchaImg').src = r.data.image;
+          document.getElementById('pingykjCaptchaImg').style.display = '';
+          document.getElementById('pingykjCaptchaInput').style.display = '';
+          document.getElementById('pingykjCaptchaInput').value = '';
+          document.getElementById('btnPingykjRefreshCaptcha').classList.remove('hidden');
+          document.getElementById('pingykjCaptchaRow').classList.remove('hidden');
+          document.getElementById('btnPingykjCredsSave').classList.remove('hidden');
+          btn.classList.add('hidden');
+          btn.textContent = '获取验证码';
         } else {
-          dot.className = 'w-2.5 h-2.5 rounded-full bg-red-400';
-          txt.textContent = '未登录';
-          txt.className = 'text-xs text-red-500';
-          loginGroup.hidden = false;
-          logoutBtn.hidden = true;
-          loadCaptcha();
+          var errMsg = r.data.detail || r.data.message || '获取验证码失败';
+          var msg = document.getElementById('pingykjCredsMsg');
+          msg.textContent = errMsg;
+          msg.className = 'text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600';
+          msg.classList.remove('hidden');
+          btn.textContent = '获取验证码';
+        }
+      }).catch(function(e) {
+        var msg = document.getElementById('pingykjCredsMsg');
+        msg.textContent = '网络错误: ' + (e.message || e);
+        msg.className = 'text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600';
+        msg.classList.remove('hidden');
+        btn.textContent = '获取验证码';
+      }).finally(function() {
+        btn.disabled = false;
+      });
+    });
+
+    // 刷新验证码
+    document.getElementById('btnPingykjRefreshCaptcha').addEventListener('click', function() {
+      fetch('/api/scraper/captcha').then(function(r) { return r.json(); }).then(function(d) {
+        if (d.image) {
+          _pingykjCheckKey = d.check_key;
+          document.getElementById('pingykjCaptchaImg').src = d.image;
+          document.getElementById('pingykjCaptchaInput').value = '';
         }
       }).catch(function() {});
-    }
+    });
+    // 点击验证码图片刷新
+    document.getElementById('pingykjCaptchaImg').addEventListener('click', function() {
+      document.getElementById('btnPingykjRefreshCaptcha').click();
+    });
+
+    // 登录验证并保存凭据
+    document.getElementById('btnPingykjCredsSave').addEventListener('click', function() {
+      var username = document.getElementById('pingykjUserInput').value.trim();
+      var password = document.getElementById('pingykjPassInput').value;
+      var captcha = document.getElementById('pingykjCaptchaInput').value.trim();
+      if (!captcha) { alert('请输入验证码'); return; }
+
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = '登录中...';
+      var msg = document.getElementById('pingykjCredsMsg');
+
+      // 用直接凭据尝试登录
+      fetch('/api/scraper/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username,
+          password: password,
+          captcha: captcha,
+          check_key: _pingykjCheckKey
+        })
+      }).then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.status === 'ok') {
+            // 登录成功，保存凭据
+            return fetch('/api/auth/pingykj-credentials', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ pingykj_username: username, pingykj_password: password })
+            }).then(function(r) { return r.json().then(function(d2) { return {status: r.status, data: d2, loginOk: true}; }); });
+          } else {
+            return {status: 400, data: d, loginOk: false};
+          }
+        }).then(function(r) {
+          if (r.loginOk && r.status === 200) {
+            msg.textContent = '登录验证成功！凭据已保存。';
+            msg.className = 'text-xs rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700';
+            msg.classList.remove('hidden');
+            setTimeout(function() {
+              document.getElementById('pingykjCredsModal').hidden = true;
+              resetPingykjCaptchaUI();
+              checkDashboardSession();
+            }, 1500);
+          } else if (r.loginOk) {
+            msg.textContent = '凭据已保存，但验证失败: ' + (r.data.detail || r.data.message || '');
+            msg.className = 'text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600';
+            msg.classList.remove('hidden');
+          } else {
+            var errMsg = r.data.message || r.data.detail || '登录失败';
+            msg.textContent = errMsg;
+            msg.className = 'text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600';
+            msg.classList.remove('hidden');
+            // 刷新验证码
+            document.getElementById('btnPingykjRefreshCaptcha').click();
+          }
+        }).catch(function() {
+          msg.textContent = '网络错误';
+          msg.className = 'text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600';
+          msg.classList.remove('hidden');
+        }).finally(function() {
+          btn.disabled = false;
+          btn.textContent = '登录验证';
+        });
+    });
 
     function loadDashboardAccounts() {
       fetch('/api/dashboard/accounts').then(function(r) { return r.json(); }).then(function(data) {
@@ -2676,59 +3665,163 @@
       }
       var totalPages = Math.ceil(result.total / result.page_size);
       var current = result.page;
-      var html = '<span class=\"text-[10px] text-slate-400 mr-1\">' + result.total + '条</span>';
-      html += '<button class=\"px-2 py-0.5 text-[10px] rounded border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30\" ' + (current <= 1 ? 'disabled' : '') + ' data-pg=\"' + (current - 1) + '\">◀</button>';
-      html += '<span class=\"text-[10px] text-slate-600 px-1\">' + current + '/' + totalPages + '</span>';
-      html += '<button class=\"px-2 py-0.5 text-[10px] rounded border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30\" ' + (current >= totalPages ? 'disabled' : '') + ' data-pg=\"' + (current + 1) + '\">▶</button>';
+      var html = '<span class=\"text-xs text-slate-400 mr-2\">' + result.total + '条</span>';
+      html += '<button class=\"px-2.5 py-1 text-xs rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30\" ' + (current <= 1 ? 'disabled' : '') + ' data-pg=\"' + (current - 1) + '\">◀</button>';
+      html += '<span class=\"text-xs text-slate-600 px-2\">' + current + '/' + totalPages + '</span>';
+      html += '<button class=\"px-2.5 py-1 text-xs rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30\" ' + (current >= totalPages ? 'disabled' : '') + ' data-pg=\"' + (current + 1) + '\">▶</button>';
       container.innerHTML = html;
       container.querySelectorAll('button').forEach(function(btn) {
         btn.addEventListener('click', function() { onPage(parseInt(this.getAttribute('data-pg'))); });
       });
     }
 
+    var novelSortBy = 'order_count';
+    var novelSortHeader = 'order_count';
+
+    function renderNovelTable(data, tbodyId, tableId) {
+      var tbody = document.getElementById(tbodyId);
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">暂无数据</td></tr>';
+        return;
+      }
+      // 更新表头样式
+      var table = document.getElementById(tableId);
+      if (table) {
+        table.querySelectorAll('.sortable-header').forEach(function(th) {
+          var field = th.getAttribute('data-sort');
+          th.classList.toggle('text-indigo-600', field === novelSortBy);
+          th.classList.toggle('text-slate-500', field !== novelSortBy);
+        });
+      }
+      tbody.innerHTML = data.map(function(r, i) {
+        var name = r.novel_name || '未知';
+        var nid = r.novel_id || '-';
+        return '<tr class="border-b border-slate-50 hover:bg-slate-50/50">' +
+          '<td class="py-1.5 text-slate-400">' + (i + 1) + '</td>' +
+          '<td class="py-1.5 font-medium text-slate-700 max-w-[200px] truncate" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</td>' +
+          '<td class="py-1.5 text-slate-500 font-mono text-xs">' + escapeHtml(String(nid)) + '</td>' +
+          '<td class="py-1.5 text-right text-slate-600 font-medium">' + (r.order_count || 0).toLocaleString() + ' 单</td>' +
+          '<td class="py-1.5 text-right text-emerald-600 font-semibold">¥' + ((r.total_amount || 0)).toLocaleString() + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    var novelTotalPage = 1, novel7dPage = 1;
     function loadNovelStats() {
-      // 小说排行榜统计全部订单，不受日期筛选影响
       var keywordVal = document.getElementById('dashKeyword').value.trim();
-      var qs = keywordVal ? '?keyword=' + encodeURIComponent(keywordVal) : '';
-      fetch('/api/dashboard/novel-stats' + qs).then(function(r) { return r.json(); }).then(function(data) {
-        var tbody = document.getElementById('dashNovelBody');
-        if (!data || data.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">暂无数据</td></tr>';
-          return;
-        }
-        tbody.innerHTML = data.map(function(r, i) {
-          var name = r.novel_name || '未知';
-          var nid = r.novel_id || '-';
-          return '<tr class="border-b border-slate-50 hover:bg-slate-50/50">' +
-            '<td class="py-1.5 text-slate-400">' + (i + 1) + '</td>' +
-            '<td class="py-1.5 font-medium text-slate-700 max-w-[200px] truncate" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</td>' +
-            '<td class="py-1.5 text-slate-500 font-mono text-[10px]">' + escapeHtml(String(nid)) + '</td>' +
-            '<td class="py-1.5 text-right text-slate-600 font-medium">' + (r.order_count || 0).toLocaleString() + ' 单</td>' +
-            '<td class="py-1.5 text-right text-emerald-600 font-semibold">¥' + ((r.total_amount || 0)).toLocaleString() + '</td>' +
-            '</tr>';
-        }).join('');
+      var kw = keywordVal ? '&keyword=' + encodeURIComponent(keywordVal) : '';
+      var sort = '&sort_by=' + novelSortBy;
+      var mineOnly = document.getElementById('novelMineOnly').checked ? '&mine_only=true' : '';
+      // 总排行
+      fetch('/api/dashboard/novel-stats?page=' + novelTotalPage + '&page_size=20' + sort + mineOnly + kw).then(function(r) { return r.json(); }).then(function(res) {
+        renderNovelTable(res.data || res, 'dashNovelBody', 'novelTotalTable');
+        renderPager('novelTotalPager', res, function(p) { novelTotalPage = p; loadNovelStats(); });
       }).catch(function() {
         document.getElementById('dashNovelBody').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">加载失败</td></tr>';
       });
+      // 近7天排行
+      var d7 = new Date(Date.now() - 7*86400000).toISOString().slice(0,10);
+      fetch('/api/dashboard/novel-stats?start=' + d7 + '&page=' + novel7dPage + '&page_size=20' + sort + mineOnly + kw).then(function(r) { return r.json(); }).then(function(res) {
+        renderNovelTable(res.data || res, 'dashNovel7dBody', 'novel7dTable');
+        renderPager('novel7dPager', res, function(p) { novel7dPage = p; loadNovelStats(); });
+      }).catch(function() {
+        document.getElementById('dashNovel7dBody').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">加载失败</td></tr>';
+      });
     }
+
+    // 表头点击排序
+    document.addEventListener('click', function(e) {
+      if (!e.target.classList.contains('sortable-header')) return;
+      var sortField = e.target.getAttribute('data-sort');
+      // 判断是小说排列表还是日报明细表
+      if (e.target.closest('#novelTotalTable') || e.target.closest('#novel7dTable')) {
+        novelSortBy = sortField;
+        novelTotalPage = 1; novel7dPage = 1;
+        loadNovelStats();
+      } else if (e.target.closest('#dashDailyCard')) {
+        dailySortBy = sortField;
+        loadDailyStats(dashPages.stats);
+      }
+    });
+
+    function loadUserRanking() {
+      var card = document.getElementById('dashUserRankCard');
+      var dailyCard = document.getElementById('dashDailyCard');
+      card.style.display = '';
+      dailyCard.style.gridColumn = '';
+      var tbody = document.getElementById('dashUserRankBody');
+      var qs = getDashboardParams();
+      fetch('/api/dashboard/user-ranking' + qs).then(function(r) { return r.json(); }).then(function(data) {
+        if (!data || data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-slate-300">暂无数据</td></tr>';
+          return;
+        }
+        var sumSpend = 0, sumRevenue = 0, sumOrders = 0;
+        var html = data.map(function(r, i) {
+          sumSpend += (r.total_spend || 0);
+          sumRevenue += (r.total_revenue || 0);
+          sumOrders += (r.order_count || 0);
+          return '<tr class="' + (i%2 ? 'bg-slate-50/50' : '') + '">' +
+            '<td class="py-1.5 text-slate-400">' + (i + 1) + '</td>' +
+            '<td class="py-1.5 font-medium text-slate-700">' + escapeHtml(r.user_name || 'ID:' + r.user_id) + '</td>' +
+            '<td class="py-1.5 text-right text-slate-700">¥' + (r.total_spend || 0).toLocaleString() + '</td>' +
+            '<td class="py-1.5 text-right font-medium ' + (r.total_revenue > r.total_spend ? 'text-emerald-600' : 'text-red-500') + '">¥' + (r.total_revenue || 0).toLocaleString() + '</td>' +
+            '<td class="py-1.5 text-right text-slate-600">' + (r.order_count || 0) + '</td>' +
+            '<td class="py-1.5 text-right font-medium ' + (r.roi >= 2 ? 'text-emerald-600' : r.roi >= 1 ? 'text-amber-600' : 'text-red-500') + '">' + (r.roi || 0).toFixed(2) + '</td>' +
+            '<td class="py-1.5 text-right text-amber-600 font-medium">¥' + ((r.cpa || 0)).toLocaleString(undefined, {minimumFractionDigits: 2}) + '</td>' +
+            '</tr>';
+        }).join('');
+        var sumRoi = sumSpend > 0 ? (sumRevenue / sumSpend).toFixed(2) : '-';
+        var sumCpa = sumOrders > 0 ? (sumSpend / sumOrders).toFixed(2) : '-';
+        html += '<tr class="border-t-2 border-slate-300 bg-slate-100 font-semibold text-xs">' +
+          '<td class="py-2 text-slate-700">合计</td><td class="py-2 text-slate-500">' + data.length + ' 个用户</td>' +
+          '<td class="py-2 text-right text-slate-800">¥' + sumSpend.toLocaleString() + '</td>' +
+          '<td class="py-2 text-right text-slate-800">¥' + sumRevenue.toLocaleString() + '</td>' +
+          '<td class="py-2 text-right text-slate-800">' + sumOrders + '</td>' +
+          '<td class="py-2 text-right text-slate-800">' + sumRoi + '</td>' +
+          '<td class="py-2 text-right text-slate-800">¥' + sumCpa + '</td></tr>';
+        tbody.innerHTML = html;
+      }).catch(function() {
+        document.getElementById('dashUserRankBody').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-slate-300">加载失败</td></tr>';
+      });
+    }
+
+    var dailySortBy = 'total_spend';
 
     function loadDailyStats(page) {
       page = page || 1;
       dashPages.stats = page;
-      var qs = getDashboardParams() + (getDashboardParams() ? '&' : '?') + 'page=' + page + '&page_size=20';
+      var qs = getDashboardParams() + (getDashboardParams() ? '&' : '?') + 'page=' + page + '&page_size=20&order_by=' + dailySortBy;
+      // 更新表头样式
+      document.querySelectorAll('#dashDailyCard .sortable-header').forEach(function(th) {
+        th.classList.toggle('text-indigo-600', th.getAttribute('data-sort') === dailySortBy);
+        th.classList.toggle('text-slate-500', th.getAttribute('data-sort') !== dailySortBy);
+      });
       fetch('/api/dashboard/daily-stats' + qs).then(function(r) { return r.json(); }).then(function(res) {
         var rows = res.data || res;
         var tbody = document.getElementById('dashTableBody');
         if (!rows || rows.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-slate-300">暂无数据，请先同步</td></tr>'; document.getElementById('dashTablePager').innerHTML = ''; return; }
-        tbody.innerHTML = rows.map(function(r, i) {
+        var sumSpend = 0, sumRevenue = 0;
+        var html = rows.map(function(r, i) {
+          sumSpend += (r.total_spend || 0);
+          sumRevenue += (r.total_revenue || 0);
           return '<tr class="' + (i%2 ? 'bg-slate-50/50' : '') + '">' +
             '<td class="py-1.5 text-slate-600">' + (r.date || '') + '</td>' +
             '<td class="py-1.5 font-medium text-slate-700">' + escapeHtml(r.account_display || r.ad_account || '') + '</td>' +
             '<td class="py-1.5 text-right text-slate-700">¥' + (r.total_spend || 0).toLocaleString() + '</td>' +
             '<td class="py-1.5 text-right font-medium ' + (r.total_revenue > r.total_spend ? 'text-emerald-600' : 'text-red-500') + '">¥' + (r.total_revenue || 0).toLocaleString() + '</td>' +
             '<td class="py-1.5 text-right font-medium ' + (r.roi >= 2 ? 'text-emerald-600' : r.roi >= 1 ? 'text-amber-600' : 'text-red-500') + '">' + (r.roi || 0).toFixed(2) + '</td>' +
-            '<td class="py-1.5 text-right text-slate-500">' + (r.ad_count || 0) + '</td></tr>';
+            '<td class="py-1.5 text-slate-500 text-xs pl-4">' + escapeHtml(r.user_name || '-') + '</td></tr>';
         }).join('');
+        var sumRoi = sumSpend > 0 ? (sumRevenue / sumSpend).toFixed(2) : '-';
+        html += '<tr class="border-t-2 border-slate-300 bg-slate-100 font-semibold text-xs">' +
+          '<td class="py-2 text-slate-700">合计</td><td class="py-2 text-slate-500">' + rows.length + ' 条记录</td>' +
+          '<td class="py-2 text-right text-slate-800">¥' + sumSpend.toLocaleString() + '</td>' +
+          '<td class="py-2 text-right text-slate-800">¥' + sumRevenue.toLocaleString() + '</td>' +
+          '<td class="py-2 text-right text-slate-800">' + sumRoi + '</td>' +
+          '<td class="py-2 text-center text-slate-400">-</td>' +
+          '</tr>';
+        tbody.innerHTML = html;
         renderPager('dashTablePager', res, loadDailyStats);
       }).catch(function() {});
     }
@@ -2747,9 +3840,11 @@
         document.getElementById('kpiRevenue').textContent = '¥' + (d.total_revenue || 0).toLocaleString();
         document.getElementById('kpiRoi').textContent = (d.roi || 0).toFixed(2);
         document.getElementById('kpiOrders').textContent = (d.order_count || 0).toLocaleString();
+        document.getElementById('kpiCpa').textContent = '¥' + ((d.cpa || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
       }).catch(function() {});
 
       loadNovelStats();
+      loadUserRanking();
 
       loadDailyStats(dashPages.stats);
 
@@ -2776,10 +3871,20 @@
         fetch('/api/dashboard/account-ranking' + rqs).then(function(r) { return r.json(); }).then(function(res) {
           var data = res.data || res;
           var tbody = document.getElementById('dashRankBody');
-          if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">暂无数据</td></tr>'; document.getElementById('dashRankPager').innerHTML = ''; return; }
-          tbody.innerHTML = data.map(function(r, i) {
-            return '<tr><td class="py-1 text-slate-400">' + ((page-1)*20 + i + 1) + '</td><td class="py-1 font-medium text-slate-700">' + escapeHtml(r.account_display || r.ad_account || '') + '</td><td class="py-1 text-right text-slate-600">¥' + (r.spend||0).toLocaleString() + '</td><td class="py-1 text-right text-slate-600">¥' + (r.revenue||0).toLocaleString() + '</td><td class="py-1 text-right font-medium ' + (r.roi>=2?'text-emerald-600':'text-red-500') + '">' + (r.roi||0).toFixed(2) + '</td></tr>';
+          if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-slate-300">暂无数据</td></tr>'; document.getElementById('dashRankPager').innerHTML = ''; return; }
+          var sumSpend = 0, sumRevenue = 0;
+          var html = data.map(function(r, i) {
+            sumSpend += (r.spend||0);
+            sumRevenue += (r.revenue||0);
+            return '<tr><td class="py-1 text-slate-400">' + ((page-1)*20 + i + 1) + '</td><td class="py-1 font-medium text-slate-700">' + escapeHtml(r.account_display || r.ad_account || '') + '</td><td class="py-1 text-xs text-slate-500">' + escapeHtml(r.user_name || '-') + '</td><td class="py-1 text-right text-slate-600">¥' + (r.spend||0).toLocaleString() + '</td><td class="py-1 text-right text-slate-600">¥' + (r.revenue||0).toLocaleString() + '</td><td class="py-1 text-right font-medium ' + (r.roi>=2?'text-emerald-600':'text-red-500') + '">' + (r.roi||0).toFixed(2) + '</td></tr>';
           }).join('');
+          var sumRoi = sumSpend > 0 ? (sumRevenue / sumSpend).toFixed(2) : '-';
+          html += '<tr class="border-t-2 border-slate-300 bg-slate-100 font-semibold text-xs">' +
+            '<td class="py-2 text-slate-700">合计</td><td class="py-2 text-slate-500">' + data.length + ' 个账户</td><td class="py-2"></td>' +
+            '<td class="py-2 text-right text-slate-800">¥' + sumSpend.toLocaleString() + '</td>' +
+            '<td class="py-2 text-right text-slate-800">¥' + sumRevenue.toLocaleString() + '</td>' +
+            '<td class="py-2 text-right text-slate-800">' + sumRoi + '</td></tr>';
+          tbody.innerHTML = html;
           renderPager('dashRankPager', res, loadRanking);
           if (chartPieInst) chartPieInst.destroy();
           var ctx2 = document.getElementById('chartPie').getContext('2d');
@@ -2791,14 +3896,22 @@
       function loadOrders(page) {
         page = page || 1;
         dashPages.orders = page;
-        var oqs = qs + (qs ? '&' : '?') + 'page=' + page + '&page_size=15';
+        var oqs = qs + (qs ? '&' : '?') + 'page=' + page + '&page_size=20';
         fetch('/api/dashboard/orders' + oqs).then(function(r) { return r.json(); }).then(function(res) {
           var data = res.data || res;
           var tbody = document.getElementById('dashOrderBody');
-          if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-slate-300">暂无数据</td></tr>'; document.getElementById('dashOrderPager').innerHTML = ''; return; }
-          tbody.innerHTML = data.map(function(r, i) {
-            return '<tr class="' + (i%2?'bg-slate-50/50':'') + '"><td class="py-1 font-mono text-[11px] text-slate-600">'+(r.order_id||'')+'</td><td class="py-1 text-slate-500">'+(r.order_date||'')+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.promotion_link_name||'-')+'</td><td class="py-1 font-mono text-[11px] text-slate-600">'+(r.ad_id||'-')+'</td><td class="py-1 text-right text-slate-700">¥'+(r.amount||0).toLocaleString()+'</td><td class="py-1 text-slate-500">'+(r.status||'')+'</td></tr>';
+          if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-slate-300">暂无数据</td></tr>'; document.getElementById('dashOrderPager').innerHTML = ''; return; }
+          var sumAmount = 0;
+          var html = data.map(function(r, i) {
+            sumAmount += (r.amount||0);
+            var novelInfo = r.novel_id || '-';
+            return '<tr class="' + (i%2?'bg-slate-50/50':'') + '"><td class="py-1 font-mono text-[11px] text-slate-600">'+(r.order_id||'')+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.order_date||'')+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.promotion_link_name||'-')+'</td><td class="py-1 text-slate-600 text-[11px]">'+escapeHtml(novelInfo)+'</td><td class="py-1 font-mono text-[11px] text-slate-400">'+(r.ad_id||'-')+'</td><td class="py-1 text-slate-500 text-xs">'+escapeHtml(r.user_name||'-')+'</td><td class="py-1 text-right text-slate-700">¥'+(r.amount||0).toLocaleString()+'</td><td class="py-1 text-slate-500">'+(r.status||'')+'</td></tr>';
           }).join('');
+          html += '<tr class="border-t-2 border-slate-300 bg-slate-100 font-semibold text-xs">' +
+            '<td class="py-2 text-slate-700">合计</td><td class="py-2 text-slate-500" colspan="5">' + data.length + ' 笔订单</td>' +
+            '<td class="py-2 text-right text-slate-800">¥' + sumAmount.toLocaleString() + '</td>' +
+            '<td class="py-2"></td></tr>';
+          tbody.innerHTML = html;
           renderPager('dashOrderPager', res, loadOrders);
         }).catch(function() {});
       }
@@ -2810,74 +3923,29 @@
     document.getElementById('btnSyncData').addEventListener('click', function() {
       var btn = this;
       btn.disabled = true;
-      btn.innerHTML = '<svg class="w-3.5 h-3.5 loading-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 同步中...';
+      btn.innerHTML = '<svg class="w-3.5 h-3.5 loading-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 提交中...';
       fetch('/api/scraper/sync', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
-        alert(d.message || '同步完成');
-        refreshDashboard();
-        btn.disabled = false;
-        btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 同步数据';
-      }).catch(function() {
-        alert('同步失败');
-        btn.disabled = false;
-        btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 同步数据';
-      });
-    });
-
-    document.getElementById('btnLogin').addEventListener('click', function() {
-      var username = document.getElementById('loginUsername').value.trim();
-      var password = document.getElementById('loginPassword').value.trim();
-      if (!username || !password) {
-        alert('请输入账号和密码');
-        return;
-      }
-      var captcha = document.getElementById('loginCaptcha').value.trim();
-      var btn = this;
-      btn.disabled = true;
-      btn.textContent = '登录中...';
-      fetch('/api/scraper/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: username,
-          password: password,
-          captcha: captcha,
-          check_key: _captchaCheckKey
-        })
-      }).then(function(r) { return r.json(); }).then(function(d) {
-        alert(d.message);
-        if (d.status === 'ok') {
-          document.getElementById('loginPassword').value = '';
-          document.getElementById('loginCaptcha').value = '';
-        } else {
-          loadCaptcha();
+        if (d.status === 'running') {
+          // 已有同步在进行中
+          document.getElementById('dashIntervalHint').textContent = '⏳ 后台同步进行中...';
+        } else if (d.status === 'started') {
+          // 后台同步已启动
+          document.getElementById('dashIntervalHint').textContent = '🔄 后台同步中，稍后自动刷新...';
+          setDashSessionStatus('online', '书城在线');
+          // 10秒后自动刷新看板
+          setTimeout(refreshDashboard, 10000);
+        } else if (d.login_required) {
+          markScraperOffline();
+          alert('书城登录已过期\n\n请在数据看板页面点击「书城凭据」重新登录验证。');
+        } else if (!d.success) {
+          alert(d.message || '同步失败');
         }
-        checkDashboardSession();
-      }).catch(function() {
-        alert('登录失败');
-        loadCaptcha();
-      }).finally(function() {
         btn.disabled = false;
-        btn.textContent = '登录';
-      });
-    });
-
-    // 密码框和验证码框回车触发登录
-    document.getElementById('loginPassword').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') { document.getElementById('btnLogin').click(); }
-    });
-    document.getElementById('loginCaptcha').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') { document.getElementById('btnLogin').click(); }
-    });
-
-    // 登出按钮
-    document.getElementById('btnLogout').addEventListener('click', function() {
-      if (!confirm('确定要登出当前账号吗？')) return;
-      fetch('/api/scraper/logout', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
-        alert(d.message);
-        checkDashboardSession();
-        refreshDashboard();
+        btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 同步数据';
       }).catch(function() {
-        alert('登出失败');
+        alert('同步失败，网络错误');
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 同步数据';
       });
     });
 
@@ -2918,6 +3986,7 @@
     }
 
     function loadSyncInterval() {
+      if (!authToken) return;
       fetch('/api/scraper/sync-interval').then(function(r) { return r.json(); }).then(function(d) {
         document.getElementById('dashSyncInterval').value = d.seconds;
         document.getElementById('dashIntervalHint').textContent = '同步+刷新: ' + d.text;
@@ -2928,78 +3997,202 @@
       var secs = parseInt(this.value);
       document.getElementById('dashIntervalHint').textContent = '更新中...';
       fetch('/api/scraper/sync-interval?seconds=' + secs, { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
-        document.getElementById('dashIntervalHint').textContent = '同步+刷新: ' + (d.message.split('已设为')[1] || d.message);
+        if (d.status === 'ok') {
+          document.getElementById('dashIntervalHint').textContent = '✓ 同步间隔: ' + d.message.split('已设为')[1] || d.message;
+        } else {
+          document.getElementById('dashIntervalHint').textContent = '✗ ' + (d.message || '设置失败');
+        }
         startAutoRefresh(secs);
       }).catch(function() {
-        document.getElementById('dashIntervalHint').textContent = '设置失败';
+        document.getElementById('dashIntervalHint').textContent = '✗ 设置失败，请重试';
       });
     });
 
-    loadSyncInterval();
+    // 全量重同步按钮
+    document.getElementById('btnFullSync').addEventListener('click', function() {
+      if (!confirm('全量同步将清除增量标记，重新拉取全部历史数据（不删除已有数据）。\n\n适用于：首次同步不完整、数据缺失等情况。\n\n确定要执行吗？')) return;
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = '提交中...';
+      fetch('/api/scraper/reset-sync', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.status === 'started') {
+          document.getElementById('dashIntervalHint').textContent = '🔄 后台全量同步中，稍后自动刷新...';
+          setTimeout(refreshDashboard, 15000);  // 全量同步通常更慢，15秒后刷新
+        } else {
+          alert(d.message || '操作失败');
+        }
+        btn.disabled = false;
+        btn.textContent = '全量同步';
+      }).catch(function() {
+        alert('操作失败，网络错误');
+        btn.disabled = false;
+        btn.textContent = '全量同步';
+      });
+    });
 
     // 别名编辑
+    // ====== 别名批量编辑弹窗 ======
+    var _aliasList = [];
+
     document.getElementById('btnEditAlias').addEventListener('click', function() {
-      var sel = document.getElementById('dashAccountFilter');
-      var acctId = sel.value;
-      if (!acctId) { alert('请先选择一个账户'); return; }
-      var currentName = sel.options[sel.selectedIndex].text;
-      var alias = prompt('为账户设置别名（留空则删除）:\n当前: ' + currentName, '');
-      if (alias === null) return; // 取消
-      var method = alias.trim() ? 'POST' : 'DELETE';
-      var url = '/api/dashboard/account-aliases?account_id=' + encodeURIComponent(acctId);
-      if (method === 'POST') url += '&alias=' + encodeURIComponent(alias.trim());
-      fetch(url, { method: method }).then(function(r) { return r.json(); }).then(function() {
+      fetch('/api/dashboard/accounts').then(function(r) { return r.json(); }).then(function(data) {
+        _aliasList = data || [];
+        var body = document.getElementById('aliasModalBody');
+        if (_aliasList.length === 0) {
+          body.innerHTML = '<div class="text-xs text-slate-400 text-center py-12">暂无账户数据</div>';
+        } else {
+          body.innerHTML = _aliasList.map(function(a) {
+            return '<div class="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-slate-50 transition-colors group">' +
+              '<input type="checkbox" class="alias-check w-4 h-4 rounded border-slate-300 text-red-500 focus:ring-red-300 cursor-pointer" data-acct="' + a.account_id + '">' +
+              '<div class="flex-1 min-w-0">' +
+                '<div class="text-xs font-medium text-slate-700 truncate font-mono">' + (a.alias || '') + '</div>' +
+                '<div class="text-[10px] text-slate-400 font-mono truncate">' + a.account_id + '</div>' +
+              '</div>' +
+              '<input type="text" class="alias-input w-40 px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none" placeholder="输入别名..." value="' + (a.alias || '').replace(/"/g, '&quot;') + '" data-acct="' + a.account_id + '" data-orig="' + (a.alias || '').replace(/"/g, '&quot;') + '">' +
+            '</div>';
+          }).join('');
+        }
+        document.getElementById('aliasModal').hidden = false;
+      }).catch(function() { alert('加载账户列表失败'); });
+    });
+
+    document.getElementById('aliasModalClose').addEventListener('click', function() { document.getElementById('aliasModal').hidden = true; });
+    document.getElementById('aliasModalCancel').addEventListener('click', function() { document.getElementById('aliasModal').hidden = true; });
+    document.getElementById('aliasModal').addEventListener('click', function(e) { if (e.target === this) document.getElementById('aliasModal').hidden = true; });
+
+    document.getElementById('aliasBatchClear').addEventListener('click', function() {
+      if (!confirm('确认清空所有账户的别名？')) return;
+      document.querySelectorAll('.alias-input').forEach(function(el) { el.value = ''; });
+    });
+
+    document.getElementById('aliasModalBody').addEventListener('change', function(e) {
+      if (!e.target.classList.contains('alias-check')) return;
+      var checked = document.querySelectorAll('.alias-check:checked');
+      var count = checked.length;
+      var batchBtn = document.getElementById('aliasBatchDelete');
+      document.getElementById('aliasBatchCount').textContent = count;
+      if (count > 0) { batchBtn.classList.remove('hidden'); } else { batchBtn.classList.add('hidden'); }
+    });
+
+    document.getElementById('aliasBatchDelete').addEventListener('click', function() {
+      var checked = document.querySelectorAll('.alias-check:checked');
+      if (checked.length === 0) return;
+      var ids = [];
+      checked.forEach(function(cb) { ids.push(cb.dataset.acct); });
+      if (!confirm('确认移除 ' + ids.length + ' 个账户？（广告数据会保留）')) return;
+      var promises = ids.map(function(id) {
+        return fetch('/api/dashboard/accounts/' + encodeURIComponent(id), { method: 'DELETE' });
+      });
+      Promise.all(promises).then(function() {
         loadDashboardAccounts();
         refreshDashboard();
+        document.getElementById('aliasModal').hidden = true;
+        alert('已移除 ' + ids.length + ' 个账户');
+      }).catch(function() { alert('部分删除失败'); });
+    });
+
+    document.getElementById('aliasModalSave').addEventListener('click', function() {
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = '保存中...';
+      var inputs = document.querySelectorAll('.alias-input');
+      var promises = [];
+      inputs.forEach(function(el) {
+        var acctId = el.dataset.acct;
+        var newAlias = el.value.trim();
+        var orig = el.dataset.orig;
+        if (newAlias === orig) return; // 没变化跳过
+        var method = newAlias ? 'POST' : 'DELETE';
+        var url = '/api/dashboard/account-aliases?account_id=' + encodeURIComponent(acctId);
+        if (method === 'POST') url += '&alias=' + encodeURIComponent(newAlias);
+        promises.push(fetch(url, { method: method }));
+      });
+      if (promises.length === 0) { btn.disabled = false; btn.textContent = '保存全部'; document.getElementById('aliasModal').hidden = true; return; }
+      Promise.all(promises).then(function() {
+        loadDashboardAccounts();
+        refreshDashboard();
+        document.getElementById('aliasModal').hidden = true;
+      }).catch(function() {
+        alert('部分保存失败');
+      }).finally(function() {
+        btn.disabled = false;
+        btn.textContent = '保存全部';
       });
     });
 
     // ====== 小说管理 ======
     var novelMgrPages = { books: 1, chapters: 1, selectedNovelId: null, selectedBookName: '' };
     var chapterModalData = { novelId: null, chapters: [], currentIndex: 0 };
+    var novelMgrSort = { by: 'create_time', order: 'DESC' };
+
+    function sortNovelBooks(field) {
+      if (novelMgrSort.by === field) {
+        novelMgrSort.order = novelMgrSort.order === 'DESC' ? 'ASC' : 'DESC';
+      } else {
+        novelMgrSort.by = field;
+        novelMgrSort.order = 'DESC';
+      }
+      // 更新表头箭头
+      document.querySelectorAll('#novelMgrTable thead th .sort-arrow').forEach(function(el) { el.textContent = ''; });
+      var th = document.querySelector('#novelMgrTable thead th[data-sort="' + field + '"]');
+      if (th) {
+        th.querySelector('.sort-arrow').textContent = novelMgrSort.order === 'DESC' ? ' ▼' : ' ▲';
+      }
+      loadNovelBooks(1);
+    }
 
     function loadNovelBooks(page) {
       page = page || 1;
       novelMgrPages.books = page;
       var keyword = document.getElementById('novelMgrSearch').value.trim();
       var status = document.getElementById('novelMgrStatus').value;
-      var params = 'page=' + page + '&page_size=15';
+      var pageSize = parseInt(document.getElementById('novelMgrPageSize').value) || 15;
+      var params = 'page=' + page + '&page_size=' + pageSize;
       if (keyword) params += '&keyword=' + encodeURIComponent(keyword);
       if (status) params += '&status=' + encodeURIComponent(status);
+      params += '&sort_by=' + novelMgrSort.by + '&sort_order=' + novelMgrSort.order;
 
       fetch('/api/novels/list?' + params).then(function(r) { return r.json(); }).then(function(res) {
         var tbody = document.getElementById('novelMgrBookBody');
         var data = res.data || [];
         if (data.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="19" class="text-center py-8 text-slate-300 text-xs">暂无书籍，请先同步</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="21" class="text-center py-8 text-slate-300 text-xs">暂无书籍，请先同步</td></tr>';
         } else {
           tbody.innerHTML = data.map(function(b, i) {
             var isSelected = novelMgrPages.selectedNovelId === b.novel_id;
-            var bgClass = isSelected ? 'bg-indigo-50' : (i%2 ? 'bg-slate-50/50' : '');
+            var bgClass = isSelected ? 'bg-indigo-50' : '';
             var coverHtml = b.cover_url
               ? '<img src="' + b.cover_url + '" class="w-10 h-14 object-cover rounded" onerror="this.style.display=\'none\'">'
               : '<span class="text-slate-300">-</span>';
-            var statusClass = b.status === '完结' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
-            return '<tr class="hover:bg-indigo-50/50 transition-all ' + bgClass + '">' +
-              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.create_time ? b.create_time.slice(0,10) : '-') + '</td>' +
-              '<td class="py-1.5 px-3 text-xs font-medium text-indigo-600 max-w-[180px] truncate cursor-pointer hover:underline" title="' + (b.novel_name || '') + '" onclick="selectNovelBook(\'' + b.novel_id + '\',\'' + (b.novel_name || '').replace(/'/g, '\\\'') + '\')">' + (b.novel_name || '-') + '</td>' +
-              '<td class="py-1.5 px-3 text-right text-[10px] text-slate-600">$' + ((b.book_ad_spend || 0).toLocaleString ? (b.book_ad_spend || 0).toLocaleString() : (b.book_ad_spend || 0)) + '</td>' +
-              '<td class="py-1.5 px-3 text-right text-[10px] text-slate-600">' + (b.promotion_link_count || 0) + '</td>' +
-              '<td class="py-1.5 px-3 text-[10px] font-mono text-slate-500">' + (b.novel_id || '-') + '</td>' +
-              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.source || '-') + '</td>' +
+            var isEnded = b.status === '完结' || b.status === '已完结';
+            var isOff = b.status === '下架' || b.status === '已下架';
+            var statusClass = isEnded ? 'bg-green-100 text-green-700' : isOff ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700';
+            return '<tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-all ' + bgClass + '">' +
+              '<td class="py-1.5 px-3 text-xs text-slate-500">' + (b.create_time ? b.create_time.slice(0,10) : '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-sm font-medium text-indigo-600 max-w-[180px] truncate cursor-pointer hover:underline" title="' + (b.novel_name || '') + '" onclick="selectNovelBook(\'' + b.novel_id + '\',\'' + (b.novel_name || '').replace(/'/g, '\\\'') + '\')">' + (b.novel_name || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-right text-xs text-slate-600">$' + ((b.book_ad_spend || 0).toLocaleString ? (b.book_ad_spend || 0).toLocaleString() : (b.book_ad_spend || 0)) + '</td>' +
+              '<td class="py-1.5 px-3 text-right text-sm font-medium text-slate-700">' + (b.order_count || 0) + '</td>' +
+              (function() {
+                var cc = b.conversion_cost != null ? Number(b.conversion_cost) : null;
+                var ccColor = cc === null ? 'text-slate-400' : cc < 60 ? 'text-emerald-600 font-medium' : cc <= 70 ? 'text-amber-600 font-medium' : 'text-red-600 font-medium';
+                return '<td class="py-1.5 px-3 text-right text-xs ' + ccColor + '">' + (cc !== null ? '$' + cc.toFixed(2) : '-') + '</td>';
+              })() +
+              '<td class="py-1.5 px-3 text-right text-xs text-slate-600">' + (b.promotion_link_count || 0) + '</td>' +
+              '<td class="py-1.5 px-3 text-xs font-mono text-slate-500">' + (b.novel_id || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-xs text-slate-500">' + (b.source || '-') + '</td>' +
               '<td class="py-1.5 px-3">' + coverHtml + '</td>' +
-              '<td class="py-1.5 px-3 text-[10px] text-slate-600">' + (b.author || '-') + '</td>' +
-              '<td class="py-1.5 px-3 text-[10px] text-slate-400 max-w-[180px] truncate" title="' + (b.intro || '') + '">' + (b.intro || '-').slice(0,60) + '</td>' +
-              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.region || '-') + '</td>' +
-              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.category || '-') + '</td>' +
-              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.tags || '-') + '</td>' +
-              '<td class="py-1.5 px-3 text-[10px]">' + (b.recommend === '是' ? '<span class="text-green-600 font-medium">是</span>' : '<span class="text-slate-400">否</span>') + '</td>' +
-              '<td class="py-1.5 px-3"><span class="px-1.5 py-0.5 rounded text-[9px] font-medium ' + statusClass + '">' + (b.status || '-') + '</span></td>' +
-              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.exclusive_status || '-') + '</td>' +
-              '<td class="py-1.5 px-3 text-[10px] text-slate-500">' + (b.create_by || '-') + '</td>' +
-              '<td class="py-1.5 px-3 text-right text-[10px] text-slate-600">' + ((b.word_count || 0).toLocaleString ? (b.word_count || 0).toLocaleString() : (b.word_count || 0)) + '</td>' +
-              '<td class="py-1.5 px-3 text-right text-[10px] text-slate-600">' + (b.total_chapters || 0) + '</td>' +
-              '<td class="py-1.5 px-3 text-right text-[10px] text-slate-600">' + (b.collect_num || 0) + '</td>' +
+              '<td class="py-1.5 px-3 text-xs text-slate-600">' + (b.author || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-xs text-slate-400 max-w-[180px] truncate" title="' + (b.intro || '') + '">' + (b.intro || '-').slice(0,60) + '</td>' +
+              '<td class="py-1.5 px-3 text-xs text-slate-500">' + (b.region || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-xs text-slate-500">' + (b.category || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-xs text-slate-500">' + (b.tags || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-xs">' + (b.recommend === '是' ? '<span class="text-green-600 font-medium">是</span>' : '<span class="text-slate-400">否</span>') + '</td>' +
+              '<td class="py-1.5 px-3"><span class="px-1.5 py-0.5 rounded text-[11px] font-medium ' + statusClass + '">' + (b.status || '-') + '</span></td>' +
+              '<td class="py-1.5 px-3 text-xs text-slate-500">' + (b.exclusive_status || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-xs text-slate-500">' + (b.create_by || '-') + '</td>' +
+              '<td class="py-1.5 px-3 text-right text-xs text-slate-600">' + ((b.word_count || 0).toLocaleString ? (b.word_count || 0).toLocaleString() : (b.word_count || 0)) + '</td>' +
+              '<td class="py-1.5 px-3 text-right text-xs text-slate-600">' + (b.total_chapters || 0) + '</td>' +
+              '<td class="py-1.5 px-3 text-right text-xs text-slate-600">' + (b.collect_num || 0) + '</td>' +
             '</tr>';
           }).join('');
         }
@@ -3112,13 +4305,21 @@
       if (novelId) syncNovelContent(novelId);
     });
 
-    function syncNovelBooks() {
-      var btn = document.getElementById('novelMgrSyncBooksBtn');
+    function syncNovelAll() {
+      var btn = document.getElementById('novelMgrSyncAllBtn');
       btn.disabled = true; btn.textContent = '同步中...';
+      // 先同步书籍列表，再补缺章节
       fetch('/api/novels/sync-books', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
-        alert(d.message || ('已同步 ' + (d.count || 0) + ' 本书'));
+        var msg = '书籍: ' + (d.message || (d.count + ' 本'));
+        return fetch('/api/novels/sync-content', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+          .then(function(r) { return r.json(); }).then(function(d2) {
+            var chCount = d2.books ? Object.keys(d2.books).length : 0;
+            alert(msg + '\n章节已同步: ' + chCount + ' 本书');
+          });
+      }).catch(function() { alert('同步失败'); }).finally(function() {
+        btn.disabled = false; btn.textContent = '同步小说';
         loadNovelBooks(1);
-      }).catch(function() { alert('同步失败'); }).finally(function() { btn.disabled = false; btn.textContent = '同步书籍列表'; });
+      });
     }
 
     function syncNovelContent(novelId) {
@@ -3135,10 +4336,10 @@
       }).catch(function() { alert('同步失败'); }).finally(function() { btn.disabled = false; btn.textContent = novelId ? '同步内容' : '同步全部内容'; });
     }
 
-    document.getElementById('novelMgrSyncBooksBtn').addEventListener('click', syncNovelBooks);
-    document.getElementById('novelMgrSyncContentBtn').addEventListener('click', function() { syncNovelContent(null); });
+    document.getElementById('novelMgrSyncAllBtn').addEventListener('click', syncNovelAll);
     document.getElementById('novelMgrSearch').addEventListener('input', function() { loadNovelBooks(1); });
     document.getElementById('novelMgrStatus').addEventListener('change', function() { loadNovelBooks(1); });
+    document.getElementById('novelMgrPageSize').addEventListener('change', function() { loadNovelBooks(1); });
 
     // ====== 投放模板 ======
     async function loadTemplates() {
@@ -3618,6 +4819,157 @@ return '<tr class="border-b border-slate-50"><td class="py-1 text-slate-400">'+(
       msg.classList.remove('hidden');
       setTimeout(function() { msg.classList.add('hidden'); }, 3000);
     }
+
+    // ====== 爆款素材登记 ======
+
+    function openHitRegister(batchId, url, prompt, label, novelId, novelName, isVideo) {
+      document.getElementById('hitBatchId').textContent = batchId || '-';
+      document.getElementById('hitNovelName').textContent = novelName || '-';
+      document.getElementById('hitNovelId').textContent = novelId || '-';
+      document.getElementById('hitPrompt').textContent = (prompt || '').slice(0, 100);
+      if (isVideo === 'y') {
+        document.getElementById('hitPreviewImg').style.display = 'none';
+        var v = document.getElementById('hitPreviewVideo');
+        v.style.display = '';
+        v.src = url;
+      } else {
+        document.getElementById('hitPreviewVideo').style.display = 'none';
+        var img = document.getElementById('hitPreviewImg');
+        img.style.display = '';
+        img.src = url;
+      }
+      // 保存元数据
+      document.getElementById('hitRegisterModal').dataset.batchId = batchId;
+      document.getElementById('hitRegisterModal').dataset.url = url;
+      document.getElementById('hitRegisterModal').dataset.prompt = prompt;
+      document.getElementById('hitRegisterModal').dataset.label = label;
+      document.getElementById('hitRegisterModal').dataset.novelId = novelId;
+      document.getElementById('hitRegisterModal').dataset.novelName = novelName;
+      // 尝试加载之前登记的数据
+      fetch('/api/hit-materials/lookup?image_url=' + encodeURIComponent(url)).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.found) {
+          document.getElementById('hitSpend').value = d.data.spend || '';
+          document.getElementById('hitOrderCount').value = d.data.order_count || '';
+          document.getElementById('hitRevenue').value = d.data.revenue || '';
+          calcHitROI();
+        }
+      }).catch(function() {});
+      document.getElementById('hitRegisterModal').hidden = false;
+    }
+
+    function calcHitROI() {
+      var spend = parseFloat(document.getElementById('hitSpend').value) || 0;
+      var rev = parseFloat(document.getElementById('hitRevenue').value) || 0;
+      document.getElementById('hitROI').value = spend > 0 ? (rev / spend).toFixed(2) : '-';
+    }
+
+    document.getElementById('hitRegisterClose').addEventListener('click', function() {
+      document.getElementById('hitRegisterModal').hidden = true;
+    });
+    document.getElementById('hitRegisterCancel').addEventListener('click', function() {
+      document.getElementById('hitRegisterModal').hidden = true;
+    });
+    document.getElementById('hitRegisterSave').addEventListener('click', function() {
+      var modal = document.getElementById('hitRegisterModal');
+      var body = {
+        batch_id: modal.dataset.batchId,
+        image_url: modal.dataset.url,
+        video_url: '',
+        prompt: modal.dataset.prompt,
+        label: modal.dataset.label,
+        novel_id: modal.dataset.novelId,
+        novel_name: modal.dataset.novelName,
+        spend: parseFloat(document.getElementById('hitSpend').value) || 0,
+        order_count: parseInt(document.getElementById('hitOrderCount').value) || 0,
+        revenue: parseFloat(document.getElementById('hitRevenue').value) || 0,
+        roi: parseFloat(document.getElementById('hitROI').value) || 0,
+      };
+      fetch('/api/hit-materials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).then(function(r) { return r.json(); }).then(function() {
+        alert('已登记');
+        modal.hidden = true;
+      }).catch(function() { alert('登记失败'); });
+    });
+
+    // ====== 爆款素材库 ======
+    var _hitPage = 1;
+
+    function loadHitGallery(page) {
+      page = page || 1;
+      _hitPage = page;
+      var sort = document.getElementById('hitGallerySort').value;
+      var keyword = document.getElementById('hitGallerySearch').value.trim();
+      var params = 'page=' + page + '&page_size=15&sort_by=' + sort + '&sort_order=DESC';
+      if (keyword) params += '&keyword=' + encodeURIComponent(keyword);
+
+      fetch('/api/hit-materials?' + params).then(function(r) { return r.json(); }).then(function(res) {
+        var grid = document.getElementById('hitGalleryGrid');
+        var data = res.data || [];
+        if (data.length === 0) {
+          grid.innerHTML = '<div class="text-center text-slate-300 text-xs col-span-full py-12">暂无爆款素材，去素材浏览中登记吧</div>';
+        } else {
+          grid.innerHTML = data.map(function(h) {
+            var imgHtml = h.image_url
+              ? '<img src="' + h.image_url + '" class="w-full aspect-square object-cover rounded-t-xl cursor-pointer" loading="lazy" onclick="event.stopPropagation();var m=document.getElementById(\'imagePreviewModal\');var i=document.getElementById(\'imagePreviewImg\');i.src=this.src;m.hidden=false;" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23e2e8f0%22 width=%22100%22 height=%22100%22/></svg>\'">'
+              : '<div class="w-full aspect-square bg-slate-200 rounded-t-xl flex items-center justify-center"><span class="text-slate-400 text-xs">无图</span></div>';
+            var stars = '';
+            for (var s = 0; s < 5; s++) { stars += s < (h.score || 0) ? '★' : '☆'; }
+            var roiColor = (h.roi || 0) >= 1 ? 'text-emerald-600' : 'text-red-500';
+            return '<div class="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm hover:shadow-md transition-all group relative">' +
+              imgHtml +
+              '<div class="p-2.5">' +
+                '<div class="text-[10px] text-slate-400 truncate mb-0.5">' + (h.label || '素材') + ' · ' + (h.novel_name || '-') + '</div>' +
+                '<div class="text-[9px] text-slate-400 mb-1.5">👤 ' + escapeHtml(h.user_name || ('ID:' + h.user_id)) + '</div>' +
+                '<div class="flex items-center justify-between mb-0.5">' +
+                  '<span class="text-sm font-bold text-amber-600">$' + ((h.spend || 0).toFixed(0)) + '</span>' +
+                  '<span class="text-sm font-bold ' + ((h.order_count || 0) >= 3 ? 'text-emerald-600' : (h.order_count || 0) >= 1 ? 'text-amber-600' : 'text-slate-400') + '">' + (h.order_count || 0) + '单</span>' +
+                '</div>' +
+                '<div class="flex items-center justify-between">' +
+                  '<span class="text-xs font-semibold ' + roiColor + '">ROI ' + ((h.roi || 0).toFixed(2)) + '</span>' +
+                  '<span class="text-[10px] text-amber-500">' + stars + '</span>' +
+                '</div>' +
+                '<div class="flex items-center justify-between mt-0.5 text-[9px] text-slate-400">' +
+                  '<span>' + (h.registered_at || '').slice(0,10) + '</span>' +
+                  '<span>收入 $' + ((h.revenue || 0).toFixed(0)) + '</span>' +
+                '</div>' +
+              '</div>' +
+              '<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">' +
+                '<div class="flex items-center gap-1.5">' +
+                  '<button class="rounded-lg bg-white/20 px-2 py-0.5 text-[9px] text-white hover:bg-white/30 transition-all border-0 cursor-pointer hit-go-btn" data-prompt="' + (h.prompt || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '">去生图</button>' +
+                  '<button class="rounded-lg bg-red-500/60 px-2 py-0.5 text-[9px] text-white hover:bg-red-500 transition-all border-0 cursor-pointer hit-del-btn" data-id="' + h.id + '">删除</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+        }
+        document.getElementById('hitGalleryCount').textContent = '共 ' + res.total + ' 个';
+        renderPager('hitGalleryPager', res, loadHitGallery);
+      }).catch(function() {});
+    }
+
+    function deleteHitMaterial(id) {
+      fetch('/api/hit-materials/' + id, { method: 'DELETE' }).then(function() {
+        loadHitGallery(_hitPage);
+      });
+    }
+
+    document.getElementById('hitGalleryGrid').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      if (btn.classList.contains('hit-go-btn')) {
+        e.stopPropagation();
+        goGenerateFromPrompt(btn.dataset.prompt);
+      } else if (btn.classList.contains('hit-del-btn')) {
+        e.stopPropagation();
+        if (confirm('确认删除？')) deleteHitMaterial(btn.dataset.id);
+      }
+    });
+    document.getElementById('hitGallerySort').addEventListener('change', function() { loadHitGallery(1); });
+    document.getElementById('hitGalleryRefresh').addEventListener('click', function() { loadHitGallery(1); });
+    document.getElementById('hitGallerySearch').addEventListener('input', function() { loadHitGallery(1); });
 
   </script>
 </body>

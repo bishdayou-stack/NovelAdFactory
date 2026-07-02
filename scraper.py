@@ -1,22 +1,100 @@
+"""数据采集模块 — 支持多用户独立 session"""
 import base64
 import json
+import os
 import time
 import uuid
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
-
-import requests as http_requests
 
 import database
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 BASE_PATH = Path(__file__).parent.resolve()
 BASE_URL = "https://hw.manage.pingykj.com"
+
+# ====== 代理支持 ======
+
+def _get_proxy_url() -> Optional[str]:
+    """从 config.json 读取代理地址，与 meta_api.py 保持一致"""
+    try:
+        config = json.loads((BASE_PATH / "config.json").read_text(encoding="utf-8"))
+        proxy_url = config.get("meta", {}).get("proxy", "")
+        if proxy_url:
+            return proxy_url
+    except Exception:
+        pass
+    return os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or \
+           os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") or None
+
+
+def _curl_get(url: str, headers: dict = None, cookies: dict = None,
+              timeout: int = 30) -> Tuple[Optional[Dict], int, Optional[str]]:
+    """用 curl 发送 GET 请求（解决 Python SSL 与代理兼容问题），返回 (json_body, http_code, error)"""
+    import subprocess
+    import tempfile
+    cmd = ["curl", "-s", "-X", "GET", "--connect-timeout", str(timeout), "-w", "\n%{http_code}"]
+    proxy = _get_proxy_url()
+    if proxy:
+        cmd.extend(["-x", proxy])
+    if headers:
+        for k, v in headers.items():
+            cmd.extend(["-H", f"{k}: {v}"])
+    if cookies:
+        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items())
+        cmd.extend(["-H", f"Cookie: {cookie_str}"])
+    cmd.append(url)
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=timeout + 10)
+        output = (result.stdout or b"").decode("utf-8", errors="replace").strip()
+        if not output:
+            return None, 0, "curl 返回空"
+        lines = output.rsplit("\n", 1)
+        body = lines[0] if len(lines) == 2 else output
+        code = int(lines[1]) if len(lines) == 2 else 0
+        try:
+            return json.loads(body) if body else {}, code, None
+        except (json.JSONDecodeError, ValueError):
+            return body, code, None
+    except Exception as e:
+        return None, 0, str(e)
+
+
+def _curl_post(url: str, body: dict = None, headers: dict = None,
+               cookies: dict = None, timeout: int = 30) -> Tuple[Optional[Dict], int, Optional[str]]:
+    """用 curl 发送 POST 请求"""
+    import subprocess
+    cmd = ["curl", "-s", "-X", "POST", "--connect-timeout", str(timeout), "-w", "\n%{http_code}"]
+    proxy = _get_proxy_url()
+    if proxy:
+        cmd.extend(["-x", proxy])
+    if headers:
+        for k, v in headers.items():
+            cmd.extend(["-H", f"{k}: {v}"])
+    if cookies:
+        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items())
+        cmd.extend(["-H", f"Cookie: {cookie_str}"])
+    if body:
+        cmd.extend(["-H", "Content-Type: application/json"])
+        cmd.extend(["-d", json.dumps(body)])
+    cmd.append(url)
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=timeout + 10)
+        output = (result.stdout or b"").decode("utf-8", errors="replace").strip()
+        if not output:
+            return None, 0, "curl 返回空"
+        lines = output.rsplit("\n", 1)
+        resp_body = lines[0] if len(lines) == 2 else output
+        code = int(lines[1]) if len(lines) == 2 else 0
+        try:
+            return json.loads(resp_body) if resp_body else {}, code, None
+        except (json.JSONDecodeError, ValueError):
+            return resp_body, code, None
+    except Exception as e:
+        return None, 0, str(e)
 LOGIN_API_PATH = "/jeecgboot/sys/login"
 CAPTCHA_API_PATH = "/jeecgboot/sys/randomImage"
-AUTH_TOKEN_PATH = BASE_PATH / "data" / "auth_token.json"
 
-# 已验证的 API 端点
 _AD_API_PATH = "/jeecgboot/report/adAttributionReportDaily/list"
 _AD_API_PARAMS = "adName="
 _ORDER_API_PATH = "/jeecgboot/wallet/financeOrder/list"
@@ -24,217 +102,345 @@ _ORDER_API_PARAMS = "column=createTime&order=desc"
 _NOVEL_BOOK_PATH = "/jeecgboot/novel/novel/list"
 _NOVEL_BOOK_PATH_ALT = "/jeecgboot/novel/bookList"
 
-# Token 缓存
-_api_token: Optional[str] = None
-# 验证码 session cookies（关联 captcha 和 login）
-_captcha_cookies: Optional[Dict[str, str]] = None
+# ====== 多用户 session 缓存 ======
+_user_sessions: Dict[int, "ScraperSession"] = {}
+_pending_logins: Dict[str, "ScraperSession"] = {}  # check_key → 临时 session（验证码用）
 
 
-# ---- Token 管理 ----
+# ====== ScraperSession ======
 
-def _save_auth_token(token: str) -> None:
-    global _api_token
-    _api_token = token
-    AUTH_TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    AUTH_TOKEN_PATH.write_text(json.dumps({
-        "token": token, "saved_at": time.time()
-    }, ensure_ascii=False), encoding="utf-8")
+class ScraperSession:
+    """每个用户独立的书城登录 session"""
 
+    def __init__(self, user_id: int, pingykj_user: str, pingykj_pass: str):
+        self.user_id = user_id
+        self.pingykj_username = pingykj_user
+        self.pingykj_password = pingykj_pass
+        self._token: Optional[str] = None
+        self._captcha_cookies: Optional[Dict[str, str]] = None
+        self._last_validated: float = 0.0  # token 最后验证时间戳
+        self._renew_cooldown: float = 0.0  # 自动续期冷却时间（避免频繁重试）
 
-def _load_auth_token() -> Optional[str]:
-    global _api_token
-    if _api_token:
-        return _api_token
-    if AUTH_TOKEN_PATH.exists():
+    # ---- Token 内部管理 ----
+
+    def _has_token(self) -> bool:
+        return self._token is not None
+
+    def _clear_token(self) -> None:
+        self._token = None
+        self._captcha_cookies = None
+        self._last_validated = 0.0
+        self._renew_cooldown = 0.0
+
+    # ---- 验证码 ----
+
+    def _curl_get_raw(self, url: str, timeout: int = 30) -> Tuple[Optional[bytes], Optional[str], Optional[str]]:
+        """用 curl 发送 GET 请求，返回 (raw_bytes, cookies_str, error)"""
+        import subprocess, tempfile
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.dat')
+        tmp.close()
+        cmd = ["curl", "-s", "-X", "GET", "--connect-timeout", str(timeout),
+               "-o", tmp.name, "-D", "-", "-w", "\n%{http_code}"]
+        proxy = _get_proxy_url()
+        if proxy:
+            cmd.extend(["-x", proxy])
+        cmd.append(url)
         try:
-            data = json.loads(AUTH_TOKEN_PATH.read_text(encoding="utf-8"))
-            if time.time() - data.get("saved_at", 0) < 7200:
-                _api_token = data["token"]
-                return _api_token
-        except (json.JSONDecodeError, OSError):
-            pass
-    return None
+            result = subprocess.run(cmd, capture_output=True, timeout=timeout + 10)
+            headers_output = (result.stdout or b"").decode("utf-8", errors="replace")
+            raw_bytes = Path(tmp.name).read_bytes()
+            Path(tmp.name).unlink(missing_ok=True)
+            # extract cookies from headers
+            cookies_str = ""
+            for line in headers_output.split("\n"):
+                if line.lower().startswith("set-cookie:"):
+                    parts = line.split(":", 1)[1].strip().split(";")[0]
+                    if cookies_str:
+                        cookies_str += "; "
+                    cookies_str += parts
+            return raw_bytes, cookies_str, None
+        except Exception as e:
+            Path(tmp.name).unlink(missing_ok=True)
+            return None, None, str(e)
 
+    def fetch_captcha(self) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """获取登录验证码。返回 (data_uri, check_key, error_message)"""
+        check_key = uuid.uuid4().hex
+        url = f"{BASE_URL}{CAPTCHA_API_PATH}/{check_key}"
+        raw, cookies_str, err = self._curl_get_raw(url, timeout=15)
+        if err:
+            return None, None, f"请求失败: {err}"
+        if not raw:
+            return None, None, "验证码请求返回空"
 
-def _clear_auth_token() -> None:
-    global _api_token
-    _api_token = None
-    AUTH_TOKEN_PATH.unlink(missing_ok=True)
+        self._captcha_cookies = {}
+        if cookies_str:
+            for part in cookies_str.split("; "):
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    self._captcha_cookies[k.strip()] = v.strip()
 
-
-def _has_api_token() -> bool:
-    return _load_auth_token() is not None
-
-
-# ---- 登录管理 ----
-
-def fetch_captcha() -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """获取登录验证码。返回 (data_uri, check_key, error_message)"""
-    global _captcha_cookies
-    check_key = uuid.uuid4().hex
-    try:
-        session = http_requests.Session()
-        resp = session.get(
-            f"{BASE_URL}{CAPTCHA_API_PATH}/{check_key}",
-            timeout=10
-        )
-        if resp.status_code != 200:
-            return None, None, f"验证码请求失败 (status={resp.status_code})"
-
-        _captcha_cookies = dict(session.cookies.get_dict())
-        content_type = resp.headers.get("Content-Type", "")
-
-        # JeecgBoot 可能直接返回图片字节，也可能包在 JSON 里
-        if "json" in content_type or resp.content[:1] == b'{':
-            # JSON 格式：{"success":true, "result":"data:image/jpg;base64,..."}
+        # 尝试 JSON 格式
+        if raw[:1] == b'{':
             try:
-                data = resp.json()
+                data = json.loads(raw)
                 if data.get("success"):
                     result = data.get("result", "")
                     if isinstance(result, dict):
-                        # 有些版本 result 是对象，内含 image 字段
                         img_b64 = result.get("image", "")
                         if img_b64:
-                            data_uri = f"data:image/png;base64,{img_b64}"
-                        else:
-                            return None, None, "验证码 result 中无 image"
+                            return f"data:image/png;base64,{img_b64}", check_key, None
+                        return None, None, "验证码 result 中无 image"
                     elif isinstance(result, str) and result.startswith("data:"):
-                        # result 直接就是 data URI
-                        data_uri = result
+                        return result, check_key, None
                     else:
                         return None, None, f"验证码 result 格式未知: {str(result)[:100]}"
-                    print(f"[Scraper] 验证码(JSON)获取成功, check_key={check_key[:8]}...")
-                    return data_uri, check_key, None
                 return None, None, f"验证码接口异常: {data.get('message', '')}"
             except (json.JSONDecodeError, ValueError):
                 return None, None, "验证码响应解析失败"
-        else:
-            # 直接返回图片字节
-            img_b64 = base64.b64encode(resp.content).decode("ascii")
-            mime = "image/png"
-            if resp.content[:2] == b'\xff\xd8':
-                mime = "image/jpeg"
-            elif resp.content[:3] == b'GIF':
-                mime = "image/gif"
-            data_uri = f"data:{mime};base64,{img_b64}"
-            print(f"[Scraper] 验证码(RAW)获取成功, check_key={check_key[:8]}..., size={len(resp.content)}bytes")
-            return data_uri, check_key, None
 
-    except http_requests.RequestException as e:
-        return None, None, f"请求失败: {e}"
+        # 原始图片字节
+        img_b64 = base64.b64encode(raw).decode("ascii")
+        mime = "image/png"
+        if raw[:2] == b'\xff\xd8':
+            mime = "image/jpeg"
+        elif raw[:3] == b'GIF':
+            mime = "image/gif"
+        data_uri = f"data:{mime};base64,{img_b64}"
+        print(f"[Scraper] 验证码获取成功, check_key={check_key[:8]}..., size={len(raw)}bytes")
+        return data_uri, check_key, None
 
+    # ---- 登录 ----
 
-def do_logout() -> None:
-    global _captcha_cookies
-    _clear_auth_token()
-    _captcha_cookies = None
-    print("[Scraper] 已登出，所有凭据已清除")
-
-
-def check_session_valid() -> bool:
-    return _has_api_token()
-
-
-def login_via_api(username: str, password: str,
-                  captcha: str = "", check_key: str = "") -> Tuple[bool, str]:
-    """通过 API 直接登录，获取 token。captcha/check_key 可选，不需要验证码时留空即可"""
-    global _captcha_cookies
-    try:
-        body = {"username": username, "password": password, "captcha": captcha}
+    def login(self, captcha: str = "", check_key: str = "") -> Tuple[bool, str]:
+        """通过 API 登录，获取 token"""
+        body = {"username": self.pingykj_username, "password": self.pingykj_password,
+                "captcha": captcha}
         if check_key:
             body["checkKey"] = check_key
 
-        # 携带验证码的 session cookies（服务器用它关联 checkKey → 验证码）
-        cookies = _captcha_cookies if captcha else None
-        resp = http_requests.post(
+        data, code, err = _curl_post(
             f"{BASE_URL}{LOGIN_API_PATH}",
-            json=body,
-            timeout=15,
-            headers={"Content-Type": "application/json"},
-            cookies=cookies
+            body=body,
+            cookies=self._captcha_cookies if captcha else None,
+            timeout=15
         )
-        data = resp.json()
+        if err:
+            return False, f"请求失败: {err}"
+        if not isinstance(data, dict):
+            return False, "登录响应格式异常"
+
         if data.get("success"):
             token = data.get("result", {}).get("token", "")
             if token:
-                _save_auth_token(token)
-                _captcha_cookies = None  # 登录成功，清除验证码 session
-                database.save_session_cookies(
-                    json.dumps({"token": token, "login_method": "api"}, ensure_ascii=False)
-                )
-                return True, "登录成功，token 已保存"
+                self._token = token
+                self._captcha_cookies = None
+                print(f"[Scraper] 用户 {self.user_id} 登录成功")
+                return True, "登录成功"
             return False, "登录成功但未获取到 token"
         return False, data.get("message", "登录失败")
-    except http_requests.RequestException as e:
-        return False, f"请求失败: {e}"
-    except Exception as e:
-        return False, str(e)
+
+    def check_valid(self) -> bool:
+        """实际验证 token 是否有效（120秒内已验证过则缓存结果，避免频繁请求）"""
+        if not self._token:
+            return False
+        if time.time() - self._last_validated < 120:
+            return True  # 120秒内验证过，信任缓存
+        ok = self._ping_token()
+        self._last_validated = time.time()
+        if not ok:
+            print(f"[Scraper] 用户 {self.user_id} token 已过期，将清除")
+            self._clear_token()
+        return ok
+
+    def _ping_token(self) -> bool:
+        """用最小开销的 API 调用验证 token 是否仍然有效（pageSize=1）。
+        网络临时故障时保持乐观（不因网络抖动就清除 token）。"""
+        headers = {"X-Access-Token": self._token}
+        url = f"{BASE_URL}{_AD_API_PATH}?pageNo=1&pageSize=1&{_AD_API_PARAMS}"
+        data, code, err = _curl_get(url, headers=headers, timeout=10)
+        if err:
+            # 网络故障，保持乐观（不因临时网络问题清除 token）
+            print(f"[Scraper] token 验证网络异常，暂保持: {err}")
+            return True
+        if not isinstance(data, dict):
+            return True  # 非标准响应也保持乐观
+        if data.get("success"):
+            return True
+        if data.get("code") in (401, 403) or "登录" in str(data.get("message", "")) \
+                or "token" in str(data.get("message", "")).lower():
+            return False  # 确凿的认证失败
+        # 其他错误（如无数据、参数错误等），token 本身有效
+        return True
+
+    def _renew_token(self) -> bool:
+        """尝试无验证码自动重新登录（带冷却，300秒内不重复尝试）"""
+        if time.time() - self._renew_cooldown < 300:
+            print(f"[Scraper] 用户 {self.user_id} 自动续期冷却中，跳过")
+            return False
+        self._renew_cooldown = time.time()
+        self._clear_token()
+        ok, msg = self.login()  # 不带验证码尝试登录
+        if ok:
+            self._last_validated = time.time()
+            print(f"[Scraper] 用户 {self.user_id} token 自动续期成功")
+            return True
+        print(f"[Scraper] 用户 {self.user_id} 自动续期失败: {msg}")
+        return False
+
+    def _ensure_valid_token(self) -> bool:
+        """确保 token 有效。先验证，无效则尝试自动续期。返回是否最终有效"""
+        if self._token and time.time() - self._last_validated < 120:
+            return True  # 缓存有效
+        if self.check_valid():
+            return True
+        # token 无效或不存在，尝试自动重新登录
+        if self._renew_token():
+            return True
+        return False
+
+    def logout(self) -> None:
+        self._clear_token()
+        print(f"[Scraper] 用户 {self.user_id} 已登出")
+
+    # ---- 数据获取 ----
+
+    def _fetch_with_token(self, api_path: str, api_params: str,
+                          page_size: int = 500,
+                          date_start: str = None, date_end: str = None,
+                          _retry_on_auth: bool = True) -> Tuple[List[Dict], str]:
+        """使用 API token 分页获取数据（token 过期时自动续期并重试一次）"""
+        if not self._token:
+            return [], "未找到登录 token，请先登录"
+
+        headers = {"X-Access-Token": self._token}
+
+        date_filter = ""
+        if date_start and date_end:
+            date_filter = f"&{date_start}&{date_end}"
+        elif date_start:
+            date_filter = f"&{date_start}"
+
+        all_records = []
+        page_no = 1
+
+        while True:
+            url = f"{BASE_URL}{api_path}?pageNo={page_no}&pageSize={page_size}&{api_params}{date_filter}"
+            data, code, err = _curl_get(url, headers=headers, timeout=30)
+            if err:
+                if all_records:
+                    print(f"[Scraper] 第{page_no}页请求异常: {err}")
+                    break
+                return [], f"请求失败: {err}"
+
+            if not isinstance(data, dict):
+                if all_records:
+                    break
+                return [], "API 响应格式异常"
+
+            if not data.get("success"):
+                msg = data.get("message", "未知错误")
+                # 检测到 token 过期 → 尝试自动续期并重试
+                if data.get("code") in (401, 403) or "登录" in str(msg) or "token" in str(msg).lower():
+                    if not _retry_on_auth:
+                        self._clear_token()
+                        return all_records if all_records else [], f"登录已失效: {msg}"
+                    # 清除旧 token，尝试重新登录
+                    self._clear_token()
+                    print(f"[Scraper] 用户 {self.user_id} token 失效，尝试自动续期...")
+                    if self._renew_token():
+                        # 续期成功，重试当前请求（不再递归重试）
+                        print(f"[Scraper] 用户 {self.user_id} 续期成功，重试数据请求...")
+                        renewed_records, renewed_err = self._fetch_with_token(
+                            api_path, api_params, page_size=page_size,
+                            date_start=date_start, date_end=date_end,
+                            _retry_on_auth=False
+                        )
+                        if renewed_err:
+                            return all_records if all_records else [], f"续期后重试失败: {renewed_err}"
+                        return renewed_records, ""
+                    self._clear_token()
+                    return all_records if all_records else [], f"登录已失效，自动续期失败: {msg}"
+                if all_records:
+                    print(f"[Scraper] 第{page_no}页API异常: {msg}")
+                    break
+                return [], f"API 返回失败: {msg}"
+
+            # 请求成功 → 更新验证时间戳（token 有效）
+            self._last_validated = time.time()
+
+            res = data.get("result", {})
+            records = res.get("records", [])
+            total = res.get("total", 0)
+            all_records.extend(records)
+
+            if page_no == 1:
+                print(f"[Scraper] 第1页: {len(records)} 条 (总计 {total})")
+
+            total_pages = (total + page_size - 1) // page_size
+            if page_no >= total_pages:
+                break
+
+            page_no += 1
+            if page_no % 10 == 0 or page_no == total_pages:
+                print(f"[Scraper] 第{page_no}/{total_pages}页 (累计 {len(all_records)})")
+
+        return all_records, ""
 
 
-# ---- 数据获取 ----
+# ====== 用户 session 管理 ======
 
-def _fetch_with_token(api_path: str, api_params: str, page_size: int = 500,
-                      date_start: str = None, date_end: str = None) -> Tuple[List[Dict], str]:
-    """使用 API token 通过 requests 直接调用后端 API 分页获取数据"""
-    token = _load_auth_token()
-    if not token:
-        return [], "未找到登录 token，请先登录"
+def _get_or_create_session(user_id: int) -> Tuple[Optional[ScraperSession], str]:
+    """获取用户的 ScraperSession。优先用缓存，验证 token 有效性；过期则自动重新登录。"""
+    if user_id in _user_sessions:
+        session = _user_sessions[user_id]
+        if session._ensure_valid_token():
+            return session, ""
+        # 缓存过期且自动续期失败，清除
+        print(f"[Scraper] 用户 {user_id} session 无效，清除缓存")
+        del _user_sessions[user_id]
 
-    headers = {
-        "X-Access-Token": token,
-        "Content-Type": "application/json",
-    }
+    creds = database.get_user_pingykj_credentials(user_id)
+    if not creds or not creds.get("username"):
+        return None, "未配置书城凭据，请在数据看板页面设置"
 
-    date_filter = ""
-    if date_start and date_end:
-        date_filter = f"&{date_start}&{date_end}"
-    elif date_start:
-        date_filter = f"&{date_start}"
+    # 尝试自动重新登录（不带验证码，大多数情况下可直接登录）
+    session = ScraperSession(user_id, creds["username"], creds["password"])
+    ok, msg = session.login()
+    if ok:
+        _user_sessions[user_id] = session
+        print(f"[Scraper] 用户 {user_id} 自动重新登录成功")
+        return session, ""
 
-    all_records = []
-    page_no = 1
+    # 自动登录失败（可能需要验证码），提示用户手动操作
+    return None, f"书城登录会话已过期: {msg}。请在数据看板页面重新设置凭据（需输入验证码）"
 
-    while True:
-        url = f"{BASE_URL}{api_path}?pageNo={page_no}&pageSize={page_size}&{api_params}{date_filter}"
+
+def keepalive_all_sessions() -> Dict[int, bool]:
+    """对所有活跃 session 做 token 保活验证（供定时器调用）。
+    返回 {user_id: is_valid} 字典。"""
+    results = {}
+    for user_id, session in list(_user_sessions.items()):
         try:
-            resp = http_requests.get(url, headers=headers, timeout=30)
-            data = resp.json()
-        except http_requests.RequestException as e:
-            if all_records:
-                print(f"[Scraper] 第{page_no}页请求异常: {e}")
-                break
-            return [], f"请求失败: {e}"
-
-        if not data.get("success"):
-            msg = data.get("message", "未知错误")
-            if data.get("code") == 401 or "登录" in str(msg) or "token" in str(msg).lower():
-                _clear_auth_token()
-                return all_records if all_records else [], "登录已失效，请重新登录"
-            if all_records:
-                print(f"[Scraper] 第{page_no}页API异常: {msg}")
-                break
-            return [], f"API 返回失败: {msg}"
-
-        res = data.get("result", {})
-        records = res.get("records", [])
-        total = res.get("total", 0)
-        all_records.extend(records)
-
-        if page_no == 1:
-            print(f"[Scraper] 第1页: {len(records)} 条 (总计 {total})")
-
-        total_pages = (total + page_size - 1) // page_size
-        if page_no >= total_pages:
-            break
-
-        page_no += 1
-        if page_no % 10 == 0 or page_no == total_pages:
-            print(f"[Scraper] 第{page_no}/{total_pages}页 (累计 {len(all_records)})")
-
-    return all_records, ""
+            valid = session._ensure_valid_token()
+            results[user_id] = valid
+            if not valid:
+                print(f"[Scraper] 保活失败 user={user_id}，将从缓存清除")
+                del _user_sessions[user_id]
+        except Exception as e:
+            print(f"[Scraper] 保活异常 user={user_id}: {e}")
+            results[user_id] = False
+    return results
 
 
-# ---- 广告数据采集 ----
+def clear_user_session(user_id: int) -> None:
+    """清除用户 session（切换凭据时使用）"""
+    if user_id in _user_sessions:
+        _user_sessions[user_id].logout()
+        del _user_sessions[user_id]
+
+
+# ====== 广告数据采集 ======
 
 def _aggregate_ad_rows(raw_rows: List[Dict[str, str]]) -> List[Dict[str, Any]]:
     groups: Dict[Tuple[str, str], Dict] = {}
@@ -277,13 +483,14 @@ def _aggregate_ad_rows(raw_rows: List[Dict[str, str]]) -> List[Dict[str, Any]]:
     return list(groups.values())
 
 
-def sync_ads() -> Tuple[int, str]:
-    if not _has_api_token():
-        return 0, "未登录，请先登录"
+def sync_ads(user_id: int) -> Tuple[int, str]:
+    session, err = _get_or_create_session(user_id)
+    if not session:
+        return 0, err
 
     try:
         today = time.strftime("%Y-%m-%d")
-        last_date = database.get_last_sync_date("ads")
+        last_date = database.get_last_sync_date("ads", user_id)
         date_start = None
         date_end = None
 
@@ -292,11 +499,11 @@ def sync_ads() -> Tuple[int, str]:
             overlap = (dt.strptime(last_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
             date_start = f"statDate_begin={overlap}"
             date_end = f"statDate_end={today}"
-            print(f"[Scraper] 增量同步广告: {overlap} ~ {today}")
+            print(f"[Scraper] 增量同步广告(user={user_id}): {overlap} ~ {today}")
         else:
-            print("[Scraper] 首次全量同步广告...")
+            print(f"[Scraper] 首次全量同步广告(user={user_id})...")
 
-        records, err = _fetch_with_token(
+        records, err = session._fetch_with_token(
             _AD_API_PATH, _AD_API_PARAMS,
             page_size=500, date_start=date_start, date_end=date_end
         )
@@ -305,7 +512,6 @@ def sync_ads() -> Tuple[int, str]:
         if not records:
             return 0, "广告数据为空"
 
-        # 去重
         seen = set()
         unique = []
         for r in records:
@@ -315,14 +521,14 @@ def sync_ads() -> Tuple[int, str]:
                 unique.append(r)
         print(f"[Scraper] 广告去重后: {len(unique)} 条")
 
-        # 保存原始数据 + 聚合
-        raw_count = database.save_raw_ad_stats(unique)
+        raw_count = database.save_raw_ad_stats(unique, user_id)
         print(f"[Scraper] 原始广告数据已保存: {raw_count} 条")
 
         aggregated = _aggregate_ad_rows(unique)
-        count = database.upsert_ad_stats(aggregated)
+        count = database.upsert_ad_stats(aggregated, user_id)
 
-        database.set_last_sync_date("ads", today)
+        if count > 0:
+            database.set_last_sync_date("ads", today, user_id)
         return count, ""
 
     except Exception as e:
@@ -331,7 +537,17 @@ def sync_ads() -> Tuple[int, str]:
         return 0, str(e)
 
 
-# ---- 订单数据采集 ----
+def reset_sync_state(user_id: int) -> None:
+    """清除用户的同步状态，下次同步时将全量拉取"""
+    for sync_type in ["ads", "orders"]:
+        database.delete_sync_state(sync_type, user_id)
+    # 也清除 Meta 同步状态
+    accounts = database.get_meta_accounts(user_id)
+    for a in accounts:
+        database.delete_sync_state(f"meta_{a['act_id']}", user_id)
+
+
+# ====== 订单数据采集 ======
 
 def _parse_order_rows(raw_rows: List[Dict[str, str]]) -> List[Dict[str, Any]]:
     results = []
@@ -361,13 +577,14 @@ def _parse_order_rows(raw_rows: List[Dict[str, str]]) -> List[Dict[str, Any]]:
     return results
 
 
-def sync_orders() -> Tuple[int, str]:
-    if not _has_api_token():
-        return 0, "未登录，请先登录"
+def sync_orders(user_id: int) -> Tuple[int, str]:
+    session, err = _get_or_create_session(user_id)
+    if not session:
+        return 0, err
 
     try:
         today = time.strftime("%Y-%m-%d")
-        last_date = database.get_last_sync_date("orders")
+        last_date = database.get_last_sync_date("orders", user_id)
         date_start = None
         date_end = None
 
@@ -376,11 +593,11 @@ def sync_orders() -> Tuple[int, str]:
             overlap = (dt.strptime(last_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
             date_start = f"createTime_begin={overlap}"
             date_end = f"createTime_end={today}"
-            print(f"[Scraper] 增量同步订单: {overlap} ~ {today}")
+            print(f"[Scraper] 增量同步订单(user={user_id}): {overlap} ~ {today}")
         else:
-            print("[Scraper] 首次全量同步订单...")
+            print(f"[Scraper] 首次全量同步订单(user={user_id})...")
 
-        records, err = _fetch_with_token(
+        records, err = session._fetch_with_token(
             _ORDER_API_PATH, _ORDER_API_PARAMS,
             page_size=500, date_start=date_start, date_end=date_end
         )
@@ -389,7 +606,6 @@ def sync_orders() -> Tuple[int, str]:
         if not records:
             return 0, "订单数据为空"
 
-        # 去重
         seen = set()
         unique = []
         for r in records:
@@ -399,13 +615,14 @@ def sync_orders() -> Tuple[int, str]:
                 unique.append(r)
         print(f"[Scraper] 订单去重后: {len(unique)} 条")
 
-        raw_count = database.save_raw_orders(unique)
+        raw_count = database.save_raw_orders(unique, user_id)
         print(f"[Scraper] 原始订单数据已保存: {raw_count} 条")
 
         orders = _parse_order_rows(unique)
-        count = database.upsert_orders(orders)
+        count = database.upsert_orders(orders, user_id)
 
-        database.set_last_sync_date("orders", today)
+        if count > 0:
+            database.set_last_sync_date("orders", today, user_id)
         return count, ""
 
     except Exception as e:
@@ -414,7 +631,7 @@ def sync_orders() -> Tuple[int, str]:
         return 0, str(e)
 
 
-# ---- 小说爬取 ----
+# ====== 小说爬取 ======
 
 _CONTENT_API = "https://hw.manage.api.pingykj.com"
 _CONTENT_PATH = "/novel/novel/getChaptersContent"
@@ -438,7 +655,7 @@ def _parse_novel_books(raw_rows: List[Dict]) -> List[Dict[str, Any]]:
             "novel_name": row.get("title") or row.get("novelName") or row.get("name") or "",
             "author": row.get("author") or "",
             "cover_url": row.get("coverUrl") or row.get("cover") or "",
-            "status": STATUS_MAP.get(raw_status, raw_status),
+            "status": str(row.get("status_dictText") or STATUS_MAP.get(raw_status, raw_status)),
             "category": row.get("category_dictText") or str(row.get("category") or ""),
             "intro": (row.get("description") or row.get("intro") or ""),
             "total_chapters": row.get("chapterCount") or row.get("totalChapters") or 0,
@@ -460,11 +677,7 @@ def _parse_novel_books(raw_rows: List[Dict]) -> List[Dict[str, Any]]:
 
 
 def _parse_chapters_from_html(html_text: str, novel_id: str) -> List[Dict[str, Any]]:
-    """从章节内容 HTML 中解析出各章节。
-    支持两种格式：
-    1. <h1>-<h4> 标签标记章节标题
-    2. <p style=\"font-weight: bold\"> 标记章节标题（pingykj 平台实际格式）
-    """
+    """从章节内容 HTML 中解析出各章节。"""
     import re
     from html.parser import HTMLParser
 
@@ -483,7 +696,6 @@ def _parse_chapters_from_html(html_text: str, novel_id: str) -> List[Dict[str, A
         def handle_starttag(self, tag, attrs):
             tag_l = tag.lower()
             if tag_l in ("h1", "h2", "h3", "h4"):
-                # heading 标签：视为章节边界
                 if self._finalize_current_para():
                     pass
                 self._in_heading = True
@@ -493,7 +705,6 @@ def _parse_chapters_from_html(html_text: str, novel_id: str) -> List[Dict[str, A
                 self._in_para = True
                 self._current_p_text = []
                 self._current_p_is_bold = False
-                # 检测 <p style="...font-weight:bold..."> 或 <p style="...font-weight: bold...">
                 for k, v in attrs:
                     if k == "style" and re.search(r'font-weight\s*:\s*bold', v, re.IGNORECASE):
                         self._current_p_is_bold = True
@@ -523,7 +734,6 @@ def _parse_chapters_from_html(html_text: str, novel_id: str) -> List[Dict[str, A
             if not text:
                 return False
             if self._current_p_is_bold and CHAPTER_RE.search(text):
-                # 加粗段落 = 章节标题
                 self._start_new_chapter(text)
                 return True
             if self._current_chapter is not None:
@@ -531,7 +741,6 @@ def _parse_chapters_from_html(html_text: str, novel_id: str) -> List[Dict[str, A
             return True
 
         def _start_new_chapter(self, title):
-            # 保存前一章
             if self._current_chapter is not None:
                 self._finalize_chapter()
             self._current_chapter = {
@@ -566,7 +775,6 @@ def _parse_chapters_from_html(html_text: str, novel_id: str) -> List[Dict[str, A
         pass
     parser.finalize()
 
-    # 如果没有解析到章节，整体作为一个章节
     if not parser.chapters:
         from html.parser import HTMLParser as P
         class FallbackParser(P):
@@ -600,66 +808,133 @@ def _parse_chapters_from_html(html_text: str, novel_id: str) -> List[Dict[str, A
     return parser.chapters
 
 
-def _fetch_novel_books(api_path: str) -> Tuple[List[Dict], str]:
-    """从书籍列表 API 分页获取所有记录，返回 (records, error)"""
-    token = _load_auth_token()
-    headers = {"X-Access-Token": token, "Content-Type": "application/json"} if token else {}
+def _fetch_novel_books(api_path: str, session: ScraperSession,
+                       date_start: str = None, date_end: str = None) -> Tuple[List[Dict], str]:
+    """从书籍列表 API 分页获取记录（支持增量日期过滤）"""
+    token = session._token
+    headers = {"X-Access-Token": token} if token else {}
     all_raw = []
     page_no = 1
-    last_status = 0
-    last_body = ""
+    date_filter = ""
+    if date_start and date_end:
+        date_filter = f"&createTime_begin={date_start}&createTime_end={date_end}"
+    elif date_start:
+        date_filter = f"&createTime_begin={date_start}"
     while True:
-        try:
-            url = f"{BASE_URL}{api_path}?pageNo={page_no}&pageSize=500"
-            resp = http_requests.get(url, headers=headers, timeout=30)
-            last_status = resp.status_code
-            if resp.status_code >= 400:
-                last_body = resp.text[:300]
-                break
-            data = resp.json()
-            res = data.get("result", {}) if isinstance(data, dict) else {}
-            records = res.get("records", []) if isinstance(res, dict) else []
-            total = res.get("total", 0) if isinstance(res, dict) else 0
-            all_raw.extend(records)
-            total_pages = (total + 499) // 500
-            if page_no >= total_pages or not records:
-                break
-            page_no += 1
-        except Exception as e:
-            return [], f"请求异常: {str(e)}"
-    if last_status >= 400:
-        return [], f"HTTP {last_status}: {last_body[:200]}"
+        url = f"{BASE_URL}{api_path}?pageNo={page_no}&pageSize=500{date_filter}"
+        data, code, err = _curl_get(url, headers=headers, timeout=30)
+        if err:
+            return [], f"请求异常: {err}"
+        if code >= 400:
+            return [], f"HTTP {code}"
+        if not isinstance(data, dict):
+            break
+        res = data.get("result", {}) if isinstance(data, dict) else {}
+        records = res.get("records", []) if isinstance(res, dict) else []
+        total = res.get("total", 0) if isinstance(res, dict) else 0
+        all_raw.extend(records)
+        total_pages = (total + 499) // 500
+        if page_no >= total_pages or not records:
+            break
+        page_no += 1
     if not all_raw:
-        return [], f"API 返回空数据 (status={last_status})"
+        return [], "API 返回空数据"
     return all_raw, ""
 
 
-def sync_novel_books() -> Tuple[int, str]:
-    """同步书籍列表，返回 (books_count, error_message)"""
+def sync_novel_books(user_id: int = None) -> Tuple[int, str]:
+    """同步书籍列表（增量：仅拉取上次同步后新增/更新的书籍）"""
+    session = None
+    if user_id:
+        session, _ = _get_or_create_session(user_id)
+
+    if not session:
+        active_users = database.list_active_users_with_credentials()
+        for u in active_users:
+            session, _ = _get_or_create_session(u["id"])
+            if session:
+                break
+
+    if not session:
+        return 0, "没有可用的书城登录凭据"
+
+    today = time.strftime("%Y-%m-%d")
+    last_date = database.get_last_sync_date("novels")
+    date_start = None
+    date_end = None
+    if last_date:
+        from datetime import datetime as dt, timedelta
+        overlap = (dt.strptime(last_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+        date_start = overlap
+        date_end = today
+        print(f"[Scraper] 增量同步书籍: {overlap} ~ {today}")
+    else:
+        print(f"[Scraper] 首次全量同步书籍...")
+
     err_msgs = []
     for api_path in (_NOVEL_BOOK_PATH, _NOVEL_BOOK_PATH_ALT):
-        all_raw, err = _fetch_novel_books(api_path)
+        all_raw, err = _fetch_novel_books(api_path, session,
+                                          date_start=date_start, date_end=date_end)
         if all_raw:
             books = _parse_novel_books(all_raw)
             count = database.upsert_novel_books(books)
+            if count > 0 or not last_date:
+                database.set_last_sync_date("novels", today)
             return count, ""
         if err:
             err_msgs.append(f"{api_path}: {err}")
 
     if not err_msgs:
-        return 0, "未能获取书籍列表（需先在数据看板登录）"
+        return 0, "未能获取书籍列表"
     return 0, "; ".join(err_msgs)
 
 
+def sync_missing_chapters(user_id: int = None) -> Tuple[int, str]:
+    """检查并同步章节缺失的书籍内容"""
+    with database.get_conn() as conn:
+        # 找出 total_chapters > 已存储章节数的书籍
+        rows = conn.execute("""
+            SELECT nb.novel_id, nb.novel_name, nb.total_chapters,
+                   COALESCE((SELECT COUNT(*) FROM novel_chapters nc WHERE nc.novel_id = nb.novel_id), 0) AS stored_chapters
+            FROM novel_books nb
+            WHERE nb.total_chapters > COALESCE((SELECT COUNT(*) FROM novel_chapters nc WHERE nc.novel_id = nb.novel_id), 0)
+            ORDER BY nb.total_chapters - stored_chapters DESC
+        """).fetchall()
+
+    if not rows:
+        return 0, ""
+
+    synced = 0
+    for r in rows:
+        novel_id = r["novel_id"]
+        novel_name = r["novel_name"]
+        missing = r["total_chapters"] - r["stored_chapters"]
+        print(f"[Novel] 章节缺失: {novel_name} ({novel_id}) 需补 {missing} 章")
+        try:
+            count, err = sync_novel_chapters(novel_id)
+            if not err and count > 0:
+                synced += 1
+                print(f"[Novel] {novel_name} 章节同步完成: +{count} 章")
+            elif err:
+                print(f"[Novel] {novel_name} 章节同步失败: {err}")
+        except Exception as e:
+            print(f"[Novel] {novel_name} 章节同步异常: {e}")
+
+    return synced, ""
+
+
 def sync_novel_chapters(novel_id: str) -> Tuple[int, str]:
-    """同步单本书的章节内容，返回 (chapters_count, error_message)"""
+    """同步单本书的章节内容"""
     try:
         from urllib.parse import quote
         url = f"{_CONTENT_API}{_CONTENT_PATH}?novelId={quote(novel_id, safe='')}&viewFree=false"
-        resp = http_requests.get(url, timeout=60)
-        if resp.status_code >= 400:
-            return 0, f"HTTP {resp.status_code}"
-        chapters = _parse_chapters_from_html(resp.text, novel_id)
+        data, code, err = _curl_get(url, timeout=60)
+        if err:
+            return 0, err
+        if code >= 400:
+            return 0, f"HTTP {code}"
+        html_text = data if isinstance(data, str) else json.dumps(data)
+        chapters = _parse_chapters_from_html(html_text, novel_id)
         count = database.upsert_novel_chapters(chapters)
         return count, ""
     except Exception as e:
@@ -667,17 +942,14 @@ def sync_novel_chapters(novel_id: str) -> Tuple[int, str]:
 
 
 def sync_all_novel_content(novel_id: str = None, concurrency: int = 8) -> Dict[str, Any]:
-    """同步章节内容，可指定 novel_id 或全部，使用并发加速"""
+    """同步章节内容，可指定 novel_id 或全部"""
     if novel_id:
         ids = [novel_id]
     else:
         ids = database.get_all_novel_ids()
 
     result = {"total": len(ids), "books": {}, "concurrency": concurrency}
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    import threading
-
-    lock = threading.Lock()
+    lock = __import__('threading').Lock()
     completed = [0]
 
     def _sync_one(nid):
@@ -699,38 +971,96 @@ def sync_all_novel_content(novel_id: str = None, concurrency: int = 8) -> Dict[s
     return result
 
 
+# ---- 兼容旧版 API（无 user_id 时使用 user_id=1） ----
+
+def fetch_captcha() -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """兼容旧版：使用 user_id=1 的 session"""
+    return fetch_captcha_for_user(1)
+
+
+def fetch_captcha_for_user(user_id: int) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """为指定用户获取验证码（使用已保存的凭据）"""
+    creds = database.get_user_pingykj_credentials(user_id)
+    if not creds or not creds.get("username"):
+        return None, None, "请先设置书城凭据"
+    return fetch_captcha_with_creds(creds["username"], creds["password"])
+
+
+def fetch_captcha_with_creds(username: str, password: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """用指定凭据获取验证码，缓存 session 供后续登录复用"""
+    session = ScraperSession(0, username, password)
+    data_uri, check_key, err = session.fetch_captcha()
+    if check_key and session._captcha_cookies:
+        _pending_logins[check_key] = session  # 缓存临时 session，登录时复用
+    return data_uri, check_key, err
+
+
+def login_via_api(username: str, password: str,
+                  captcha: str = "", check_key: str = "") -> Tuple[bool, str]:
+    """兼容旧版"""
+    return login_via_api_for_user(1, username, password, captcha, check_key)
+
+
+def login_via_api_for_user(user_id: int, username: str, password: str,
+                           captcha: str = "", check_key: str = "") -> Tuple[bool, str]:
+    """用指定凭据登录书城，复用验证码获取时的 session（保持 cookies 关联）"""
+    # 优先复用验证码获取时缓存的 session（cookies 关联 checkKey→验证码）
+    if check_key and check_key in _pending_logins:
+        session = _pending_logins.pop(check_key)
+        session.user_id = user_id
+        # 注意：session 上已有 _captcha_cookies，login 方法会用到
+    else:
+        session = ScraperSession(user_id, username, password)
+
+    ok, msg = session.login(captcha, check_key)
+    if ok:
+        _user_sessions[user_id] = session
+    return ok, msg
+
+
 # ---- 主同步入口 ----
 
-def run_full_sync() -> Dict[str, Any]:
-    if not check_session_valid():
-        return {"success": False, "login_required": True, "message": "登录会话已失效，请重新登录"}
+def run_full_sync(user_id: int = None) -> Dict[str, Any]:
+    """数据看板同步（仅广告 + 订单，不包含小说和 Meta）"""
+    uid = user_id or 1
+    print(f"[Scraper] run_full_sync 开始, user_id={uid}")
+
+    session, sess_err = _get_or_create_session(uid)
+    if not session:
+        return {"success": False, "login_required": True, "message": sess_err}
 
     result = {"success": True, "login_required": False,
               "ads": {"count": 0, "error": ""},
               "orders": {"count": 0, "error": ""},
-              "novels": {"count": 0, "error": ""}}
+              "novels": {"count": 0, "error": ""},
+              "chapters": {"count": 0, "error": ""}}
 
-    ads_count, ads_err = sync_ads()
+    ads_count, ads_err = sync_ads(uid)
     result["ads"]["count"] = ads_count
     result["ads"]["error"] = ads_err
-    database.log_sync("ads", "success" if not ads_err else "failed", ads_count, ads_err)
+    database.log_sync("ads", "success" if not ads_err else "failed", ads_count, ads_err, uid)
 
-    orders_count, orders_err = sync_orders()
+    orders_count, orders_err = sync_orders(uid)
     result["orders"]["count"] = orders_count
     result["orders"]["error"] = orders_err
-    database.log_sync("orders", "success" if not orders_err else "failed", orders_count, orders_err)
+    database.log_sync("orders", "success" if not orders_err else "failed", orders_count, orders_err, uid)
 
-    novels_count, novels_err = sync_novel_books()
+    # 增量同步书籍列表
+    novels_count, novels_err = sync_novel_books(uid)
     result["novels"]["count"] = novels_count
     result["novels"]["error"] = novels_err
-    database.log_sync("novels", "success" if not novels_err else "failed", novels_count, novels_err)
 
-    login_lost = ("登录已失效" in ads_err or "登录已失效" in orders_err or "登录已失效" in novels_err)
+    # 自动补缺章节内容
+    chapters_count, chapters_err = sync_missing_chapters(uid)
+    result["chapters"]["count"] = chapters_count
+    result["chapters"]["error"] = chapters_err
+
+    login_lost = ("登录已失效" in ads_err or "登录已失效" in orders_err)
     if login_lost:
-        _clear_auth_token()
+        clear_user_session(uid)
         result["login_required"] = True
 
-    all_failed = ads_err and orders_err
+    all_failed = ads_err and orders_err and novels_err and chapters_err
     result["success"] = not all_failed
 
     failed_parts = []
@@ -740,24 +1070,19 @@ def run_full_sync() -> Dict[str, Any]:
         failed_parts.append(f"订单: {orders_err}")
     if novels_err:
         failed_parts.append(f"小说: {novels_err}")
+    if chapters_err:
+        failed_parts.append(f"章节: {chapters_err}")
     if failed_parts:
         result["message"] = "部分同步失败: " + "; ".join(failed_parts)
     else:
-        result["message"] = f"同步完成，广告 {ads_count} 条，订单 {orders_count} 条，小说 {novels_count} 本"
-
-    # Meta 数据同步
-    meta_result = sync_all_meta_insights()
-    result["meta"] = meta_result.get("accounts", {})
-    result["meta_count"] = meta_result.get("total_count", 0)
-    if not meta_result.get("success"):
-        result["message"] = (result.get("message", "") + "; Meta同步: " + meta_result.get("message", "")).strip("; ")
+        result["message"] = f"同步完成，广告 {ads_count} 条，订单 {orders_count} 条，小说 {novels_count} 本，章节 {chapters_count} 本"
 
     return result
 
 
 # ---- Meta Ads Insights 数据同步 ----
 
-import json
+import json as _json2
 import meta_api
 from datetime import datetime as dt, timedelta
 
@@ -765,15 +1090,16 @@ from datetime import datetime as dt, timedelta
 def _load_default_token() -> Optional[str]:
     """从 config.json 读取 Meta 默认 access token"""
     try:
-        config = json.loads((Path(__file__).parent / "config.json").read_text(encoding="utf-8"))
+        config = _json2.loads((Path(__file__).parent / "config.json").read_text(encoding="utf-8"))
         return config.get("meta", {}).get("default_access_token", "")
     except Exception:
         return ""
 
 
-def _sync_one_meta_account(act_id: str, access_token: str) -> Tuple[str, int, str]:
+def _sync_one_meta_account(act_id: str, access_token: str,
+                           user_id: int) -> Tuple[str, int, str]:
     """同步单个 Meta 账户的 Insights 数据，返回 (act_id, count, error)"""
-    last_date = database.get_meta_sync_state(act_id)
+    last_date = database.get_meta_sync_state(act_id, user_id)
     today = dt.utcnow().strftime("%Y-%m-%d")
 
     if last_date:
@@ -787,26 +1113,25 @@ def _sync_one_meta_account(act_id: str, access_token: str) -> Tuple[str, int, st
     if err:
         return act_id, 0, err
     if not rows:
-        database.set_meta_sync_state(act_id, today)
+        database.set_meta_sync_state(act_id, today, user_id)
         return act_id, 0, ""
 
-    count = database.upsert_meta_insights(act_id, rows)
-    database.set_meta_sync_state(act_id, today)
+    count = database.upsert_meta_insights(act_id, rows, user_id)
+    database.set_meta_sync_state(act_id, today, user_id)
     return act_id, count, ""
 
 
-def sync_all_meta_insights(concurrency: int = 8) -> Dict[str, Any]:
+def sync_all_meta_insights(user_id: int = None, concurrency: int = 8) -> Dict[str, Any]:
     """并行同步所有 active 状态的 Meta 账户数据"""
+    uid = user_id or 1
     default_token = _load_default_token()
-    accounts = database.get_meta_accounts()
+    accounts = database.get_meta_accounts(uid)
 
-    # 安全兜底：确保 act_id 带 act_ 前缀
     for a in accounts:
         aid = a.get("act_id", "")
         if aid and not aid.startswith("act_"):
             a["act_id"] = "act_" + aid
 
-    # 用默认 token 补充没有独立 token 的 active 账户
     active_accounts = []
     for a in accounts:
         if a.get("status") != "active":
@@ -826,13 +1151,12 @@ def sync_all_meta_insights(concurrency: int = 8) -> Dict[str, Any]:
     total_count = 0
     errors = []
 
-    # 控制并发：少量 worker + 提交间隔避免触发频率限制
     workers = min(concurrency, len(active_accounts), 3)
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {}
         for act_id, token in active_accounts:
-            futures[executor.submit(_sync_one_meta_account, act_id, token)] = act_id
-            time.sleep(0.5)  # 提交间隔
+            futures[executor.submit(_sync_one_meta_account, act_id, token, uid)] = act_id
+            time.sleep(0.5)
         for future in as_completed(futures):
             act_id, count, err = future.result()
             result["accounts"][act_id] = {"count": count, "error": err}

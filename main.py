@@ -9,20 +9,105 @@ import textwrap
 import traceback
 import threading
 import asyncio
-import requests
 import numpy as np
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+import subprocess as _subprocess
+import tempfile as _tempfile
 
-from fastapi import FastAPI, HTTPException
+# ====== curl HTTP 辅助函数（解决 Windows requests SSL 兼容问题）======
+def _curl_json_post(url: str, payload: dict, headers: dict, timeout_sec: int = 300):
+    """用 curl POST JSON，返回 (json_body, http_code, error)"""
+    # Windows 命令行长度限制，长 JSON 写入临时文件
+    data_str = json.dumps(payload)
+    tmp_file = None
+    cmd = ["curl", "-s", "-X", "POST", "--connect-timeout", str(timeout_sec), "-w", "\n%{http_code}"]
+    try:
+        p = _get_proxy_url_from_config()
+        if p:
+            cmd.extend(["-x", p])
+    except Exception:
+        pass
+    for k, v in (headers or {}).items():
+        cmd.extend(["-H", f"{k}: {v}"])
+    if len(data_str) > 500:
+        tmp_file = _tempfile.NamedTemporaryFile(delete=False, suffix='.json', mode='w', encoding='utf-8')
+        tmp_file.write(data_str)
+        tmp_file.close()
+        cmd.extend(["-d", "@" + tmp_file.name])
+    else:
+        cmd.extend(["-d", data_str])
+    cmd.append(url)
+    try:
+        result = _subprocess.run(cmd, capture_output=True, timeout=timeout_sec + 10)
+        output = (result.stdout or b"").decode("utf-8", errors="replace").strip()
+        lines = output.rsplit("\n", 1)
+        body_text = lines[0] if len(lines) == 2 else output
+        http_code = int(lines[1]) if len(lines) == 2 else 0
+        return json.loads(body_text) if body_text else {}, http_code, None
+    except Exception as e:
+        return None, 0, str(e)
+    finally:
+        if tmp_file:
+            Path(tmp_file.name).unlink(missing_ok=True)
+
+
+def _curl_download_bytes(url: str, timeout_sec: int = 300):
+    """用 curl GET 下载文件，返回 (bytes, http_code)"""
+    tmp = _tempfile.NamedTemporaryFile(delete=False, suffix='.dat')
+    tmp.close()
+    cmd = ["curl", "-s", "-o", tmp.name, "--connect-timeout", str(timeout_sec), "-w", "%{http_code}"]
+    cmd.append(url)
+    try:
+        result = _subprocess.run(cmd, capture_output=True, timeout=timeout_sec + 10)
+        http_code = int((result.stdout or b"0").decode("utf-8", errors="replace").strip() or "0")
+        data = Path(tmp.name).read_bytes() if Path(tmp.name).exists() else None
+        Path(tmp.name).unlink(missing_ok=True)
+        return data, http_code
+    except Exception:
+        Path(tmp.name).unlink(missing_ok=True)
+        return None, 0
+
+
+def _curl_get_text(url: str, timeout_sec: int = 60):
+    """用 curl GET 获取文本，返回 (text, http_code, error)"""
+    cmd = ["curl", "-s", "-X", "GET", "--connect-timeout", str(timeout_sec), "-w", "\n%{http_code}"]
+    try:
+        p = _get_proxy_url_from_config()
+        if p:
+            cmd.extend(["-x", p])
+    except Exception:
+        pass
+    cmd.append(url)
+    try:
+        result = _subprocess.run(cmd, capture_output=True, timeout=timeout_sec + 10)
+        output = (result.stdout or b"").decode("utf-8", errors="replace").strip()
+        lines = output.rsplit("\n", 1)
+        body = lines[0] if len(lines) == 2 else output
+        http_code = int(lines[1]) if len(lines) == 2 else 0
+        return body, http_code, None
+    except Exception as e:
+        return "", 0, str(e)
+
+
+def _get_proxy_url_from_config():
+    try:
+        config = json.loads(Path("config.json").read_text(encoding="utf-8"))
+        return config.get("meta", {}).get("proxy", "")
+    except Exception:
+        return ""
+
+from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel, Field, model_validator
 from PIL import Image, ImageDraw, ImageFont
+from datetime import timedelta
 
 try:
     from moviepy.editor import ImageSequenceClip
@@ -40,7 +125,34 @@ import scraper
 import analytics
 import meta_api
 import delivery
-from fastapi import Query, Request
+
+# ====== 认证系统 ======
+
+security = HTTPBearer(auto_error=False)
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    """从 Bearer Token 获取当前登录用户"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="请先登录")
+    user = database.verify_session_token(credentials.credentials)
+    if not user:
+        raise HTTPException(status_code=401, detail="会话已过期，请重新登录")
+    # 滑动过期：每次请求延长 24 小时
+    expires = (datetime.utcnow() + timedelta(hours=24)).isoformat()
+    database.set_session_token(user["id"], credentials.credentials, expires)
+    return user
+
+def get_current_admin(user: dict = Depends(get_current_user)) -> dict:
+    """确保当前用户是管理员"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return user
+
+def _opt_user_id(user: dict) -> int:
+    """从用户字典提取 user_id（非管理员返回自己的 ID，管理员返回 None 表示看全部）"""
+    if user.get("role") == "admin":
+        return None
+    return user["id"]
 
 # 启动时初始化数据库
 database.init_db()
@@ -77,27 +189,76 @@ def _recover_incomplete_batches():
 from apscheduler.schedulers.background import BackgroundScheduler
 _scheduler = BackgroundScheduler()
 
-def _get_sync_seconds():
+def _auto_sync_all_users():
+    """每 120 秒检查一次，按用户各自间隔决定是否同步（间隔从 user_config 读取）"""
     try:
-        return database.get_sync_interval()
-    except Exception:
-        return 180
+        users = database.list_active_users_with_credentials()
+        now = time.time()
+        for u in users:
+            uid = u["id"]
+            try:
+                # 获取该用户设置的同步间隔（秒）
+                interval = database.get_sync_interval(uid)
+                # 检查该用户上次同步时间，未到间隔则跳过
+                last_sync = _last_user_sync.get(uid, 0)
+                if now - last_sync < interval:
+                    continue
+                scraper.run_full_sync(uid)
+                _last_user_sync[uid] = now
+            except Exception as e:
+                print(f"[Scheduler] 用户 {u['username']} 同步失败: {e}")
+    except Exception as e:
+        print(f"[Scheduler] 自动同步失败: {e}")
 
+
+# 记录每个用户上次同步时间戳
+_last_user_sync: Dict[int, float] = {}
+
+
+def _auto_keepalive():
+    """定时对所有活跃 session 做 token 保活（每 3 分钟，防止 token 静默过期）"""
+    try:
+        results = scraper.keepalive_all_sessions()
+        if results:
+            alive = sum(1 for v in results.values() if v)
+            dead = len(results) - alive
+            if dead > 0:
+                print(f"[Keepalive] 保活结果: {alive} 在线, {dead} 已掉线")
+    except Exception as e:
+        print(f"[Keepalive] 保活异常: {e}")
+
+# 全局调度器每 120 秒检查一次，内部按用户各自间隔判断
 _scheduler.add_job(
-    lambda: scraper.run_full_sync(),
+    _auto_sync_all_users,
     'interval',
-    seconds=_get_sync_seconds(),
+    seconds=120,
     id='auto_sync',
+    max_instances=1,
+)
+
+# 每 3 分钟对所有 session 做一次保活（token 心跳）
+_scheduler.add_job(
+    _auto_keepalive,
+    'interval',
+    seconds=180,
+    id='auto_keepalive',
     max_instances=1,
 )
 _scheduler.start()
 
-# Meta 数据定时同步
+# Meta 数据定时同步（遍历所有用户）
 meta_interval = json.loads(Path("config.json").read_text(encoding="utf-8")).get("meta", {}).get("sync_interval_seconds", 300)
 if hasattr(scraper, 'sync_all_meta_insights'):
     try:
+        def _auto_meta_sync_all():
+            users = database.list_active_users_with_credentials()
+            for u in users:
+                try:
+                    scraper.sync_all_meta_insights(u["id"])
+                except Exception as e:
+                    print(f"[Scheduler] Meta同步 user={u['id']} 失败: {e}")
         _scheduler.add_job(
-            scraper.sync_all_meta_insights,
+            _auto_meta_sync_all,
             'interval',
             seconds=meta_interval,
             id='meta_insights_sync',
@@ -784,9 +945,15 @@ def _split_legacy_square_prompts(
     return ts, lr, tb
 
 
-def _api_error_snippet(r: requests.Response) -> str:
+def _api_error_snippet(r) -> str:
+    """提取 API 错误信息，兼容 requests.Response 和 dict"""
     try:
-        j = r.json()
+        if isinstance(r, dict):
+            j = r
+        elif hasattr(r, 'json'):
+            j = r.json()
+        else:
+            return str(r)[:800]
         if isinstance(j, dict):
             err = j.get("error")
             if isinstance(err, dict):
@@ -890,11 +1057,12 @@ def request_image_prompt_plan(
     }
     print(f"[CHAT API] 请求模型={chat_model_name}, 系统提示词长度={len(system)}, 用户消息长度={len(user)}")
     print(f"[CHAT API] 消息分解: rules={len(rules_text)}, novel={len(novel_text)}, templates={len(template_ref) if use_templates else 0}")
-    r = requests.post(url, json=payload, headers=headers, timeout=300)
-    print(f"[CHAT API] 响应状态={r.status_code}")
-    if r.status_code >= 400:
-        raise RuntimeError(f"HTTP {r.status_code}: {_api_error_snippet(r)}")
-    j = r.json()
+    j, code, curl_err = _curl_json_post(url, payload, headers, 300)
+    print(f"[CHAT API] 响应状态={code}")
+    if curl_err or code >= 400:
+        raise RuntimeError(f"Chat API HTTP {code}: {_api_error_snippet(j) if isinstance(j, dict) else (curl_err or '')}")
+    if not isinstance(j, dict):
+        raise RuntimeError(f"Chat API 响应格式异常: {str(j)[:200]}")
     raw = j["choices"][0]["message"]["content"].strip()
     print(f"[CHAT API] 原始响应({len(raw)}字符): {raw}")
     # 清理 markdown 包裹
@@ -1056,11 +1224,13 @@ def request_video_scripts(
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {"model": model, "messages": messages, "temperature": 0.8, "max_tokens": 4000}
     try:
-        r = requests.post(url, json=payload, headers=headers, timeout=180)
-        if r.status_code >= 400:
-            print(f"  [VIDEO SCRIPT] HTTP {r.status_code}: {r.text[:300]}")
+        j, code, curl_err = _curl_json_post(url, payload, headers, 180)
+        if curl_err or code >= 400:
+            print(f"  [VIDEO SCRIPT] HTTP {code}: {str(j)[:300] if j else (curl_err or '')}")
             return []
-        raw = r.json()["choices"][0]["message"]["content"].strip()
+        if not isinstance(j, dict):
+            return []
+        raw = j["choices"][0]["message"]["content"].strip()
         # Extract JSON array
         if raw.startswith("```"):
             lines = raw.split("\n")
@@ -1540,25 +1710,30 @@ class _NovelContentParser(HTMLParser):
 
 
 def _fetch_novel_content(novel_id: str) -> dict:
-    """从外部 API 获取小说内容并返回纯文本"""
-    try:
-        from urllib.parse import quote
-        url = f"https://hw.manage.api.pingykj.com/novel/novel/getChaptersContent?novelId={quote(novel_id, safe='')}&viewFree=false"
-        r = requests.get(url, timeout=30)
-        if r.status_code >= 400:
-            return {"status": "error", "error": f"小说服务返回 HTTP {r.status_code}"}
-        parser = _NovelContentParser()
-        parser.feed(r.text)
-        if not parser.paragraphs:
-            return {"status": "error", "error": "未获取到小说内容，请检查小说ID"}
-        content = "\n\n".join(parser.paragraphs)
-        return {"status": "success", "content": content}
-    except requests.exceptions.Timeout:
-        return {"status": "error", "error": "获取小说内容超时，请检查网络"}
-    except requests.exceptions.ConnectionError:
-        return {"status": "error", "error": "无法连接到小说服务，请稍后重试"}
-    except Exception as e:
-        return {"status": "error", "error": f"获取失败: {str(e)}"}
+    """从外部 API 获取小说内容并返回纯文本（含重试）"""
+    import time as _time
+    from urllib.parse import quote
+    url = f"https://hw.manage.api.pingykj.com/novel/novel/getChaptersContent?novelId={quote(novel_id, safe='')}&viewFree=false"
+    last_err = ""
+    for attempt in range(3):
+        try:
+            text, code, curl_err = _curl_get_text(url, timeout_sec=60)
+            if curl_err:
+                last_err = curl_err
+                continue
+            if code >= 400:
+                return {"status": "error", "error": f"小说服务返回 HTTP {code}"}
+            parser = _NovelContentParser()
+            parser.feed(text)
+            if not parser.paragraphs:
+                return {"status": "error", "error": "未获取到小说内容，请检查小说ID"}
+            content = "\n\n".join(parser.paragraphs)
+            return {"status": "success", "content": content}
+        except Exception as e:
+            last_err = str(e)
+        if attempt < 2:
+            _time.sleep(2 * (attempt + 1))  # 等待 2s, 4s 后重试
+    return {"status": "error", "error": f"获取失败（重试3次后仍失败）: {last_err}"}
 
 
 def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -> dict:
@@ -1680,11 +1855,13 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
         prompt_send = _sanitize_image_prompt(prompt_send)
         payload = {"model": body.image_model_name, "prompt": prompt_send, "size": size, "n": 1}
         try:
-            r = requests.post(base_url, json=payload, headers=headers, timeout=120)
-            if r.status_code >= 400:
-                errors.append(f"{label} HTTP {r.status_code}: {_api_error_snippet(r)}")
+            j, code, curl_err = _curl_json_post(base_url, payload, headers, 300)
+            if curl_err or code >= 400:
+                errors.append(f"{label} HTTP {code}: {_api_error_snippet(j) if isinstance(j, dict) else (curl_err or '')}")
                 return None
-            j = r.json()
+            if not isinstance(j, dict):
+                errors.append(f"{label} 响应格式异常")
+                return None
             data = j.get("data")
             if not isinstance(data, list) or not data:
                 errors.append(f"{label} 无 data：{json.dumps(j, ensure_ascii=False)[:400]}")
@@ -1693,8 +1870,9 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
             img_bytes = None
             if isinstance(item, dict):
                 if item.get("url"):
-                    ir = requests.get(item["url"], timeout=120)
-                    img_bytes = ir.content if ir.status_code < 400 else None
+                    img_bytes, dcode = _curl_download_bytes(item["url"], 300)
+                    if dcode >= 400:
+                        img_bytes = None
                 elif item.get("b64_json"):
                     img_bytes = base64.b64decode(item["b64_json"])
             if not img_bytes:
@@ -2185,10 +2363,21 @@ def _background_generation(body: GenerateRequest, batch_id: int) -> None:
 
 
 @app.post("/api/generate")
-def api_generate(body: GenerateRequest):
-    """提交生产任务到后台线程，立即返回 batch_id"""
+def _init_batch(user_id: int) -> int:
+    """创建新批次目录并写入初始 meta（含 user_id），返回 batch_id"""
     batch_id = allocate_batch_id(OUTPUT_ROOT)
-    (OUTPUT_ROOT / str(batch_id)).mkdir(parents=True, exist_ok=True)
+    batch_dir = OUTPUT_ROOT / str(batch_id)
+    batch_dir.mkdir(parents=True, exist_ok=True)
+    (batch_dir / "_meta.json").write_text(json.dumps({
+        "batch_id": str(batch_id), "user_id": user_id,
+        "status": "submitted", "created_at": datetime.now().isoformat()
+    }, ensure_ascii=False), encoding="utf-8")
+    return batch_id
+
+
+def api_generate(body: GenerateRequest, user: dict = Depends(get_current_user)):
+    """提交生产任务到后台线程，立即返回 batch_id"""
+    batch_id = _init_batch(user["id"])
     _register_batch(batch_id)
     _update_progress(batch_id, 0, "任务已提交，正在启动...", "running")
     _EXECUTOR.submit(_background_generation, body, batch_id)
@@ -2200,8 +2389,8 @@ def api_generate(body: GenerateRequest):
 
 
 @app.post("/generate")
-def generate_alias(body: GenerateRequest):
-    return api_generate(body)
+def generate_alias(body: GenerateRequest, user: dict = Depends(get_current_user)):
+    return api_generate(body, user)
 
 
 # --- 取消接口 ---
@@ -2238,13 +2427,13 @@ def api_progress_detail(batch_id: int):
 
 
 @app.get("/api/prompt-rules")
-def api_prompt_rules():
+def api_prompt_rules(user: dict = Depends(get_current_user)):
     """返回最新提示词.txt 内容，供前端预填"""
     return {"content": ""}
 
 
 @app.get("/api/templates")
-def api_templates():
+def api_templates(user: dict = Depends(get_current_user)):
     """返回模板索引状态"""
     square = [t for t in TEMPLATES_INDEX if t.get("ratio") == "1:1"]
     portrait = [t for t in TEMPLATES_INDEX if t.get("ratio") == "9:16"]
@@ -2315,13 +2504,13 @@ def api_fonts():
 
 
 @app.get("/api/video-styles")
-def api_get_video_styles():
+def api_get_video_styles(user: dict = Depends(get_current_user)):
     """返回当前视频样式配置"""
     return _load_video_styles()
 
 
 @app.post("/api/video-styles")
-def api_save_video_styles(body: dict):
+def api_save_video_styles(body: dict, user: dict = Depends(get_current_user)):
     """保存整个样式库"""
     if "styles" not in body:
         raise HTTPException(status_code=400, detail="缺少 styles 字段")
@@ -2338,9 +2527,19 @@ def _save_batch_meta(result: dict) -> None:
         batch_dir = OUTPUT_ROOT / str(batch_id)
         if not batch_dir.exists():
             return
+        # 保留已有的 user_id
+        existing_user_id = None
+        existing_meta_path = batch_dir / "_meta.json"
+        if existing_meta_path.exists():
+            try:
+                existing = json.loads(existing_meta_path.read_text(encoding="utf-8"))
+                existing_user_id = existing.get("user_id")
+            except Exception:
+                pass
         now = datetime.now().isoformat()
         meta = {
             "batch_id": batch_id,
+            "user_id": existing_user_id or result.get("user_id", 1),
             "status": result.get("status", "unknown"),
             "message": result.get("message", ""),
             "novel_id": result.get("novel_id", ""),
@@ -2362,6 +2561,40 @@ def _save_batch_meta(result: dict) -> None:
         pass
 
 
+def _get_user_name(user_id: int) -> str:
+    """根据 user_id 获取用户名（带缓存，避免重复查库）"""
+    if not user_id:
+        return ""
+    u = database.get_user(user_id)
+    return u.get("display_name") or u.get("username", "") if u else ""
+
+
+@app.get("/api/history/creators")
+def api_history_creators(user: dict = Depends(get_current_user)):
+    """返回所有有历史记录的创建者列表（用于筛选下拉）"""
+    creators = {}  # user_id → user_name
+    try:
+        for d in sorted(OUTPUT_ROOT.iterdir(), key=lambda p: int(p.name) if p.name.isdigit() else 0, reverse=True):
+            if not d.is_dir() or d.name.startswith("_"):
+                continue
+            meta_path = d / "_meta.json"
+            if meta_path.exists():
+                try:
+                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                    uid = meta.get("user_id", 1)
+                    if uid and uid not in creators:
+                        name = _get_user_name(uid) or f"ID:{uid}"
+                        creators[uid] = name
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    # 转为列表，按用户名排序
+    result = [{"user_id": uid, "user_name": name} for uid, name in creators.items()]
+    result.sort(key=lambda x: x["user_name"])
+    return result
+
+
 @app.get("/api/history")
 def api_history(
     limit: int = 20,
@@ -2371,8 +2604,11 @@ def api_history(
     date_to: str = "",
     has_images: str = "",
     has_videos: str = "",
+    creator: str = "",
+    user: dict = Depends(get_current_user),
 ):
     """返回分页的生成历史（含运行中任务）"""
+    uid = _opt_user_id(user)
     items = []
     running_batch_ids = set()
     # 1. 收集运行中任务
@@ -2408,17 +2644,34 @@ def api_history(
                 pngs = list(d.glob("*.png"))
                 mp4s = list(d.glob("*.mp4"))
                 meta = {"batch_id": d.name, "images": len(pngs), "videos": len(mp4s), "status": "unknown"}
+            # 用户隔离：非管理员只看自己的批次
+            if uid is not None and meta.get("user_id", 1) != uid:
+                continue
             imgs = meta.get("images", 0)
             vids = meta.get("videos", 0)
-            img_count = len(imgs) if isinstance(imgs, list) else (imgs or 0)
-            vid_count = len(vids) if isinstance(vids, list) else (vids or 0)
+            img_list = imgs if isinstance(imgs, list) else []
+            vid_list = vids if isinstance(vids, list) else []
+            img_count = len(img_list) or (imgs if not isinstance(imgs, list) else 0)
+            vid_count = len(vid_list) or (vids if not isinstance(vids, list) else 0)
+            # 查找用户名
+            batch_user_id = meta.get("user_id", 1)
+            batch_user_name = ""
+            if batch_user_id:
+                u = database.get_user(batch_user_id)
+                batch_user_name = u.get("display_name") or u.get("username", "") if u else ""
+
             items.append({
                 "batch_id": meta.get("batch_id", d.name),
                 "novel_id": meta.get("novel_id", ""),
+                "user_id": batch_user_id,
+                "user_name": batch_user_name,
                 "status": meta.get("status", "unknown"),
                 "message": meta.get("message", ""),
                 "images": img_count,
                 "videos": vid_count,
+                "image_urls": img_list,
+                "video_urls": vid_list,
+                "used_prompts": meta.get("used_prompts", []) if isinstance(meta.get("used_prompts"), list) else [],
                 "chat_status": meta.get("chat_status", ""),
                 "progress": None,
                 "created_at": meta.get("created_at", ""),
@@ -2441,6 +2694,12 @@ def api_history(
             continue
         if has_videos == "true" and not item.get("videos", 0):
             continue
+        if creator:
+            cname = str(item.get("user_name") or "").lower()
+            cid = str(item.get("user_id") or "")
+            q = creator.lower()
+            if q not in cname and q != cid:
+                continue
         filtered.append(item)
 
     total = len(filtered)
@@ -2449,8 +2708,9 @@ def api_history(
 
 
 @app.get("/api/stats")
-def api_stats():
+def api_stats(user: dict = Depends(get_current_user)):
     """返回仪表盘统计数据"""
+    uid = _opt_user_id(user)
     total = 0
     success = 0
     total_images = 0
@@ -2459,10 +2719,18 @@ def api_stats():
         for d in OUTPUT_ROOT.iterdir():
             if not d.is_dir() or d.name.startswith("_"):
                 continue
+            meta_path = d / "_meta.json"
+            # 用户隔离
+            if uid is not None and meta_path.exists():
+                try:
+                    meta_check = json.loads(meta_path.read_text(encoding="utf-8"))
+                    if meta_check.get("user_id", 1) != uid:
+                        continue
+                except Exception:
+                    pass
             total += 1
             total_images += len(list(d.glob("*.png")))
             total_videos += len(list(d.glob("*.mp4")))
-            meta_path = d / "_meta.json"
             if meta_path.exists():
                 try:
                     meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -2482,13 +2750,21 @@ def api_stats():
 
 
 @app.get("/api/history/{batch_id}")
-def api_history_detail(batch_id: str):
+def api_history_detail(batch_id: str, user: dict = Depends(get_current_user)):
     """返回单个批次的详细信息（图片、视频、提示词）"""
     batch_dir = OUTPUT_ROOT / batch_id
     if not batch_dir.exists() or not batch_dir.is_dir():
         raise HTTPException(status_code=404, detail="批次不存在")
 
+    uid = _opt_user_id(user)
     meta_path = batch_dir / "_meta.json"
+    if uid is not None and meta_path.exists():
+        try:
+            meta_check = json.loads(meta_path.read_text(encoding="utf-8"))
+            if meta_check.get("user_id", 1) != uid:
+                raise HTTPException(status_code=404, detail="批次不存在")
+        except json.JSONDecodeError:
+            pass
     if meta_path.exists():
         try:
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -2541,6 +2817,8 @@ def api_history_detail(batch_id: str):
         "progress": _get_progress(int(batch_id)),
         "created_at": meta.get("created_at", ""),
         "updated_at": meta.get("updated_at", ""),
+        "user_id": meta.get("user_id", 1),
+        "user_name": (_get_user_name(meta.get("user_id", 1)) if meta.get("user_id") else ""),
     }
 
 
@@ -2604,16 +2882,28 @@ def api_batch_delete_history(body: Dict[str, List[str]]):
 # ====== 配置持久化 API ======
 
 @app.get("/api/config")
-def api_get_config():
-    """返回保存的 API 配置"""
-    return {
-        "api_key": _app_config.get("api_key", ""),
+def api_get_config(user: dict = Depends(get_current_user)):
+    """返回 API 配置。管理员返回全局配置；普通用户返回自己的配置（api_key 不继承全局）"""
+    global_defaults = {
+        "api_key": "",
         "api_url": _app_config.get("api_url", ""),
         "chat_model_name": _app_config.get("chat_model_name", ""),
         "image_model_name": _app_config.get("image_model_name", ""),
         "analysis_prompt": _app_config.get("analysis_prompt", ""),
         "concurrency": _app_config.get("concurrency", 2),
     }
+    # 管理员直接返回全局配置
+    if user.get("role") == "admin":
+        global_defaults["api_key"] = _app_config.get("api_key", "")
+        return global_defaults
+
+    # 普通用户：合并自己的配置（api_key 不继承全局，必须自己设置）
+    user_id = user["id"]
+    user_config = database.get_user_config(user_id)
+    for k, v in user_config.items():
+        if k in global_defaults:
+            global_defaults[k] = v
+    return global_defaults
 
 
 class ConfigUpdateRequest(BaseModel):
@@ -2626,19 +2916,266 @@ class ConfigUpdateRequest(BaseModel):
 
 
 @app.post("/api/config")
-def api_save_config(body: ConfigUpdateRequest):
-    """保存 API 配置"""
-    global _app_config
-    _app_config = {
-        "api_key": body.api_key,
-        "api_url": body.api_url,
-        "chat_model_name": body.chat_model_name,
-        "image_model_name": body.image_model_name,
-        "analysis_prompt": body.analysis_prompt,
-        "concurrency": body.concurrency,
+def api_save_config(body: ConfigUpdateRequest, user: dict = Depends(get_current_user)):
+    """保存 API 配置。管理员保存到全局配置，普通用户保存到自己的配置"""
+    if user.get("role") == "admin":
+        global _app_config
+        _app_config = {
+            "api_key": body.api_key,
+            "api_url": body.api_url,
+            "chat_model_name": body.chat_model_name,
+            "image_model_name": body.image_model_name,
+            "analysis_prompt": body.analysis_prompt,
+            "concurrency": body.concurrency,
+        }
+        _save_config(_app_config)
+        return {"status": "ok", "message": "配置已保存（全局）"}
+    else:
+        user_id = user["id"]
+        config = {
+            "api_key": body.api_key,
+            "api_url": body.api_url,
+            "chat_model_name": body.chat_model_name,
+            "image_model_name": body.image_model_name,
+            "analysis_prompt": body.analysis_prompt,
+            "concurrency": str(body.concurrency),
+        }
+        database.set_user_config_batch(user_id, config)
+        return {"status": "ok", "message": "配置已保存（个人）"}
+
+
+# ====== 应用认证 API ======
+
+class AppLoginRequest(BaseModel):
+    username: str
+    password: str
+
+@app.post("/api/auth/login")
+def api_app_login(body: AppLoginRequest, request: Request):
+    """应用登录"""
+    user = database.get_user_by_username(body.username)
+    if not user or not database.verify_password(body.password, user["password_hash"], user["salt"]):
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+    if not user.get("is_active"):
+        raise HTTPException(status_code=403, detail="账号已被禁用")
+
+    token = database.generate_session_token()
+    expires = (datetime.utcnow() + timedelta(hours=24)).isoformat()
+    # 获取客户端 IP
+    client_ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or
+                 request.headers.get("X-Real-IP", "") or
+                 (request.client.host if request.client else ""))
+    print(f"[Login] user={user['username']} ip={client_ip or '(无)'}")
+    database.set_session_token(user["id"], token, expires, client_ip)
+
+    return {
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "username": user["username"],
+            "role": user["role"],
+            "display_name": user.get("display_name") or user["username"],
+        }
     }
-    _save_config(_app_config)
-    return {"status": "ok", "message": "配置已保存"}
+
+@app.post("/api/auth/logout")
+def api_app_logout(user: dict = Depends(get_current_user)):
+    """应用登出"""
+    database.clear_session_token(user["id"])
+    return {"status": "ok", "message": "已登出"}
+
+@app.get("/api/auth/me")
+def api_auth_me(user: dict = Depends(get_current_user)):
+    """获取当前用户信息"""
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "role": user["role"],
+        "display_name": user.get("display_name") or user["username"],
+        "pingykj_username": user.get("pingykj_username") or "",
+        "has_pingykj_creds": bool(user.get("pingykj_username")),
+    }
+
+
+class PingykjCredsBody(BaseModel):
+    pingykj_username: str = ""
+    pingykj_password: str = ""
+
+@app.put("/api/auth/pingykj-credentials")
+def api_update_pingykj_creds(body: PingykjCredsBody, user: dict = Depends(get_current_user)):
+    """当前用户自助更新书城登录凭据。仅保存凭据到数据库，不清除已有 session。"""
+    database.update_user(user["id"],
+                         pingykj_username=body.pingykj_username,
+                         pingykj_password=body.pingykj_password)
+    return {"status": "ok", "message": "书城凭据已保存"}
+
+
+# ====== 用户管理 API（管理员） ======
+
+class CreateUserRequest(BaseModel):
+    username: str
+    password: str
+    role: str = "user"
+    display_name: str = ""
+    pingykj_username: str = ""
+    pingykj_password: str = ""
+
+@app.get("/api/users")
+def api_list_users(user: dict = Depends(get_current_admin)):
+    """管理员查看所有用户（含书城在线状态）"""
+    users = database.list_users()
+    # 为有书城凭据的用户检查在线状态（仅查缓存，不触发自动登录）
+    for u in users:
+        if u.get("pingykj_username"):
+            uid = u["id"]
+            # 检查是否有缓存的活跃 session
+            cached = scraper._user_sessions.get(uid)
+            u["pingykj_online"] = cached is not None and cached.check_valid()
+        else:
+            u["pingykj_online"] = False
+    return users
+
+@app.post("/api/users")
+def api_create_user(body: CreateUserRequest, user: dict = Depends(get_current_admin)):
+    """管理员创建用户"""
+    if body.role not in ("admin", "user"):
+        raise HTTPException(status_code=400, detail="角色必须为 admin 或 user")
+    existing = database.get_user_by_username(body.username)
+    if existing:
+        raise HTTPException(status_code=400, detail="用户名已存在")
+    uid = database.create_user(
+        body.username, body.password, body.role,
+        body.display_name, body.pingykj_username, body.pingykj_password
+    )
+    return {"status": "ok", "id": uid, "message": "用户已创建"}
+
+class UpdateUserRequest(BaseModel):
+    role: str = None
+    display_name: str = None
+    is_active: bool = None
+    pingykj_username: str = None
+    pingykj_password: str = None
+    new_password: str = None
+
+@app.put("/api/users/{user_id}")
+def api_update_user(user_id: int, body: UpdateUserRequest, user: dict = Depends(get_current_admin)):
+    """管理员修改用户"""
+    target = database.get_user(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 构建更新字段
+    fields = {}
+    if body.role is not None:
+        if body.role not in ("admin", "user"):
+            raise HTTPException(status_code=400, detail="无效角色")
+        fields["role"] = body.role
+    if body.display_name is not None:
+        fields["display_name"] = body.display_name
+    if body.is_active is not None:
+        fields["is_active"] = 1 if body.is_active else 0
+    if body.pingykj_username is not None:
+        fields["pingykj_username"] = body.pingykj_username
+    if body.pingykj_password is not None:
+        fields["pingykj_password"] = body.pingykj_password
+        # 清除旧的 scraper session
+        scraper.clear_user_session(user_id)
+
+    # 是否更新了书城凭据（用于后续自动登录验证）
+    creds_changed = "pingykj_username" in fields or "pingykj_password" in fields
+
+    if fields:
+        database.update_user(user_id, **fields)
+
+    if body.new_password:
+        database.update_user_password(user_id, body.new_password)
+
+    # 管理员更新凭据后，自动尝试登录验证（无验证码）
+    login_msg = ""
+    if creds_changed:
+        try:
+            target_user = database.get_user(user_id)
+            if target_user and target_user.get("pingykj_username"):
+                ok, msg = scraper.login_via_api_for_user(
+                    user_id,
+                    target_user["pingykj_username"],
+                    database.decrypt_pingykj_password(target_user["pingykj_password_encrypted"] or "")
+                )
+                login_msg = "，书城登录成功" if ok else f"，书城登录失败: {msg}"
+                if not ok:
+                    print(f"[UserMgmt] 用户 {target_user['username']} 书城自动登录失败: {msg}")
+        except Exception as e:
+            login_msg = f"，书城登录异常: {e}"
+            print(f"[UserMgmt] 书城自动登录异常: {e}")
+
+    return {"status": "ok", "message": "用户已更新" + login_msg}
+
+@app.delete("/api/users/{user_id}")
+def api_delete_user(user_id: int, user: dict = Depends(get_current_admin)):
+    """管理员删除用户"""
+    if user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="不能删除自己")
+    if user_id == 1:
+        raise HTTPException(status_code=400, detail="默认管理员账号不可删除")
+    target = database.get_user(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    database.delete_user(user_id)
+    scraper.clear_user_session(user_id)
+    return {"status": "ok", "message": "用户已删除"}
+
+
+@app.post("/api/users/{user_id}/reconnect-pingykj")
+def api_reconnect_user_pingykj(user_id: int, user: dict = Depends(get_current_admin),
+                                captcha: str = "", check_key: str = ""):
+    """管理员用已存储的凭据重新登录书城（可选验证码）"""
+    target = database.get_user(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if not target.get("pingykj_username") or not target.get("pingykj_password_encrypted"):
+        raise HTTPException(status_code=400, detail="该用户未配置书城凭据")
+
+    # 清除旧 session
+    scraper.clear_user_session(user_id)
+
+    # 用已存储的凭据尝试登录
+    try:
+        creds = database.get_user_pingykj_credentials(user_id)
+        if not creds:
+            raise HTTPException(status_code=400, detail="无法解密凭据")
+        ok, msg = scraper.login_via_api_for_user(
+            user_id, creds["username"], creds["password"],
+            captcha=captcha, check_key=check_key
+        )
+        if ok:
+            return {"status": "ok", "message": f"书城登录成功（{creds['username']}）"}
+        else:
+            return {"status": "failed", "message": f"书城登录失败: {msg}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"登录异常: {e}")
+
+
+@app.get("/api/users/{user_id}/pingykj-captcha")
+def api_get_user_pingykj_captcha(user_id: int, user: dict = Depends(get_current_admin)):
+    """管理员为指定用户获取书城登录验证码"""
+    target = database.get_user(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if not target.get("pingykj_username"):
+        raise HTTPException(status_code=400, detail="该用户未配置书城账号")
+
+    creds = database.get_user_pingykj_credentials(user_id)
+    if not creds:
+        raise HTTPException(status_code=400, detail="无法解密凭据")
+
+    data_uri, check_key, err = scraper.fetch_captcha_with_creds(
+        creds["username"], creds["password"]
+    )
+    if err:
+        raise HTTPException(status_code=502, detail=err)
+    return {"image": data_uri, "check_key": check_key}
 
 
 # ====== 数据看板 API ======
@@ -2651,64 +3188,166 @@ class ScraperLoginRequest(BaseModel):
 
 
 @app.get("/api/scraper/captcha")
-def api_scraper_captcha():
-    """获取登录验证码，返回 data_uri 和 check_key"""
-    data_uri, check_key, err = scraper.fetch_captcha()
+def api_scraper_captcha(user: dict = Depends(get_current_user),
+                         username: str = Query(default=""),
+                         password: str = Query(default="")):
+    """获取登录验证码"""
+    uid = user["id"]
+    if username and password:
+        data_uri, check_key, err = scraper.fetch_captcha_with_creds(username, password)
+    else:
+        data_uri, check_key, err = scraper.fetch_captcha_for_user(uid)
     if err:
         raise HTTPException(status_code=502, detail=err)
     return {"image": data_uri, "check_key": check_key}
 
 
 @app.post("/api/scraper/login")
-def api_scraper_login(body: ScraperLoginRequest):
-    """通过 API 直接登录，获取 token"""
-    success, message = scraper.login_via_api(
-        body.username, body.password,
+def api_scraper_login(body: ScraperLoginRequest, user: dict = Depends(get_current_user)):
+    """通过 API 直接登录书城，获取 token（使用当前用户的凭据验证）"""
+    success, message = scraper.login_via_api_for_user(
+        user["id"], body.username, body.password,
         captcha=body.captcha, check_key=body.check_key
     )
     return {"status": "ok" if success else "failed", "message": message}
 
 
+# 后台同步任务追踪
+_sync_tasks: Dict[int, Dict] = {}  # user_id → {running, last_result, last_time}
+
 @app.post("/api/scraper/sync")
-def api_scraper_sync():
-    """触发数据同步"""
-    result = scraper.run_full_sync()
-    return result
+def api_scraper_sync(user: dict = Depends(get_current_user)):
+    """触发数据同步。管理员同步所有用户，普通用户只同步自己。（后台执行，立即返回）"""
+    uid = user["id"]
+    is_admin = user.get("role") == "admin"
+
+    if is_admin:
+        # 管理员：同步所有有凭据的用户
+        task = _sync_tasks.get(0, {})  # 用 user_id=0 追踪管理员的全量同步
+        if task.get("running"):
+            return {"status": "running", "message": "全用户同步已在后台进行中，请稍后刷新"}
+        _sync_tasks[0] = {"running": True, "last_result": None, "last_time": None}
+        def _bg_sync_all():
+            try:
+                users = database.list_active_users_with_credentials()
+                results = {}
+                for u in users:
+                    try:
+                        r = scraper.run_full_sync(u["id"])
+                        results[u["username"]] = r
+                    except Exception as e:
+                        results[u["username"]] = {"success": False, "message": str(e)}
+                _sync_tasks[0] = {"running": False, "last_result": results,
+                                   "last_time": time.strftime("%H:%M:%S")}
+            except Exception as e:
+                _sync_tasks[0] = {"running": False, "last_result": {"success": False, "message": str(e)},
+                                   "last_time": time.strftime("%H:%M:%S")}
+        _EXECUTOR.submit(_bg_sync_all)
+        return {"status": "started", "message": f"已提交后台同步（所有用户）"}
+    else:
+        # 普通用户：只同步自己
+        task = _sync_tasks.get(uid, {})
+        if task.get("running"):
+            return {"status": "running", "message": "同步已在后台进行中，请稍后刷新"}
+        _sync_tasks[uid] = {"running": True, "last_result": None, "last_time": None}
+        def _bg_sync():
+            try:
+                result = scraper.run_full_sync(uid)
+                _sync_tasks[uid] = {"running": False, "last_result": result,
+                                    "last_time": time.strftime("%H:%M:%S")}
+            except Exception as e:
+                _sync_tasks[uid] = {"running": False, "last_result": {"success": False, "message": str(e)},
+                                    "last_time": time.strftime("%H:%M:%S")}
+        _EXECUTOR.submit(_bg_sync)
+        return {"status": "started", "message": "已提交后台同步，数据稍后自动更新"}
+
+
+@app.get("/api/scraper/sync-status")
+def api_sync_status(user: dict = Depends(get_current_user)):
+    """查询当前用户的后台同步状态（管理员查询全用户同步状态）"""
+    uid = 0 if user.get("role") == "admin" else user["id"]
+    task = _sync_tasks.get(uid, {})
+    if not task:
+        return {"running": False, "last_result": None, "last_time": None}
+    return {"running": task.get("running", False),
+            "last_result": task.get("last_result"),
+            "last_time": task.get("last_time")}
+
+
+@app.post("/api/scraper/reset-sync")
+def api_reset_sync_state(user: dict = Depends(get_current_user)):
+    """清除同步状态并触发全量同步。管理员操作所有用户，普通用户只操作自己。（后台执行）"""
+    uid = user["id"]
+    is_admin = user.get("role") == "admin"
+
+    if is_admin:
+        # 管理员：清除所有用户的同步状态，然后全量同步
+        users = database.list_active_users_with_credentials()
+        for u in users:
+            scraper.reset_sync_state(u["id"])
+        _sync_tasks[0] = {"running": True, "last_result": None, "last_time": None}
+        def _bg_full_sync_all():
+            try:
+                results = {}
+                for u in users:
+                    try:
+                        r = scraper.run_full_sync(u["id"])
+                        results[u["username"]] = r
+                    except Exception as e:
+                        results[u["username"]] = {"success": False, "message": str(e)}
+                _sync_tasks[0] = {"running": False, "last_result": results,
+                                   "last_time": time.strftime("%H:%M:%S")}
+            except Exception as e:
+                _sync_tasks[0] = {"running": False, "last_result": {"success": False, "message": str(e)},
+                                   "last_time": time.strftime("%H:%M:%S")}
+        _EXECUTOR.submit(_bg_full_sync_all)
+        return {"status": "started", "message": f"已清除 {len(users)} 个用户的增量标记，后台全量同步中..."}
+    else:
+        # 普通用户：只操作自己
+        scraper.reset_sync_state(uid)
+        _sync_tasks[uid] = {"running": True, "last_result": None, "last_time": None}
+        def _bg_full_sync():
+            try:
+                result = scraper.run_full_sync(uid)
+                _sync_tasks[uid] = {"running": False, "last_result": result,
+                                    "last_time": time.strftime("%H:%M:%S")}
+            except Exception as e:
+                _sync_tasks[uid] = {"running": False, "last_result": {"success": False, "message": str(e)},
+                                    "last_time": time.strftime("%H:%M:%S")}
+        _EXECUTOR.submit(_bg_full_sync)
+        return {"status": "started", "message": "已清除增量标记，后台全量同步中..."}
 
 
 @app.get("/api/scraper/session-status")
-def api_session_status():
-    """检查登录会话是否有效"""
-    valid = scraper.check_session_valid()
+def api_session_status(user: dict = Depends(get_current_user)):
+    """检查书城登录会话是否有效"""
+    uid = user["id"]
+    session, _ = scraper._get_or_create_session(uid)
+    valid = session is not None and session.check_valid()
     return {"valid": valid, "message": "会话有效" if valid else "会话已过期，请重新登录"}
 
 
 @app.post("/api/scraper/logout")
-def api_scraper_logout():
-    """登出：清除 token"""
-    scraper.do_logout()
+def api_scraper_logout(user: dict = Depends(get_current_user)):
+    """登出：清除书城 token"""
+    scraper.clear_user_session(user["id"])
     return {"status": "ok", "message": "已登出"}
 
 
 @app.get("/api/scraper/sync-interval")
-def api_get_sync_interval():
-    """获取自动同步间隔（秒）"""
-    secs = database.get_sync_interval()
+def api_get_sync_interval(user: dict = Depends(get_current_user)):
+    """获取当前用户的自动同步间隔（秒）"""
+    secs = database.get_sync_interval(user["id"])
     return {"seconds": secs, "text": _format_interval(secs)}
 
 
 @app.post("/api/scraper/sync-interval")
-def api_set_sync_interval(seconds: int = Query(default=180)):
-    """设置自动同步间隔（秒），合法值：60/180/600/1800/3600"""
-    allowed = {60, 180, 600, 1800, 3600}
+def api_set_sync_interval(seconds: int = Query(default=600), user: dict = Depends(get_current_user)):
+    """设置当前用户的自动同步间隔（秒），合法值：180/600/1800/3600"""
+    allowed = {180, 600, 1800, 3600}
     if seconds not in allowed:
-        from fastapi.responses import JSONResponse
-        return JSONResponse({"status": "error", "message": "无效间隔，可选: 60/180/600/1800/3600"}, status_code=400)
-    database.set_sync_interval(seconds)
-    try:
-        _scheduler.reschedule_job('auto_sync', trigger='interval', seconds=seconds)
-    except Exception:
-        pass
+        return JSONResponse({"status": "error", "message": "无效间隔，可选: 3分钟/10分钟/30分钟/60分钟"}, status_code=400)
+    database.set_sync_interval(seconds, user["id"])
     return {"status": "ok", "seconds": seconds, "message": f"同步间隔已设为 {_format_interval(seconds)}"}
 
 
@@ -2722,23 +3361,36 @@ def _format_interval(secs: int) -> str:
 
 
 @app.get("/api/dashboard/account-aliases")
-def api_get_account_aliases():
+def api_get_account_aliases(user: dict = Depends(get_current_user)):
     """获取账户别名列表"""
-    return database.get_account_aliases()
+    uid = _opt_user_id(user)
+    return database.get_account_aliases(uid)
 
 
 @app.post("/api/dashboard/account-aliases")
-def api_set_account_alias(account_id: str = Query(...), alias: str = Query(...)):
+def api_set_account_alias(account_id: str = Query(...), alias: str = Query(...),
+                           user: dict = Depends(get_current_user)):
     """设置账户别名"""
-    database.set_account_alias(account_id, alias)
+    uid = _opt_user_id(user)
+    database.set_account_alias(account_id, alias, uid)
     return {"status": "ok", "account_id": account_id, "alias": alias}
 
 
 @app.delete("/api/dashboard/account-aliases")
-def api_delete_account_alias(account_id: str = Query(...)):
+def api_delete_account_alias(account_id: str = Query(...),
+                              user: dict = Depends(get_current_user)):
     """删除账户别名"""
-    database.delete_account_alias(account_id)
+    uid = _opt_user_id(user)
+    database.delete_account_alias(account_id, uid)
     return {"status": "ok", "account_id": account_id}
+
+
+@app.delete("/api/dashboard/accounts/{account_id}")
+def api_delete_account(account_id: str, user: dict = Depends(get_current_user)):
+    """删除账户（仅移出列表，广告数据保留）"""
+    uid = _opt_user_id(user)
+    database.delete_account_alias(account_id, uid)
+    return {"status": "ok", "account_id": account_id, "message": f"账户 {account_id} 已移除"}
 
 
 # ====== 小说管理 API ======
@@ -2749,13 +3401,19 @@ def api_novel_books_list(
     page_size: int = Query(default=20),
     keyword: str = Query(default=None),
     status: str = Query(default=None),
+    sort_by: str = Query(default="create_time"),
+    sort_order: str = Query(default="DESC"),
+    user: dict = Depends(get_current_user),
 ):
-    """分页查询书籍列表"""
-    return database.get_novel_books(page=page, page_size=page_size, keyword=keyword, status_filter=status)
+    """分页查询书籍列表（共享数据，所有用户可见），支持排序"""
+    return database.get_novel_books(
+        page=page, page_size=page_size, keyword=keyword,
+        status_filter=status, sort_by=sort_by, sort_order=sort_order
+    )
 
 
 @app.get("/api/novels/{novel_id}")
-def api_novel_book_detail(novel_id: str):
+def api_novel_book_detail(novel_id: str, user: dict = Depends(get_current_user)):
     """查询书籍详情"""
     book = database.get_novel_book(novel_id)
     if not book:
@@ -2768,13 +3426,14 @@ def api_novel_chapters_list(
     novel_id: str,
     page: int = Query(default=1),
     page_size: int = Query(default=50),
+    user: dict = Depends(get_current_user),
 ):
     """分页查询某书的章节列表"""
     return database.get_novel_chapters(novel_id, page=page, page_size=page_size)
 
 
 @app.get("/api/novels/chapters/{chapter_id}")
-def api_novel_chapter_detail(chapter_id: int):
+def api_novel_chapter_detail(chapter_id: int, user: dict = Depends(get_current_user)):
     """查询单章内容"""
     chapter = database.get_novel_chapter(chapter_id)
     if not chapter:
@@ -2787,23 +3446,95 @@ class SyncNovelContentBody(BaseModel):
 
 
 @app.post("/api/novels/sync-books")
-def api_novel_sync_books():
+def api_novel_sync_books(user: dict = Depends(get_current_user)):
     """手动触发书籍列表同步"""
-    if not scraper.check_session_valid():
-        raise HTTPException(status_code=401, detail="请先在数据看板登录")
-    count, err = scraper.sync_novel_books()
+    count, err = scraper.sync_novel_books(user["id"])
     if err:
         return {"status": "ok", "count": count, "warning": err}
     return {"status": "ok", "count": count, "message": f"已同步 {count} 本书"}
 
 
 @app.post("/api/novels/sync-content")
-def api_novel_sync_content(body: SyncNovelContentBody = SyncNovelContentBody()):
+def api_novel_sync_content(body: SyncNovelContentBody = SyncNovelContentBody(),
+                            user: dict = Depends(get_current_user)):
     """手动触发章节内容同步"""
-    if not scraper.check_session_valid():
-        raise HTTPException(status_code=401, detail="请先在数据看板登录")
     result = scraper.sync_all_novel_content(novel_id=body.novel_id or None)
     return result
+
+
+# ====== 爆款素材登记 API ======
+
+class HitMaterialBody(BaseModel):
+    batch_id: str = ""
+    image_url: str = ""
+    video_url: str = ""
+    prompt: str = ""
+    label: str = ""
+    novel_id: str = ""
+    novel_name: str = ""
+    ad_account: str = ""
+    campaign_name: str = ""
+    spend: float = 0.0
+    order_count: int = 0
+    revenue: float = 0.0
+    roi: float = 0.0
+    impressions: int = 0
+    clicks: int = 0
+    ctr: float = 0.0
+    score: int = 0
+    notes: str = ""
+    tags: str = ""
+
+
+@app.post("/api/hit-materials")
+def api_add_hit_material(body: HitMaterialBody, user: dict = Depends(get_current_user)):
+    """登记爆款素材"""
+    uid = _opt_user_id(user)
+    mid = database.add_hit_material(body.model_dump(), uid)
+    return {"status": "ok", "id": mid}
+
+
+@app.get("/api/hit-materials/lookup")
+def api_hit_material_lookup(image_url: str = Query(default=""),
+                             user: dict = Depends(get_current_user)):
+    """根据 image_url 查找之前登记的爆款素材数据（全员可见）"""
+    row = database.get_hit_material_by_url(image_url, None)
+    if row:
+        return {"found": True, "data": row}
+    return {"found": False, "data": None}
+
+
+@app.get("/api/hit-materials")
+def api_get_hit_materials(
+    page: int = Query(default=1),
+    page_size: int = Query(default=20),
+    keyword: str = Query(default=None),
+    sort_by: str = Query(default="registered_at"),
+    sort_order: str = Query(default="DESC"),
+    user: dict = Depends(get_current_user),
+):
+    """查询爆款素材列表（全员可见）"""
+    return database.get_hit_materials(
+        page=page, page_size=page_size, keyword=keyword,
+        sort_by=sort_by, sort_order=sort_order, user_id=None,
+    )
+
+
+@app.put("/api/hit-materials/{mid}")
+def api_update_hit_material(mid: int, body: HitMaterialBody,
+                             user: dict = Depends(get_current_user)):
+    """编辑爆款素材"""
+    uid = _opt_user_id(user)
+    database.update_hit_material(mid, body.model_dump(), uid)
+    return {"status": "ok"}
+
+
+@app.delete("/api/hit-materials/{mid}")
+def api_delete_hit_material(mid: int, user: dict = Depends(get_current_user)):
+    """删除爆款素材"""
+    uid = _opt_user_id(user)
+    database.delete_hit_material(mid, uid)
+    return {"status": "ok"}
 
 
 @app.get("/api/dashboard/summary")
@@ -2812,9 +3543,11 @@ def api_dashboard_summary(
     end: str = Query(default=None),
     account: str = Query(default=None),
     keyword: str = Query(default=None),
+    user: dict = Depends(get_current_user),
 ):
     """KPI 汇总"""
-    return analytics.get_summary(start_date=start, end_date=end, account=account, keyword=keyword)
+    uid = _opt_user_id(user)
+    return analytics.get_summary(start_date=start, end_date=end, account=account, keyword=keyword, user_id=uid)
 
 
 @app.get("/api/dashboard/daily-stats")
@@ -2826,16 +3559,19 @@ def api_dashboard_daily_stats(
     order_by: str = Query(default="date"),
     page: int = Query(default=1),
     page_size: int = Query(default=20),
+    user: dict = Depends(get_current_user),
 ):
     """按日期+账户的日报明细"""
+    uid = _opt_user_id(user)
     return analytics.get_daily_stats(start_date=start, end_date=end, account=account, keyword=keyword,
-                                      order_by=order_by, page=page, page_size=page_size)
+                                      order_by=order_by, page=page, page_size=page_size, user_id=uid)
 
 
 @app.get("/api/dashboard/accounts")
-def api_dashboard_accounts():
+def api_dashboard_accounts(user: dict = Depends(get_current_user)):
     """广告账户列表"""
-    return analytics.get_accounts()
+    uid = _opt_user_id(user)
+    return analytics.get_accounts(user_id=uid)
 
 
 @app.get("/api/dashboard/trend")
@@ -2843,9 +3579,11 @@ def api_dashboard_trend(
     days: int = Query(default=30),
     account: str = Query(default=None),
     keyword: str = Query(default=None),
+    user: dict = Depends(get_current_user),
 ):
     """趋势数据"""
-    return analytics.get_trend(days=days, account=account, keyword=keyword)
+    uid = _opt_user_id(user)
+    return analytics.get_trend(days=days, account=account, keyword=keyword, user_id=uid)
 
 
 @app.get("/api/dashboard/orders")
@@ -2855,9 +3593,12 @@ def api_dashboard_orders(
     keyword: str = Query(default=None),
     page: int = Query(default=1),
     page_size: int = Query(default=15),
+    user: dict = Depends(get_current_user),
 ):
     """订单列表"""
-    return analytics.get_orders(start_date=start, end_date=end, keyword=keyword, page=page, page_size=page_size)
+    uid = _opt_user_id(user)
+    return analytics.get_orders(start_date=start, end_date=end, keyword=keyword,
+                                 page=page, page_size=page_size, user_id=uid)
 
 
 @app.get("/api/dashboard/account-ranking")
@@ -2867,15 +3608,30 @@ def api_dashboard_account_ranking(
     keyword: str = Query(default=None),
     page: int = Query(default=1),
     page_size: int = Query(default=20),
+    user: dict = Depends(get_current_user),
 ):
     """账户排名"""
-    return analytics.get_account_ranking(start_date=start, end_date=end, keyword=keyword, page=page, page_size=page_size)
+    uid = _opt_user_id(user)
+    return analytics.get_account_ranking(start_date=start, end_date=end, keyword=keyword,
+                                          page=page, page_size=page_size, user_id=uid)
 
 
 @app.get("/api/dashboard/anomalies")
-def api_dashboard_anomalies(days: int = Query(default=30)):
+def api_dashboard_anomalies(days: int = Query(default=30),
+                             user: dict = Depends(get_current_user)):
     """消耗异常检测"""
-    return analytics.detect_anomalies(days=days)
+    uid = _opt_user_id(user)
+    return analytics.detect_anomalies(days=days, user_id=uid)
+
+
+@app.get("/api/dashboard/user-ranking")
+def api_dashboard_user_ranking(
+    start: str = Query(default=None),
+    end: str = Query(default=None),
+    user: dict = Depends(get_current_user),
+):
+    """用户汇总排名（全员可见）"""
+    return analytics.get_user_ranking(start_date=start, end_date=end)
 
 
 @app.get("/api/dashboard/novel-stats")
@@ -2883,9 +3639,17 @@ def api_dashboard_novel_stats(
     start: str = Query(default=None),
     end: str = Query(default=None),
     keyword: str = Query(default=None),
+    sort_by: str = Query(default="order_count"),
+    mine_only: bool = Query(default=False),
+    page: int = Query(default=1),
+    page_size: int = Query(default=20),
+    user: dict = Depends(get_current_user),
 ):
-    """小说订单汇总：按 novelId + novelName 分组统计"""
-    return analytics.get_novel_stats(start_date=start, end_date=end, keyword=keyword)
+    """小说订单汇总：默认全员可见，可切换仅显示自己的数据，支持翻页"""
+    uid = user["id"] if mine_only else None
+    return analytics.get_novel_stats(start_date=start, end_date=end, keyword=keyword,
+                                      user_id=uid, sort_by=sort_by,
+                                      page=page, page_size=page_size)
 
 
 app.mount("/static/output", StaticFiles(directory=str(OUTPUT_ROOT)), name="novel_output")
@@ -2984,11 +3748,13 @@ def _run_analysis_generation(body: AnalysisGenerateRequest, batch_id: int) -> di
                 clean_prompt = clean_prompt.replace(banned, safe)
         payload = {"model": body.image_model_name, "prompt": clean_prompt, "size": size, "n": 1}
         try:
-            r = requests.post(url, json=payload, headers=headers, timeout=120)
-            if r.status_code >= 400:
-                errors.append(f"{label} HTTP {r.status_code}: {_api_error_snippet(r)}")
+            j, code, curl_err = _curl_json_post(url, payload, headers, 300)
+            if curl_err or code >= 400:
+                errors.append(f"{label} HTTP {code}: {_api_error_snippet(j) if isinstance(j, dict) else (curl_err or '')}")
                 return None
-            j = r.json()
+            if not isinstance(j, dict):
+                errors.append(f"{label} 响应格式异常")
+                return None
             data = j.get("data", [])
             if not data:
                 errors.append(f"{label} 无返回数据")
@@ -2997,8 +3763,9 @@ def _run_analysis_generation(body: AnalysisGenerateRequest, batch_id: int) -> di
             img_bytes = None
             if isinstance(item, dict):
                 if item.get("url"):
-                    ir = requests.get(item["url"], timeout=120)
-                    img_bytes = ir.content if ir.status_code < 400 else None
+                    img_bytes, dcode = _curl_download_bytes(item["url"], 300)
+                    if dcode >= 400:
+                        img_bytes = None
                 elif item.get("b64_json"):
                     img_bytes = base64.b64decode(item["b64_json"])
             if not img_bytes:
@@ -3124,12 +3891,11 @@ def api_fetch_novel(body: FetchNovelRequest):
 
 
 @app.post("/api/generate-from-analysis")
-def api_generate_from_analysis(body: AnalysisGenerateRequest):
+def api_generate_from_analysis(body: AnalysisGenerateRequest, user: dict = Depends(get_current_user)):
     """从小说分析结果异步生成图片"""
     if not body.api_key.strip():
         raise HTTPException(status_code=400, detail="缺少 API Key")
-    batch_id = allocate_batch_id(OUTPUT_ROOT)
-    (OUTPUT_ROOT / str(batch_id)).mkdir(parents=True, exist_ok=True)
+    batch_id = _init_batch(user["id"])
     _register_batch(batch_id)
     _update_progress(batch_id, 0, "任务已提交，正在启动...", "running")
     _EXECUTOR.submit(_run_analysis_generation, body, batch_id)
@@ -3154,83 +3920,88 @@ class PromptGenerateRequest(BaseModel):
     text_right_list: List[str] = []
 
 @app.post("/api/generate-from-prompts")
-def api_generate_from_prompts(body: PromptGenerateRequest):
-    """根据提示词直接生成图片，同步返回结果"""
-    batch_id = allocate_batch_id(OUTPUT_ROOT)
-    batch_dir = OUTPUT_ROOT / str(batch_id)
-    batch_dir.mkdir(parents=True, exist_ok=True)
+def api_generate_from_prompts(body: PromptGenerateRequest, user: dict = Depends(get_current_user)):
+    """根据提示词生成图片（后台执行，立即返回 batch_id）"""
+    batch_id = _init_batch(user["id"])
 
     if not body.api_key.strip() or not body.prompts:
         raise HTTPException(status_code=400, detail="缺少 API Key 或提示词")
 
-    headers = {"Authorization": f"Bearer {body.api_key}", "Content-Type": "application/json"}
-    base_url = body.api_url.rstrip("/") + "/images/generations"
+    # 提交到后台线程
+    def _bg_generate():
+        batch_dir = OUTPUT_ROOT / str(batch_id)
+        headers = {"Authorization": f"Bearer {body.api_key}", "Content-Type": "application/json"}
+        base_url = body.api_url.rstrip("/") + "/images/generations"
+        results = []
+        errors = []
+        used_prompts = []
 
-    results = []
-    errors = []
-    used_prompts = []
-
-    for i, prompt in enumerate(body.prompts):
-        if not prompt.strip():
-            continue
-        size = body.sizes[i] if i < len(body.sizes) else "1024x1024"
-        clean_prompt = prompt.strip()
-
-        payload = {"model": body.image_model_name, "prompt": clean_prompt, "size": size, "n": 1}
-        try:
-            r = requests.post(base_url, json=payload, headers=headers, timeout=120)
-            if r.status_code >= 400:
-                errors.append(f"第{i+1}张 HTTP {r.status_code}: {_api_error_snippet(r)}")
+        for i, prompt in enumerate(body.prompts):
+            if not prompt.strip():
                 continue
-            j = r.json()
-            data = j.get("data", [])
-            if not data:
-                errors.append(f"第{i+1}张无返回数据")
-                continue
-            item = data[0]
-            img_bytes = None
-            if isinstance(item, dict):
-                if item.get("url"):
-                    ir = requests.get(item["url"], timeout=120)
-                    img_bytes = ir.content if ir.status_code < 400 else None
-                elif item.get("b64_json"):
-                    img_bytes = base64.b64decode(item["b64_json"])
-            if not img_bytes:
-                errors.append(f"第{i+1}张无法获取图片数据")
-                continue
+            size = body.sizes[i] if i < len(body.sizes) else "1024x1024"
+            clean_prompt = prompt.strip()
 
-            fname = f"{batch_id}-{i+1}.png"
-            fpath = batch_dir / fname
-            with open(fpath, "wb") as f:
-                f.write(img_bytes)
+            payload = {"model": body.image_model_name, "prompt": clean_prompt, "size": size, "n": 1}
+            try:
+                j, code, curl_err = _curl_json_post(base_url, payload, headers, 300)
+                if curl_err or code >= 400:
+                    errors.append(f"第{i+1}张 HTTP {code}: {_api_error_snippet(j) if isinstance(j, dict) else (curl_err or '')}")
+                    continue
+                if not isinstance(j, dict):
+                    errors.append(f"第{i+1}张响应格式异常")
+                    continue
+                data = j.get("data", [])
+                if not data:
+                    errors.append(f"第{i+1}张无返回数据")
+                    continue
+                item = data[0]
+                img_bytes = None
+                if isinstance(item, dict):
+                    if item.get("url"):
+                        img_bytes, dcode = _curl_download_bytes(item["url"], 300)
+                        if dcode >= 400:
+                            img_bytes = None
+                    elif item.get("b64_json"):
+                        img_bytes = base64.b64decode(item["b64_json"])
+                if not img_bytes:
+                    errors.append(f"第{i+1}张无法获取图片数据")
+                    continue
 
-            if body.with_text:
-                tb = body.text_bottom_list[i] if i < len(body.text_bottom_list) else ""
-                tl = body.text_left_list[i] if i < len(body.text_left_list) else ""
-                tr = body.text_right_list[i] if i < len(body.text_right_list) else ""
-                if tb or tl or tr:
-                    try:
-                        composite_text_on_image(fpath, text_bottom=tb, text_left=tl, text_right=tr)
-                    except Exception as e:
-                        errors.append(f"第{i+1}张文字合成失败: {e}")
+                fname = f"{batch_id}-{i+1}.png"
+                fpath = batch_dir / fname
+                with open(fpath, "wb") as f:
+                    f.write(img_bytes)
 
-            results.append(f"/static/output/{batch_id}/{fname}")
-            used_prompts.append({"label": f"提示词{i+1}", "type": "prompt", "prompt": prompt.strip()})
-        except Exception as e:
-            errors.append(f"第{i+1}张异常: {e}")
+                if body.with_text:
+                    tb = body.text_bottom_list[i] if i < len(body.text_bottom_list) else ""
+                    tl = body.text_left_list[i] if i < len(body.text_left_list) else ""
+                    tr = body.text_right_list[i] if i < len(body.text_right_list) else ""
+                    if tb or tl or tr:
+                        try:
+                            composite_text_on_image(fpath, text_bottom=tb, text_left=tl, text_right=tr)
+                        except Exception as e:
+                            errors.append(f"第{i+1}张文字合成失败: {e}")
 
-    meta = {
-        "batch_id": batch_id,
-        "status": "success" if results else "failed",
-        "message": f"生成 {len(results)}/{len(body.prompts)} 张",
-        "images": results,
-        "videos": [],
-        "errors": errors,
-        "used_prompts": used_prompts,
-        "chat_status": "skipped",
-    }
-    _save_batch_meta(meta)
-    return meta
+                results.append(f"/static/output/{batch_id}/{fname}")
+                used_prompts.append({"label": f"提示词{i+1}", "type": "prompt", "prompt": prompt.strip()})
+            except Exception as e:
+                errors.append(f"第{i+1}张异常: {e}")
+
+        meta = {
+            "batch_id": batch_id,
+            "status": "success" if results else "failed",
+            "message": f"生成 {len(results)}/{len(body.prompts)} 张",
+            "images": results,
+            "videos": [],
+            "errors": errors,
+            "used_prompts": used_prompts,
+            "chat_status": "skipped",
+        }
+        _save_batch_meta(meta)
+
+    _EXECUTOR.submit(_bg_generate)
+    return {"batch_id": batch_id, "status": "started", "message": "已提交后台生成"}
 
 
 # ====== 小说分析 API ======
@@ -3291,10 +4062,12 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
     }
 
     try:
-        r = requests.post(url, json=payload, headers=headers, timeout=300)
-        if r.status_code >= 400:
-            raise HTTPException(status_code=502, detail=f"Chat API 错误: {r.text[:500]}")
-        raw = r.json()["choices"][0]["message"]["content"].strip()
+        j, code, curl_err = _curl_json_post(url, payload, headers, 300)
+        if curl_err or code >= 400:
+            return {"status": "failed", "error": f"Chat API HTTP {code}: {str(j)[:300] if j else (curl_err or '')}"}
+        if not isinstance(j, dict):
+            return {"status": "failed", "error": "Chat API 响应格式异常"}
+        raw = j["choices"][0]["message"]["content"].strip()
         if raw.startswith("```"):
             lines = raw.split("\n")
             if lines and lines[0].startswith("```"):
@@ -3322,46 +4095,55 @@ class MetaAccountBody(BaseModel):
     status: str = "active"
 
 @app.get("/api/meta/accounts")
-def _get_meta_accounts():
-    return database.get_meta_accounts()
+def _get_meta_accounts(user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    return database.get_meta_accounts(uid)
 
 @app.post("/api/meta/accounts")
-def _add_meta_account(body: MetaAccountBody):
+def _add_meta_account(body: MetaAccountBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
     database.upsert_meta_account(
-        body.act_id, body.act_name, body.access_token, body.pingykj_account, body.status
+        body.act_id, body.act_name, body.access_token, body.pingykj_account, body.status, uid
     )
     return {"success": True}
 
 @app.put("/api/meta/accounts/{act_id}")
-def _update_meta_account(act_id: str, body: MetaAccountBody):
+def _update_meta_account(act_id: str, body: MetaAccountBody,
+                          user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
     database.upsert_meta_account(
-        act_id, body.act_name, body.access_token, body.pingykj_account, body.status
+        act_id, body.act_name, body.access_token, body.pingykj_account, body.status, uid
     )
     return {"success": True}
 
 @app.delete("/api/meta/accounts/{act_id}")
-def _delete_meta_account(act_id: str):
-    database.delete_meta_account(act_id)
+def _delete_meta_account(act_id: str, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    database.delete_meta_account(act_id, uid)
     return {"success": True}
 
 class TokenRefreshBody(BaseModel):
     access_token: str
 
 @app.post("/api/meta/accounts/{act_id}/refresh-token")
-def _refresh_meta_token(act_id: str, body: TokenRefreshBody):
-    database.update_meta_token(act_id, body.access_token)
+def _refresh_meta_token(act_id: str, body: TokenRefreshBody,
+                         user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    database.update_meta_token(act_id, body.access_token, uid)
     return {"success": True}
 
 # ---- Meta 数据同步控制 API ----
 
 @app.post("/api/meta/sync")
-def _trigger_meta_sync():
-    result = scraper.sync_all_meta_insights()
+def _trigger_meta_sync(user: dict = Depends(get_current_user)):
+    uid = user["id"]
+    result = scraper.sync_all_meta_insights(uid)
     return result
 
 @app.get("/api/meta/sync-status")
-def _meta_sync_status():
-    accounts = database.get_meta_accounts()
+def _meta_sync_status(user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    accounts = database.get_meta_accounts(uid)
     active = [a for a in accounts if a.get("status") == "active"]
     return {
         "total_accounts": len(accounts),
@@ -3370,20 +4152,20 @@ def _meta_sync_status():
             {
                 "act_id": a["act_id"],
                 "act_name": a["act_name"],
-                "last_sync": database.get_meta_sync_state(a["act_id"]),
+                "last_sync": database.get_meta_sync_state(a["act_id"], uid),
             }
             for a in active
         ]
     }
 
 @app.get("/api/meta/sync-interval")
-def _get_meta_sync_interval():
+def _get_meta_sync_interval(user: dict = Depends(get_current_user)):
     config_path = Path("config.json")
     config = json.loads(config_path.read_text(encoding="utf-8"))
     return {"interval": config.get("meta", {}).get("sync_interval_seconds", 300)}
 
 @app.post("/api/meta/sync-interval")
-async def _set_meta_sync_interval(request: Request):
+async def _set_meta_sync_interval(request: Request, user: dict = Depends(get_current_admin)):
     body = await request.json()
     seconds = int(body.get("interval", 300))
     config_path = Path("config.json")
@@ -3396,8 +4178,9 @@ async def _set_meta_sync_interval(request: Request):
 # ---- 投放模板管理 API ----
 
 @app.get("/api/delivery/templates")
-def _get_delivery_templates():
-    return database.get_delivery_templates()
+def _get_delivery_templates(user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    return database.get_delivery_templates(uid)
 
 class CreateTemplateBody(BaseModel):
     name: str
@@ -3412,25 +4195,31 @@ class CreateTemplateBody(BaseModel):
     ad_account_id: str = ""
 
 @app.post("/api/delivery/templates")
-def _create_delivery_template(body: CreateTemplateBody):
-    tid = database.create_delivery_template(body.model_dump())
+def _create_delivery_template(body: CreateTemplateBody,
+                                user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    tid = database.create_delivery_template(body.model_dump(), uid)
     return {"success": True, "id": tid}
 
 @app.put("/api/delivery/templates/{template_id}")
-async def _update_delivery_template(template_id: int, request: Request):
+async def _update_delivery_template(template_id: int, request: Request,
+                                      user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
     body = await request.json()
-    database.update_delivery_template(template_id, body)
+    database.update_delivery_template(template_id, body, uid)
     return {"success": True}
 
 @app.delete("/api/delivery/templates/{template_id}")
-def _delete_delivery_template(template_id: int):
-    database.delete_delivery_template(template_id)
+def _delete_delivery_template(template_id: int, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    database.delete_delivery_template(template_id, uid)
     return {"success": True}
 
 @app.get("/api/delivery/templates/fb-adsets/{account_id}")
-def _get_fb_adsets(account_id: str):
+def _get_fb_adsets(account_id: str, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
     token = None
-    account = database.get_meta_account(account_id)
+    account = database.get_meta_account(account_id, uid)
     if account:
         token = account.get("access_token")
     if not token:
@@ -3446,9 +4235,11 @@ class ImportTemplateBody(BaseModel):
     name: str = ""
 
 @app.post("/api/delivery/templates/import")
-def _import_template_from_fb(body: ImportTemplateBody):
+def _import_template_from_fb(body: ImportTemplateBody,
+                              user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
     token = None
-    account = database.get_meta_account(body.account_id)
+    account = database.get_meta_account(body.account_id, uid)
     if account:
         token = account.get("access_token")
     if not token:
@@ -3483,7 +4274,7 @@ def _import_template_from_fb(body: ImportTemplateBody):
             if target_adset.get("promoted_object") else ""
         ),
         "ad_account_id": body.account_id,
-    })
+    }, uid)
     return {"success": True, "id": tid}
 
 # ---- 投放队列管理 API ----
@@ -3492,16 +4283,20 @@ class AddToQueueBody(BaseModel):
     items: list
 
 @app.post("/api/delivery/queue")
-def _add_to_delivery_queue(body: AddToQueueBody):
-    count = database.add_to_delivery_queue(body.items)
+def _add_to_delivery_queue(body: AddToQueueBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    count = database.add_to_delivery_queue(body.items, uid)
     return {"success": True, "count": count}
 
 @app.get("/api/delivery/queue")
-def _get_delivery_queue(page: int = 1, page_size: int = 20, status: str = None):
-    return database.get_delivery_queue(page, page_size, status)
+def _get_delivery_queue(page: int = 1, page_size: int = 20, status: str = None,
+                         user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    return database.get_delivery_queue(page, page_size, status, uid)
 
 @app.post("/api/delivery/queue/{queue_id}/approve")
-async def _approve_queue_item(queue_id: int, request: Request):
+async def _approve_queue_item(queue_id: int, request: Request,
+                                user: dict = Depends(get_current_user)):
     body = await request.json()
     template_id = body.get("template_id", 0)
     reviewer = body.get("reviewer", "")
@@ -3511,7 +4306,8 @@ async def _approve_queue_item(queue_id: int, request: Request):
     return {"success": True}
 
 @app.post("/api/delivery/queue/{queue_id}/reject")
-async def _reject_queue_item(queue_id: int, request: Request):
+async def _reject_queue_item(queue_id: int, request: Request,
+                               user: dict = Depends(get_current_user)):
     body = await request.json()
     reviewer = body.get("reviewer", "")
     database.update_queue_status(queue_id, "rejected", reviewer=reviewer)
@@ -3523,7 +4319,7 @@ class BatchApproveBody(BaseModel):
     reviewer: str = ""
 
 @app.post("/api/delivery/queue/batch-approve")
-def _batch_approve_queue(body: BatchApproveBody):
+def _batch_approve_queue(body: BatchApproveBody, user: dict = Depends(get_current_user)):
     database.batch_approve_queue(body.ids, body.template_id, body.reviewer)
     return {"success": True}
 
@@ -3532,14 +4328,15 @@ class SubmitDeliveryBody(BaseModel):
     template_id: int
 
 @app.post("/api/delivery/submit")
-def _submit_delivery(body: SubmitDeliveryBody):
-    batch_id, err = delivery.submit_delivery_batch(body.queue_ids, body.template_id)
+def _submit_delivery(body: SubmitDeliveryBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    batch_id, err = delivery.submit_delivery_batch(body.queue_ids, body.template_id, uid)
     if err:
         raise HTTPException(400, err)
     return {"success": True, "batch_id": batch_id}
 
 @app.get("/api/delivery/progress/{batch_id}")
-def _delivery_progress(batch_id: str):
+def _delivery_progress(batch_id: str, user: dict = Depends(get_current_user)):
     return delivery.get_delivery_progress(batch_id)
 
 @app.get("/api/delivery/stream/{batch_id}")
@@ -3577,32 +4374,42 @@ async def _delivery_stream(batch_id: str):
     return EventSourceResponse(_event_generator())
 
 @app.get("/api/delivery/records")
-def _get_delivery_records(page: int = 1, page_size: int = 20, status: str = None):
-    return database.get_delivery_records(page, page_size, status)
+def _get_delivery_records(page: int = 1, page_size: int = 20, status: str = None,
+                           user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    return database.get_delivery_records(page, page_size, status, uid)
 
 
 # ---- Meta 数据看板 API（独立，不混入 pingykj 看板） ----
 
 @app.get("/api/meta/summary")
 def _meta_summary(start: str = Query(default=None), end: str = Query(default=None),
-                  account: str = Query(default=None), keyword: str = Query(default=None)):
-    return analytics.meta_summary(start_date=start, end_date=end, account=account, keyword=keyword)
+                  account: str = Query(default=None), keyword: str = Query(default=None),
+                  user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    return analytics.meta_summary(start_date=start, end_date=end, account=account, keyword=keyword, user_id=uid)
 
 @app.get("/api/meta/daily-stats")
 def _meta_daily_stats(start: str = Query(default=None), end: str = Query(default=None),
                       account: str = Query(default=None), keyword: str = Query(default=None),
-                      page: int = Query(default=1), page_size: int = Query(default=20)):
+                      page: int = Query(default=1), page_size: int = Query(default=20),
+                      user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
     return analytics.meta_daily_stats(start_date=start, end_date=end, account=account,
-                                      keyword=keyword, page=page, page_size=page_size)
+                                      keyword=keyword, page=page, page_size=page_size, user_id=uid)
 
 @app.get("/api/meta/trend")
-def _meta_trend(days: int = Query(default=30), account: str = Query(default=None)):
-    return analytics.meta_trend(days=days, account=account)
+def _meta_trend(days: int = Query(default=30), account: str = Query(default=None),
+                user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    return analytics.meta_trend(days=days, account=account, user_id=uid)
 
 @app.get("/api/meta/account-ranking")
 def _meta_account_ranking(start: str = Query(default=None), end: str = Query(default=None),
-                          page: int = Query(default=1), page_size: int = Query(default=20)):
-    return analytics.meta_account_ranking(start_date=start, end_date=end, page=page, page_size=page_size)
+                          page: int = Query(default=1), page_size: int = Query(default=20),
+                          user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    return analytics.meta_account_ranking(start_date=start, end_date=end, page=page, page_size=page_size, user_id=uid)
 
 
 # ---- Meta 账户发现 API ----
@@ -3612,22 +4419,19 @@ class DiscoverBody(BaseModel):
 
 
 @app.post("/api/meta/discover")
-def _discover_meta_assets(body: DiscoverBody):
-    """用 access token 一键拉取所有有权访问的广告账户、BM、主页。
-    如果未传 token，自动使用 config.json 中保存的默认 token。"""
+def _discover_meta_assets(body: DiscoverBody, user: dict = Depends(get_current_user)):
+    """用 access token 一键拉取所有有权访问的广告账户、BM、主页。"""
     token = body.access_token.strip()
     if not token:
         config = _load_config()
         token = config.get("meta", {}).get("default_access_token", "")
     if not token:
         raise HTTPException(400, "未提供 Access Token。请在「Meta 数据」Tab 填写并保存配置。")
-    # Meta 账户状态映射
     _ACCOUNT_STATUS_MAP = {1: "active", 2: "disabled", 3: "unsettled", 7: "pending_review",
                            8: "pending_settlement", 9: "grace_period", 100: "pending_closure",
                            101: "closed"}
 
     result = meta_api.discover_all_assets(token)
-    # 合并所有来源的广告账户并去重
     all_accounts = []
     seen = set()
     for acct in result.get("ad_accounts", []):
@@ -3636,15 +4440,12 @@ def _discover_meta_assets(body: DiscoverBody):
             seen.add(aid)
             raw_status = acct.get("account_status", 1)
             all_accounts.append({
-                "id": aid,
-                "name": acct.get("name", ""),
+                "id": aid, "name": acct.get("name", ""),
                 "status": _ACCOUNT_STATUS_MAP.get(raw_status, f"unknown_{raw_status}"),
-                "raw_status": raw_status,
-                "currency": acct.get("currency", ""),
+                "raw_status": raw_status, "currency": acct.get("currency", ""),
                 "business_name": acct.get("business_name", ""),
                 "disable_reason": acct.get("disable_reason", ""),
             })
-    # 合并 BM 下的账户
     for bm_id, bm_data in result.get("bm_ad_accounts", {}).items():
         for acct in bm_data.get("accounts", []):
             aid = acct.get("id") or acct.get("account_id", "")
@@ -3652,11 +4453,9 @@ def _discover_meta_assets(body: DiscoverBody):
                 seen.add(aid)
                 raw_status = acct.get("account_status", 1)
                 all_accounts.append({
-                    "id": aid,
-                    "name": acct.get("name", ""),
+                    "id": aid, "name": acct.get("name", ""),
                     "status": _ACCOUNT_STATUS_MAP.get(raw_status, f"unknown_{raw_status}"),
-                    "raw_status": raw_status,
-                    "currency": acct.get("currency", ""),
+                    "raw_status": raw_status, "currency": acct.get("currency", ""),
                     "business_name": bm_data.get("name", ""),
                     "disable_reason": acct.get("disable_reason", ""),
                 })
@@ -3671,27 +4470,26 @@ def _discover_meta_assets(body: DiscoverBody):
 
 
 class ImportAccountBody(BaseModel):
-    accounts: list  # [{id, name, currency, business_name, ...}]
+    accounts: list
 
 
 @app.post("/api/meta/accounts/import")
-def _import_meta_accounts(body: ImportAccountBody):
+def _import_meta_accounts(body: ImportAccountBody,
+                           user: dict = Depends(get_current_user)):
     """批量导入/更新广告账户"""
+    uid = _opt_user_id(user)
     count = 0
     for acct in body.accounts:
         act_id = acct.get("id", "")
         if not act_id:
             continue
-        # 使用 Meta 返回的真实状态
         status = acct.get("status", "active")
         if status == "unknown" or not status:
             status = "active"
         database.upsert_meta_account(
-            act_id=act_id,
-            act_name=acct.get("name", ""),
-            access_token="",
-            pingykj_account=acct.get("business_name", ""),
-            status=status
+            act_id=act_id, act_name=acct.get("name", ""),
+            access_token="", pingykj_account=acct.get("business_name", ""),
+            status=status, user_id=uid
         )
         count += 1
     return {"success": True, "count": count}
@@ -3710,13 +4508,13 @@ class MetaConfigBody(BaseModel):
 
 
 @app.get("/api/meta/config")
-def _get_meta_config():
+def _get_meta_config(user: dict = Depends(get_current_user)):
     config = _load_config()
     meta = config.get("meta", {})
     return {
         "app_id": meta.get("app_id", ""),
-        "app_secret": "",  # 不返回密钥明文
-        "default_access_token": "",  # 不返回 token 明文
+        "app_secret": "",
+        "default_access_token": "",
         "api_version": meta.get("api_version", "v25.0"),
         "sync_interval_seconds": meta.get("sync_interval_seconds", 300),
         "rate_limit_per_second": meta.get("rate_limit_per_second", 4),
@@ -3725,7 +4523,7 @@ def _get_meta_config():
 
 
 @app.post("/api/meta/config")
-def _save_meta_config(body: MetaConfigBody):
+def _save_meta_config(body: MetaConfigBody, user: dict = Depends(get_current_admin)):
     config_path = Path("config.json")
     config = _load_config()
     meta = config.get("meta", {})

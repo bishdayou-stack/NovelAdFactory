@@ -21,10 +21,19 @@ def _add_keyword(where: List[str], params: List, keyword: str) -> None:
         params.extend([keyword, keyword, keyword])
 
 
+def _add_user_filter(where: List[str], params: List, user_id: int, prefix: str = ""):
+    """添加 user_id 过滤条件"""
+    if user_id is not None:
+        col = f"{prefix}user_id" if prefix else "user_id"
+        where.append(f"{col} = ?")
+        params.append(user_id)
+    # user_id=None 表示管理员看全部，不加过滤
+
+
 # ====== KPI 汇总 ======
 
 def get_summary(start_date: str = None, end_date: str = None, account: str = None,
-                keyword: str = None) -> Dict[str, Any]:
+                keyword: str = None, user_id: int = None) -> Dict[str, Any]:
     with database.get_conn() as conn:
         where = ["1=1"]
         params = []
@@ -38,6 +47,7 @@ def get_summary(start_date: str = None, end_date: str = None, account: str = Non
             where.append("ad_account = ?")
             params.append(account)
         _add_keyword(where, params, keyword)
+        _add_user_filter(where, params, user_id)
 
         sql = f"""
             SELECT
@@ -68,6 +78,7 @@ def get_summary(start_date: str = None, end_date: str = None, account: str = Non
                 OR json_extract(extra_data, '$.adName') LIKE '%' || ? || '%'
             )""")
             order_params.extend([keyword, keyword])
+        _add_user_filter(order_where, order_params, user_id)
 
         order_row = conn.execute(
             f"SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS total_amount FROM orders WHERE {' AND '.join(order_where)}",
@@ -97,7 +108,7 @@ def get_summary(start_date: str = None, end_date: str = None, account: str = Non
 
 def get_daily_stats(start_date: str = None, end_date: str = None, account: str = None,
                     keyword: str = None, order_by: str = "date",
-                    page: int = 1, page_size: int = 20) -> dict:
+                    page: int = 1, page_size: int = 20, user_id: int = None) -> dict:
     """返回 {"data": [...], "total": N, "page": 1, "page_size": 20}"""
     with database.get_conn() as conn:
         where = ["1=1"]
@@ -112,6 +123,7 @@ def get_daily_stats(start_date: str = None, end_date: str = None, account: str =
             where.append("ad_account = ?")
             params.append(account)
         _add_keyword(where, params, keyword)
+        _add_user_filter(where, params, user_id)
 
         allowed_order = {"date", "ad_account", "total_spend", "total_revenue"}
         if order_by not in allowed_order:
@@ -119,26 +131,26 @@ def get_daily_stats(start_date: str = None, end_date: str = None, account: str =
 
         where_clause = ' AND '.join(where)
 
-        # 总数
         total_row = conn.execute(
             f"SELECT COUNT(*) AS cnt FROM ad_daily_stats WHERE {where_clause}", params
         ).fetchone()
         total = total_row["cnt"]
 
-        # 分页数据
         offset = (page - 1) * page_size
         sql = f"""
-            SELECT date, ad_account, total_spend, total_revenue,
-                   CASE WHEN total_spend > 0 THEN ROUND(total_revenue / total_spend, 2) ELSE 0 END AS roi,
-                   ad_count, impressions, clicks
-            FROM ad_daily_stats
+            SELECT a.date, a.ad_account, a.total_spend, a.total_revenue,
+                   CASE WHEN a.total_spend > 0 THEN ROUND(a.total_revenue / a.total_spend, 2) ELSE 0 END AS roi,
+                   a.ad_count, a.impressions, a.clicks, a.user_id,
+                   CASE WHEN u.display_name IS NOT NULL AND u.display_name != '' THEN u.display_name ELSE COALESCE(u.username, '') END AS user_name
+            FROM ad_daily_stats a
+            LEFT JOIN users u ON a.user_id = u.id
             WHERE {where_clause}
-            ORDER BY {order_by} DESC, ad_account
+            ORDER BY {order_by} DESC, a.ad_account
             LIMIT ? OFFSET ?
         """
         rows = conn.execute(sql, params + [page_size, offset]).fetchall()
 
-        aliases = database.get_account_aliases()
+        aliases = database.get_account_aliases(user_id)
         results = []
         for r in rows:
             d = dict(r)
@@ -150,7 +162,8 @@ def get_daily_stats(start_date: str = None, end_date: str = None, account: str =
 
 # ====== 趋势数据 ======
 
-def get_trend(days: int = 30, account: str = None, keyword: str = None) -> List[Dict[str, Any]]:
+def get_trend(days: int = 30, account: str = None, keyword: str = None,
+              user_id: int = None) -> List[Dict[str, Any]]:
     with database.get_conn() as conn:
         where = ["date >= date('now', ?)"]
         params = [f"-{days} days"]
@@ -158,6 +171,7 @@ def get_trend(days: int = 30, account: str = None, keyword: str = None) -> List[
             where.append("ad_account = ?")
             params.append(account)
         _add_keyword(where, params, keyword)
+        _add_user_filter(where, params, user_id)
 
         sql = f"""
             SELECT date, SUM(total_spend) AS spend, SUM(total_revenue) AS revenue,
@@ -180,14 +194,14 @@ def get_trend(days: int = 30, account: str = None, keyword: str = None) -> List[
 
 # ====== 账户列表 ======
 
-def get_accounts() -> list:
+def get_accounts(user_id: int = None) -> list:
     """返回账户列表，含别名"""
-    return database.get_account_display_list()
+    return database.get_account_display_list(user_id)
 
 
-def _account_display(account_id: str) -> str:
+def _account_display(account_id: str, user_id: int = None) -> str:
     """将账户 ID 转为可读名称（别名 或 ID + 计划名）"""
-    aliases = database.get_account_aliases()
+    aliases = database.get_account_aliases(user_id)
     if account_id in aliases:
         return aliases[account_id]
     return account_id
@@ -196,7 +210,8 @@ def _account_display(account_id: str) -> str:
 # ====== 账户排名 ======
 
 def get_account_ranking(start_date: str = None, end_date: str = None,
-                         keyword: str = None, page: int = 1, page_size: int = 20) -> dict:
+                         keyword: str = None, page: int = 1, page_size: int = 20,
+                         user_id: int = None) -> dict:
     with database.get_conn() as conn:
         where = ["1=1"]
         params = []
@@ -207,27 +222,28 @@ def get_account_ranking(start_date: str = None, end_date: str = None,
             where.append("date <= ?")
             params.append(end_date)
         _add_keyword(where, params, keyword)
+        _add_user_filter(where, params, user_id)
         where_clause = ' AND '.join(where)
 
-        # 总数
         total = conn.execute(
             f"SELECT COUNT(DISTINCT ad_account) AS cnt FROM ad_daily_stats WHERE {where_clause}", params
         ).fetchone()["cnt"]
 
-        # 分页
         offset = (page - 1) * page_size
         sql = f"""
-            SELECT ad_account, SUM(total_spend) AS spend, SUM(total_revenue) AS revenue,
-                   CASE WHEN SUM(total_spend) > 0 THEN ROUND(SUM(total_revenue) / SUM(total_spend), 2) ELSE 0 END AS roi,
-                   SUM(ad_count) AS total_ads
-            FROM ad_daily_stats
+            SELECT a.ad_account, SUM(a.total_spend) AS spend, SUM(a.total_revenue) AS revenue,
+                   CASE WHEN SUM(a.total_spend) > 0 THEN ROUND(SUM(a.total_revenue) / SUM(a.total_spend), 2) ELSE 0 END AS roi,
+                   SUM(a.ad_count) AS total_ads, a.user_id,
+                   CASE WHEN u.display_name IS NOT NULL AND u.display_name != '' THEN u.display_name ELSE COALESCE(u.username, '') END AS user_name
+            FROM ad_daily_stats a
+            LEFT JOIN users u ON a.user_id = u.id
             WHERE {where_clause}
-            GROUP BY ad_account
+            GROUP BY a.ad_account, a.user_id
             ORDER BY spend DESC
             LIMIT ? OFFSET ?
         """
         rows = conn.execute(sql, params + [page_size, offset]).fetchall()
-        aliases = database.get_account_aliases()
+        aliases = database.get_account_aliases(user_id)
         results = []
         for r in rows:
             d = dict(r)
@@ -239,14 +255,18 @@ def get_account_ranking(start_date: str = None, end_date: str = None,
 
 # ====== 异常检测 ======
 
-def detect_anomalies(days: int = 30, threshold_sigma: float = 2.0) -> List[Dict[str, Any]]:
+def detect_anomalies(days: int = 30, threshold_sigma: float = 2.0,
+                     user_id: int = None) -> List[Dict[str, Any]]:
     with database.get_conn() as conn:
-        rows = conn.execute("""
+        where = ["date >= date('now', ?)"]
+        params = [f"-{days} days"]
+        _add_user_filter(where, params, user_id)
+        rows = conn.execute(f"""
             SELECT date, SUM(total_spend) AS spend
             FROM ad_daily_stats
-            WHERE date >= date('now', ?)
+            WHERE {' AND '.join(where)}
             GROUP BY date ORDER BY date
-        """, (f"-{days} days",)).fetchall()
+        """, params).fetchall()
 
     if len(rows) < 5:
         return []
@@ -273,7 +293,7 @@ def detect_anomalies(days: int = 30, threshold_sigma: float = 2.0) -> List[Dict[
 # ====== 订单查询 ======
 
 def get_orders(start_date: str = None, end_date: str = None, keyword: str = None,
-               page: int = 1, page_size: int = 15) -> dict:
+               page: int = 1, page_size: int = 15, user_id: int = None) -> dict:
     with database.get_conn() as conn:
         where = ["status = '成功'"]
         params = []
@@ -289,6 +309,7 @@ def get_orders(start_date: str = None, end_date: str = None, keyword: str = None
                 OR json_extract(extra_data, '$.adName') LIKE '%' || ? || '%'
             )""")
             params.extend([keyword, keyword])
+        _add_user_filter(where, params, user_id)
 
         where_clause = ' AND '.join(where)
         total = conn.execute(
@@ -297,12 +318,16 @@ def get_orders(start_date: str = None, end_date: str = None, keyword: str = None
 
         offset = (page - 1) * page_size
         sql = f"""
-            SELECT order_id, order_date, amount, status, ad_account, synced_at,
-                   json_extract(extra_data, '$.campaignLinkId_dictText') AS promotion_link_name,
-                   json_extract(extra_data, '$.adId') AS ad_id
-            FROM orders
+            SELECT o.order_id, o.order_date, o.amount, o.status, o.ad_account, o.synced_at,
+                   json_extract(o.extra_data, '$.campaignLinkId_dictText') AS promotion_link_name,
+                   json_extract(o.extra_data, '$.adId') AS ad_id,
+                   json_extract(o.customer_info, '$.novelName') AS novel_name,
+                   json_extract(o.customer_info, '$.novelId') AS novel_id,
+                   o.user_id, CASE WHEN u.display_name IS NOT NULL AND u.display_name != '' THEN u.display_name ELSE COALESCE(u.username, '') END AS user_name
+            FROM orders o
+            LEFT JOIN users u ON o.user_id = u.id
             WHERE {where_clause}
-            ORDER BY order_date DESC
+            ORDER BY o.order_date DESC
             LIMIT ? OFFSET ?
         """
         rows = conn.execute(sql, params + [page_size, offset]).fetchall()
@@ -312,8 +337,10 @@ def get_orders(start_date: str = None, end_date: str = None, keyword: str = None
 # ====== 小说订单汇总 ======
 
 def get_novel_stats(start_date: str = None, end_date: str = None,
-                    keyword: str = None) -> List[Dict[str, Any]]:
-    """按小说（novelId + novelName）汇总订单，返回列表按金额降序"""
+                    keyword: str = None, user_id: int = None,
+                    sort_by: str = "order_count",
+                    page: int = 1, page_size: int = 20) -> dict:
+    """按小说汇总订单，默认按订单量降序，支持翻页"""
     import json as _json
     with database.get_conn() as conn:
         where = ["status = '成功'"]
@@ -324,6 +351,7 @@ def get_novel_stats(start_date: str = None, end_date: str = None,
         if end_date:
             where.append("date(order_date) <= ?")
             params.append(end_date)
+        _add_user_filter(where, params, user_id)
 
         sql = f"""
             SELECT customer_info, amount
@@ -332,7 +360,6 @@ def get_novel_stats(start_date: str = None, end_date: str = None,
         """
         rows = conn.execute(sql, params).fetchall()
 
-        # customer_info 是双重 JSON 编码的字符串，需解析后分组
         groups: Dict[str, Dict] = {}
         for r in rows:
             ci = r["customer_info"]
@@ -350,7 +377,6 @@ def get_novel_stats(start_date: str = None, end_date: str = None,
             if not nid and not name:
                 continue
 
-            # 关键词筛选
             if keyword:
                 kw = keyword.lower()
                 if kw not in name.lower() and kw not in nid.lower():
@@ -363,8 +389,15 @@ def get_novel_stats(start_date: str = None, end_date: str = None,
             groups[key]["total_amount"] += r["amount"] or 0
 
         result = list(groups.values())
-        result.sort(key=lambda x: x["total_amount"], reverse=True)
-        return result
+        if sort_by == "total_amount":
+            result.sort(key=lambda x: x["total_amount"], reverse=True)
+        else:
+            result.sort(key=lambda x: x["order_count"], reverse=True)
+
+        total = len(result)
+        offset = (page - 1) * page_size
+        paged = result[offset:offset + page_size]
+        return {"data": paged, "total": total, "page": page, "page_size": page_size}
 
 
 # ====== Meta 数据看板（source='meta'，含 Meta 特有指标） ======
@@ -382,10 +415,12 @@ def _meta_where(where, params, start_date, end_date, account, keyword):
         params.extend([f"%{keyword}%", f"%{keyword}%"])
 
 
-def meta_summary(start_date=None, end_date=None, account=None, keyword=None):
+def meta_summary(start_date=None, end_date=None, account=None, keyword=None,
+                 user_id=None):
     with database.get_conn() as conn:
         where, params = [], []
         _meta_where(where, params, start_date, end_date, account, keyword)
+        _add_user_filter(where, params, user_id)
         row = conn.execute(f"""
             SELECT COALESCE(SUM(total_spend),0) AS spend, COALESCE(SUM(total_revenue),0) AS revenue,
                    COUNT(DISTINCT date) AS days, COUNT(DISTINCT ad_account) AS accounts,
@@ -412,12 +447,13 @@ def meta_summary(start_date=None, end_date=None, account=None, keyword=None):
 
 
 def meta_daily_stats(start_date=None, end_date=None, account=None, keyword=None,
-                     page=1, page_size=20):
+                     page=1, page_size=20, user_id=None):
     with database.get_conn() as conn:
         where, params = [], []
         _meta_where(where, params, start_date, end_date, account, keyword)
+        _add_user_filter(where, params, user_id, prefix="a.")
         wc = ' AND '.join(where)
-        total = conn.execute(f"SELECT COUNT(DISTINCT date||ad_account) AS cnt FROM ad_daily_stats WHERE {wc}", params).fetchone()["cnt"]
+        total = conn.execute(f"SELECT COUNT(DISTINCT a.date||a.ad_account) AS cnt FROM ad_daily_stats a WHERE {wc}", params).fetchone()["cnt"]
         rows = conn.execute(f"""
             SELECT a.date, a.ad_account, m.act_name,
                    SUM(a.total_spend) AS total_spend, SUM(a.total_revenue) AS total_revenue,
@@ -434,11 +470,12 @@ def meta_daily_stats(start_date=None, end_date=None, account=None, keyword=None,
         return {"data": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
 
 
-def meta_trend(days=30, account=None):
+def meta_trend(days=30, account=None, user_id=None):
     with database.get_conn() as conn:
         where, params = ["source='meta'", "date >= date('now', ?)"], [f"-{days} days"]
         if account:
             where.append("ad_account = ?"); params.append(account)
+        _add_user_filter(where, params, user_id)
         rows = conn.execute(f"""
             SELECT date, SUM(total_spend) AS spend, SUM(total_revenue) AS revenue,
                    SUM(purchases) AS purchases, SUM(impressions) AS impressions,
@@ -454,10 +491,12 @@ def meta_trend(days=30, account=None):
         return data
 
 
-def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20):
+def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20,
+                         user_id=None):
     with database.get_conn() as conn:
         where, params = [], []
         _meta_where(where, params, start_date, end_date, None, None)
+        _add_user_filter(where, params, user_id, prefix="a.")
         rows = conn.execute(f"""
             SELECT a.ad_account, m.act_name, SUM(a.total_spend) AS spend,
                    SUM(a.total_revenue) AS revenue, SUM(a.purchases) AS purchases,
@@ -468,3 +507,69 @@ def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20):
             GROUP BY a.ad_account ORDER BY spend DESC LIMIT ? OFFSET ?
         """, params + [page_size, (page-1)*page_size]).fetchall()
         return [dict(r) for r in rows]
+
+
+# ====== 用户汇总排名 ======
+
+def get_user_ranking(start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
+    """按用户汇总消耗/收入/ROI/订单/CPA，用于管理员数据看板
+    消耗来源：书城 ad_daily_stats（source='pingykj'）
+    收入/订单来源：书城 orders 表（status='成功'）的实际支付金额
+    """
+    with database.get_conn() as conn:
+        where_ads = ["a.source = 'pingykj'"]
+        where_orders = ["o.status = '成功'"]
+        params_ads = []
+        params_orders = []
+        if start_date:
+            where_ads.append("a.date >= ?")
+            params_ads.append(start_date)
+            where_orders.append("date(o.order_date) >= ?")
+            params_orders.append(start_date)
+        if end_date:
+            where_ads.append("a.date <= ?")
+            params_ads.append(end_date)
+            where_orders.append("date(o.order_date) <= ?")
+            params_orders.append(end_date)
+
+        # 按用户汇总广告消耗（来自 ad_daily_stats pingykj）
+        ads_sql = f"""
+            SELECT a.user_id, u.username,
+                   CASE WHEN u.display_name IS NOT NULL AND u.display_name != '' THEN u.display_name ELSE u.username END AS display_name,
+                   SUM(a.total_spend) AS total_spend
+            FROM ad_daily_stats a
+            LEFT JOIN users u ON a.user_id = u.id
+            WHERE {' AND '.join(where_ads)}
+            GROUP BY a.user_id
+        """
+        ad_rows = conn.execute(ads_sql, params_ads).fetchall()
+
+        # 按用户汇总成功订单的实际收入（来自 orders 表）
+        order_sql = f"""
+            SELECT o.user_id, COUNT(*) AS order_count, COALESCE(SUM(o.amount), 0) AS total_revenue
+            FROM orders o
+            WHERE {' AND '.join(where_orders)}
+            GROUP BY o.user_id
+        """
+        order_rows = conn.execute(order_sql, params_orders).fetchall()
+        order_map = {r["user_id"]: (r["order_count"], r["total_revenue"]) for r in order_rows}
+
+        results = []
+        for r in ad_rows:
+            uid = r["user_id"]
+            spend = r["total_spend"] or 0
+            orders, order_revenue = order_map.get(uid, (0, 0))
+            roi = round(order_revenue / spend, 2) if spend > 0 else 0
+            cpa = round(spend / orders, 2) if orders > 0 else 0
+            results.append({
+                "user_id": uid,
+                "user_name": r["display_name"] or r["username"],
+                "total_spend": round(spend, 2),
+                "total_revenue": round(order_revenue, 2),
+                "roi": roi,
+                "order_count": orders,
+                "cpa": cpa,
+            })
+
+        results.sort(key=lambda x: x["total_spend"], reverse=True)
+        return results
