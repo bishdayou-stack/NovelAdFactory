@@ -424,6 +424,11 @@ def init_db() -> None:
                     conn.execute("ALTER TABLE users ADD COLUMN last_login_ip TEXT DEFAULT ''")
                 except Exception:
                     pass
+            if "pingykj_offline_at" not in cols_users:
+                try:
+                    conn.execute("ALTER TABLE users ADD COLUMN pingykj_offline_at TIMESTAMP")
+                except Exception:
+                    pass
 
         # 确保 user_config 表存在（幂等，每次启动都检查）
         conn.execute("""
@@ -674,7 +679,7 @@ def list_users() -> List[Dict[str, Any]]:
             SELECT id, username, role, display_name, is_active,
                    pingykj_username,
                    CASE WHEN pingykj_password_encrypted != '' THEN '******' ELSE '' END as pingykj_password_masked,
-                   last_login_at, last_login_ip,
+                   last_login_at, last_login_ip, pingykj_offline_at,
                    created_at, updated_at
             FROM users ORDER BY created_at DESC
         """).fetchall()
@@ -784,6 +789,15 @@ def set_session_token(user_id: int, token: str, expires_at: str, ip: str = "") -
             "UPDATE users SET session_token = ?, session_expires_at = ?, last_login_at = CURRENT_TIMESTAMP, last_login_ip = ? WHERE id = ?",
             (token, expires_at, ip, user_id)
         )
+
+def set_pingykj_offline(user_id: int) -> None:
+    """记录书城凭据掉线时间"""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET pingykj_offline_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (user_id,)
+        )
+
 
 def verify_session_token(token: str) -> Optional[Dict[str, Any]]:
     """验证 session token，返回用户字典（不含敏感字段）"""

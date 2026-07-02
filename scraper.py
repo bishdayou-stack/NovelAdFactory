@@ -398,6 +398,7 @@ def _get_or_create_session(user_id: int) -> Tuple[Optional[ScraperSession], str]
             return session, ""
         # 缓存过期且自动续期失败，清除
         print(f"[Scraper] 用户 {user_id} session 无效，清除缓存")
+        database.set_pingykj_offline(user_id)
         del _user_sessions[user_id]
 
     creds = database.get_user_pingykj_credentials(user_id)
@@ -426,6 +427,7 @@ def keepalive_all_sessions() -> Dict[int, bool]:
             results[user_id] = valid
             if not valid:
                 print(f"[Scraper] 保活失败 user={user_id}，将从缓存清除")
+                database.set_pingykj_offline(user_id)
                 del _user_sessions[user_id]
         except Exception as e:
             print(f"[Scraper] 保活异常 user={user_id}: {e}")

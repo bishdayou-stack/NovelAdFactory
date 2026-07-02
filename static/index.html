@@ -1447,6 +1447,7 @@
           var created = u.created_at ? u.created_at.substring(0, 10) : '-';
           var lastLogin = u.last_login_at ? u.last_login_at.substring(0, 16).replace('T', ' ') : '-';
           var lastIp = u.last_login_ip || '';
+          var offlineTime = u.pingykj_offline_at ? u.pingykj_offline_at.substring(0, 16).replace('T', ' ') : '';
           return '<tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">' +
             '<td class="py-3 px-4 font-medium text-slate-800">' + htmlEscape(u.username) + '</td>' +
             '<td class="py-3 px-4 text-slate-600">' + htmlEscape(u.display_name || '-') + '</td>' +
@@ -1454,7 +1455,7 @@
             '<td class="py-3 px-4 text-slate-600 font-mono text-[11px]">' + htmlEscape(u.pingykj_username || '-') + '</td>' +
             '<td class="py-3 px-4">' + statusBadge + '</td>' +
             '<td class="py-3 px-4 text-slate-500">' + created + '</td>' +
-            '<td class="py-3 px-4 text-slate-500 text-[11px]">' + lastLogin + (lastIp ? '<br><span class="text-slate-400 text-[10px]">' + lastIp + '</span>' : '') + '</td>' +
+            '<td class="py-3 px-4 text-slate-500 text-[11px]">' + lastLogin + (lastIp ? '<br><span class="text-slate-400 text-[10px]">IP: ' + lastIp + '</span>' : '') + (offlineTime ? '<br><span class="text-red-400 text-[10px]">书城掉线: ' + offlineTime + '</span>' : '') + '</td>' +
             '<td class="py-3 px-4 text-right whitespace-nowrap">' +
             (u.pingykj_username ? (
               u.pingykj_online
