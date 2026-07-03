@@ -2128,7 +2128,8 @@
         headerDiv.className = 'flex items-center justify-between mb-3';
         var novelIdTag = data.novel_id ? '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 font-mono cursor-pointer hover:bg-indigo-100 transition-all" onclick="event.stopPropagation();document.getElementById(\'assetFilterNovelId\').value=\'' + data.novel_id + '\';assetPage=1;applyAssetFilter(1);">小说ID:' + data.novel_id + '</span>' : '';
         var creatorTag = (data.user_name || data.user_id) ? '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-100">👤 ' + escapeHtml(data.user_name || ('ID:' + data.user_id)) + '</span>' : '';
-        var downloadBtn = (data.images && data.images.length > 0) ? '<a href="/api/history/' + batchId + '/download" class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-all no-underline cursor-pointer" onclick="event.stopPropagation()" title="下载本批次全部图片（ZIP）">⬇ 下载</a>' : '';
+        var imgUrls = (data.images && data.images.length > 0) ? data.images.map(function(u) { return absUrl(u); }) : [];
+        var downloadBtn = imgUrls.length > 0 ? '<button class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-all cursor-pointer" onclick="event.stopPropagation();batchDownload(' + JSON.stringify(imgUrls).replace(/"/g, '&quot;') + ')" title="逐张下载本批次全部原图">⬇ 批量下载</button>' : '';
         headerDiv.innerHTML = '<div class="flex items-center gap-3"><h4 class="text-sm font-semibold text-slate-700">批次 #' + batchId + '</h4>' + novelIdTag + creatorTag + '<span class="text-[10px] text-slate-400">' + timeStr + '</span></div><div class="flex items-center gap-2">' + downloadBtn + '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ' + (status === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500') + '">' + status + '</span></div>';
         section.appendChild(headerDiv);
 
@@ -5021,6 +5022,24 @@ return '<tr class="border-b border-slate-50"><td class="py-1 text-slate-400">'+(
     document.getElementById('hitGallerySort').addEventListener('change', function() { loadHitGallery(1); });
     document.getElementById('hitGalleryRefresh').addEventListener('click', function() { loadHitGallery(1); });
     document.getElementById('hitGallerySearch').addEventListener('input', function() { loadHitGallery(1); });
+
+    // ====== 批量下载 ======
+    function batchDownload(urls) {
+      if (!urls || !urls.length) return;
+      var i = 0;
+      function next() {
+        if (i >= urls.length) return;
+        var a = document.createElement('a');
+        a.href = urls[i];
+        a.download = urls[i].split('/').pop();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        i++;
+        setTimeout(next, 600);  // 每张间隔0.6秒，避免浏览器拦截
+      }
+      next();
+    }
 
     // ====== 图片预览导航 ======
     var _previewImages = [];
