@@ -819,9 +819,9 @@ def _fetch_novel_books(api_path: str, session: ScraperSession,
     page_no = 1
     date_filter = ""
     if date_start and date_end:
-        date_filter = f"&createTime_begin={date_start}&createTime_end={date_end}"
+        date_filter = f"&updateTime_begin={date_start}&updateTime_end={date_end}"
     elif date_start:
-        date_filter = f"&createTime_begin={date_start}"
+        date_filter = f"&updateTime_begin={date_start}"
     while True:
         url = f"{BASE_URL}{api_path}?pageNo={page_no}&pageSize=500{date_filter}"
         data, code, err = _curl_get(url, headers=headers, timeout=30)
@@ -844,8 +844,10 @@ def _fetch_novel_books(api_path: str, session: ScraperSession,
     return all_raw, ""
 
 
-def sync_novel_books(user_id: int = None) -> Tuple[int, str]:
-    """同步书籍列表（增量：仅拉取上次同步后新增/更新的书籍）"""
+def sync_novel_books(user_id: int = None, full_sync: bool = False) -> Tuple[int, str]:
+    """同步书籍列表。
+    full_sync=False: 增量同步（按 updateTime 过滤，仅拉取近期更新的书籍）
+    full_sync=True:  全量同步（不过滤日期，拉取全部书籍并更新消耗数据）"""
     session = None
     if user_id:
         session, _ = _get_or_create_session(user_id)
@@ -861,17 +863,20 @@ def sync_novel_books(user_id: int = None) -> Tuple[int, str]:
         return 0, "没有可用的书城登录凭据"
 
     today = time.strftime("%Y-%m-%d")
-    last_date = database.get_last_sync_date("novels")
     date_start = None
     date_end = None
-    if last_date:
-        from datetime import datetime as dt, timedelta
-        overlap = (dt.strptime(last_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
-        date_start = overlap
-        date_end = today
-        print(f"[Scraper] 增量同步书籍: {overlap} ~ {today}")
+    if full_sync:
+        print(f"[Scraper] 全量同步书籍（更新消耗与订单数据）...")
     else:
-        print(f"[Scraper] 首次全量同步书籍...")
+        last_date = database.get_last_sync_date("novels")
+        if last_date:
+            from datetime import datetime as dt, timedelta
+            overlap = (dt.strptime(last_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+            date_start = overlap
+            date_end = today
+            print(f"[Scraper] 增量同步书籍: {overlap} ~ {today}")
+        else:
+            print(f"[Scraper] 首次全量同步书籍...")
 
     err_msgs = []
     for api_path in (_NOVEL_BOOK_PATH, _NOVEL_BOOK_PATH_ALT):
@@ -880,7 +885,7 @@ def sync_novel_books(user_id: int = None) -> Tuple[int, str]:
         if all_raw:
             books = _parse_novel_books(all_raw)
             count = database.upsert_novel_books(books)
-            if count > 0 or not last_date:
+            if count > 0 or full_sync:
                 database.set_last_sync_date("novels", today)
             return count, ""
         if err:

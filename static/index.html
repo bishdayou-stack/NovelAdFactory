@@ -701,6 +701,7 @@
             <option value="已完结">已完结</option>
             <option value="已下架">已下架</option>
           </select>
+          <button id="novelMgrSyncFullBtn" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-all shadow-sm cursor-pointer" title="全量拉取书籍消耗+同步广告订单数据">更新消耗与订单</button>
           <button id="novelMgrSyncAllBtn" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">同步小说</button>
         </div>
       </div>
@@ -4317,6 +4318,37 @@
       if (novelId) syncNovelContent(novelId);
     });
 
+    function syncNovelFull() {
+      var btn = document.getElementById('novelMgrSyncFullBtn');
+      btn.disabled = true; btn.textContent = '启动中...';
+      fetch('/api/novels/sync-books-full', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.status === 'error') { alert(d.message); btn.disabled = false; btn.textContent = '更新消耗与订单'; return; }
+        // 开始轮询进度
+        var pollCount = 0;
+        var pollTimer = setInterval(function() {
+          pollCount++;
+          fetch('/api/novels/sync-books-full/progress').then(function(r) { return r.json(); }).then(function(p) {
+            if (p.status === 'running') {
+              btn.textContent = '⏳ ' + (p.message || '同步中...');
+            } else if (p.status === 'done') {
+              clearInterval(pollTimer);
+              btn.disabled = false; btn.textContent = '更新消耗与订单';
+              alert('✅ ' + (p.message || '全量同步完成'));
+              loadNovelBooks(novelMgrPages.books);
+            } else if (p.status === 'error') {
+              clearInterval(pollTimer);
+              btn.disabled = false; btn.textContent = '更新消耗与订单';
+              alert('❌ ' + (p.message || '同步失败'));
+            }
+            // 超时保护（5分钟后停止轮询）
+            if (pollCount > 150) { clearInterval(pollTimer); btn.disabled = false; btn.textContent = '更新消耗与订单'; }
+          }).catch(function() {
+            if (pollCount > 150) { clearInterval(pollTimer); btn.disabled = false; btn.textContent = '更新消耗与订单'; }
+          });
+        }, 2000);  // 每2秒查询一次
+      }).catch(function() { alert('请求失败'); btn.disabled = false; btn.textContent = '更新消耗与订单'; });
+    }
+
     function syncNovelAll() {
       var btn = document.getElementById('novelMgrSyncAllBtn');
       btn.disabled = true; btn.textContent = '同步中...';
@@ -4348,6 +4380,7 @@
       }).catch(function() { alert('同步失败'); }).finally(function() { btn.disabled = false; btn.textContent = novelId ? '同步内容' : '同步全部内容'; });
     }
 
+    document.getElementById('novelMgrSyncFullBtn').addEventListener('click', syncNovelFull);
     document.getElementById('novelMgrSyncAllBtn').addEventListener('click', syncNovelAll);
     document.getElementById('novelMgrSearch').addEventListener('input', function() { loadNovelBooks(1); });
     document.getElementById('novelMgrStatus').addEventListener('change', function() { loadNovelBooks(1); });

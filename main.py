@@ -716,6 +716,10 @@ _BATCH_CANCEL_LOCK = threading.Lock()
 _BATCH_PROGRESS: Dict[int, dict] = {}
 _BATCH_PROGRESS_LOCK = threading.Lock()
 
+# 全量同步进度跟踪（按 user_id 存储）
+_novel_sync_progress: Dict[int, dict] = {}
+_novel_sync_lock = threading.Lock()
+
 # SSE 事件队列
 import queue
 _SSE_QUEUES: Dict[int, List[queue.Queue]] = {}
@@ -3449,11 +3453,101 @@ class SyncNovelContentBody(BaseModel):
 
 @app.post("/api/novels/sync-books")
 def api_novel_sync_books(user: dict = Depends(get_current_user)):
-    """手动触发书籍列表同步"""
+    """手动触发书籍列表同步（增量：仅近期更新的书籍）"""
     count, err = scraper.sync_novel_books(user["id"])
     if err:
         return {"status": "ok", "count": count, "warning": err}
     return {"status": "ok", "count": count, "message": f"已同步 {count} 本书"}
+
+
+@app.post("/api/novels/sync-books-full")
+def api_novel_sync_books_full(user: dict = Depends(get_current_user)):
+    """全量同步：拉取全部书籍更新消耗数据，同时同步广告+订单数据"""
+    import threading
+    uid = user["id"]
+
+    # 检查是否已有同步在进行中
+    with _novel_sync_lock:
+        existing = _novel_sync_progress.get(uid)
+        if existing and existing.get("status") == "running":
+            return {"status": "error", "message": "已有同步任务在进行中，请等待完成后再试"}
+
+    def _update(step, **kw):
+        with _novel_sync_lock:
+            p = _novel_sync_progress.get(uid, {})
+            p.update({"step": step, "status": "running", **kw})
+            _novel_sync_progress[uid] = p
+
+    def _run_full_sync():
+        _update("start", message="正在全量同步...")
+        result_parts = []
+        try:
+            # 1. 全量同步书籍（无日期过滤，拉取全部书籍的消耗数据）
+            _update("novels", message="正在拉取全部书籍消耗数据...")
+            novel_count, novel_err = scraper.sync_novel_books(uid, full_sync=True)
+            part = f"书籍 {novel_count} 本"
+            result_parts.append(part)
+            print(f"[全量同步] {part}" + (f", 警告: {novel_err}" if novel_err else ""))
+            if novel_err:
+                result_parts.append(f"  ⚠️ {novel_err}")
+
+            # 2. 同步广告数据
+            _update("ads", message="正在同步广告数据...")
+            ads_count, ads_err = scraper.sync_ads(uid)
+            database.log_sync("ads", "success" if not ads_err else "failed", ads_count, ads_err, uid)
+            part = f"广告 {ads_count} 条"
+            result_parts.append(part)
+            print(f"[全量同步] {part}" + (f", 错误: {ads_err}" if ads_err else ""))
+            if ads_err:
+                result_parts.append(f"  ⚠️ {ads_err}")
+
+            # 3. 同步订单数据
+            _update("orders", message="正在同步订单数据...")
+            orders_count, orders_err = scraper.sync_orders(uid)
+            database.log_sync("orders", "success" if not orders_err else "failed", orders_count, orders_err, uid)
+            part = f"订单 {orders_count} 条"
+            result_parts.append(part)
+            print(f"[全量同步] {part}" + (f", 错误: {orders_err}" if orders_err else ""))
+            if orders_err:
+                result_parts.append(f"  ⚠️ {orders_err}")
+
+            # 4. 补缺章节
+            _update("chapters", message="正在补缺章节...")
+            ch_count, ch_err = scraper.sync_missing_chapters(uid)
+            part = f"章节 {ch_count} 本"
+            result_parts.append(part)
+            print(f"[全量同步] {part}" + (f", 错误: {ch_err}" if ch_err else ""))
+            if ch_err:
+                result_parts.append(f"  ⚠️ {ch_err}")
+
+            final_msg = "全量同步完成\n" + "\n".join(result_parts)
+            _update("done", message=final_msg, status="done")
+            print(f"[全量同步] 完成: " + ", ".join(result_parts))
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            err_msg = f"同步异常: {e}"
+            _update("error", message=err_msg, status="error")
+            print(f"[全量同步] {err_msg}")
+
+    _update("queued", message="正在排队...", status="running")
+    _EXECUTOR.submit(_run_full_sync)
+    return {"status": "started", "message": "全量同步已启动"}
+
+
+@app.get("/api/novels/sync-books-full/progress")
+def api_novel_sync_books_full_progress(user: dict = Depends(get_current_user)):
+    """查询全量同步进度"""
+    uid = user["id"]
+    with _novel_sync_lock:
+        p = _novel_sync_progress.get(uid)
+    if not p:
+        return {"status": "idle", "step": "", "message": ""}
+    # 返回后清除已完成的状态
+    if p.get("status") in ("done", "error"):
+        with _novel_sync_lock:
+            _novel_sync_progress.pop(uid, None)
+    return p
 
 
 @app.post("/api/novels/sync-content")
