@@ -2139,7 +2139,7 @@
             var full = absUrl(media.src);
             var name = media.src.split('/').pop();
             var safePrompt = (media.prompt || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-            card.innerHTML = '<img src="' + full + '" class="aspect-square w-full object-cover" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'\';" /><div style="display:none" class="w-full aspect-square bg-slate-200 flex items-center justify-center rounded-2xl"><span class="text-slate-400 text-xs">加载失败</span></div>' +
+            card.innerHTML = '<img src="' + full + '" class="aspect-square w-full object-cover cursor-pointer" loading="lazy" onclick="event.stopPropagation();var m=document.getElementById(\'imagePreviewModal\');var i=document.getElementById(\'imagePreviewImg\');i.src=this.src;m.hidden=false;" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'\';" title="点击放大" /><div style="display:none" class="w-full aspect-square bg-slate-200 flex items-center justify-center rounded-2xl"><span class="text-slate-400 text-xs">加载失败</span></div>' +
               '<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">' +
               '<div class="flex items-center gap-1">' +
               '<button type="button" class="rounded-md bg-white/20 px-1.5 py-0.5 text-[8px] text-white hover:bg-white/30 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();var t=this.parentElement.parentElement.previousElementSibling?this.parentElement.parentElement.previousElementSibling.getAttribute(\'data-prompt\'):\'\';copyPromptText(t||\'\',this)">复制</button>' +
