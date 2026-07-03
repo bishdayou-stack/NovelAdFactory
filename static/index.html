@@ -1193,8 +1193,8 @@
     <!-- 图片预览弹窗 -->
     <div id="imagePreviewModal" hidden class="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 backdrop-blur-sm" onclick="this.hidden=true">
       <button class="absolute top-4 right-4 w-10 h-10 rounded-xl bg-white/10 text-white text-xl hover:bg-white/20 transition-all flex items-center justify-center cursor-pointer border-0 z-10" onclick="document.getElementById('imagePreviewModal').hidden=true">✕</button>
-      <button id="previewPrevBtn" class="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 text-white text-2xl hover:bg-white/20 transition-all flex items-center justify-center cursor-pointer border-0 z-10" onclick="previewPrev()" style="visibility:hidden">◀</button>
-      <button id="previewNextBtn" class="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 text-white text-2xl hover:bg-white/20 transition-all flex items-center justify-center cursor-pointer border-0 z-10" onclick="previewNext()" style="visibility:hidden">▶</button>
+      <button id="previewPrevBtn" class="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 text-white/60 text-4xl hover:text-white/90 transition-all flex items-center justify-center cursor-pointer border-0 z-10 drop-shadow-lg" onclick="previewPrev()" style="visibility:hidden">‹</button>
+      <button id="previewNextBtn" class="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 text-white/60 text-4xl hover:text-white/90 transition-all flex items-center justify-center cursor-pointer border-0 z-10 drop-shadow-lg" onclick="previewNext()" style="visibility:hidden">›</button>
       <span id="previewCounter" class="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/10 text-white text-xs font-medium z-10"></span>
       <img id="imagePreviewImg" src="" class="max-w-[85vw] max-h-[85vh] object-contain rounded-xl shadow-2xl" onclick="event.stopPropagation()" />
     </div>
