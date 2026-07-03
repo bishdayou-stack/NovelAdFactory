@@ -4175,7 +4175,7 @@
             var isSelected = novelMgrPages.selectedNovelId === b.novel_id;
             var bgClass = isSelected ? 'bg-indigo-50' : '';
             var coverHtml = b.cover_url
-              ? '<img src="' + b.cover_url + '" class="w-10 h-14 object-cover rounded" onerror="this.style.display=\'none\'">'
+              ? '<img src="' + b.cover_url + '" class="w-10 h-14 object-cover rounded cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all" onclick="event.stopPropagation();var m=document.getElementById(\'imagePreviewModal\');var i=document.getElementById(\'imagePreviewImg\');i.src=this.src;m.hidden=false;" onerror="this.style.display=\'none\'" title="点击放大封面">'
               : '<span class="text-slate-300">-</span>';
             var isEnded = b.status === '完结' || b.status === '已完结';
             var isOff = b.status === '下架' || b.status === '已下架';
