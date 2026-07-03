@@ -102,7 +102,7 @@ def _get_proxy_url_from_config():
 from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel, Field, model_validator
@@ -1283,6 +1283,39 @@ def _norm_item_list(x) -> List[dict]:
         elif isinstance(item, str):
             result.append({"image_prompt": item})
     return result
+
+
+def _generate_thumbnail(image_path: Path, thumb_path: Path, max_width: int = 400) -> bool:
+    """为图片生成缩略图（JPEG 格式，约 50-100KB）"""
+    try:
+        from PIL import Image as PILImage
+        img = PILImage.open(str(image_path)).convert("RGB")
+        w, h = img.size
+        if w <= max_width:
+            # 原图已经很小，直接存为 JPEG（比 PNG 小很多）
+            img.save(str(thumb_path), "JPEG", quality=75, optimize=True)
+        else:
+            ratio = max_width / w
+            new_h = int(h * ratio)
+            thumb = img.resize((max_width, new_h), PILImage.LANCZOS)
+            thumb.save(str(thumb_path), "JPEG", quality=75, optimize=True)
+        return True
+    except Exception as e:
+        print(f"[Thumb] 缩略图生成失败: {image_path}, {e}")
+        return False
+
+
+def _generate_batch_thumbnails(batch_dir: Path) -> int:
+    """为批次目录中所有 PNG 生成缩略图，返回生成数量"""
+    count = 0
+    for png_file in sorted(batch_dir.glob("*.png")):
+        thumb_file = batch_dir / (png_file.stem + "_thumb.jpg")
+        if thumb_file.exists():
+            count += 1
+            continue
+        if _generate_thumbnail(png_file, thumb_file):
+            count += 1
+    return count
 
 
 def composite_text_on_image(
@@ -2562,6 +2595,16 @@ def _save_batch_meta(result: dict) -> None:
             "updated_at": now,
         }
         (batch_dir / "_meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+        # 后台生成缩略图（不阻塞主流程）
+        import threading
+        def _bg_thumb():
+            try:
+                n = _generate_batch_thumbnails(batch_dir)
+                if n > 0:
+                    print(f"[Thumb] 批次 {batch_id}: {n} 张缩略图已生成")
+            except Exception as e:
+                print(f"[Thumb] 批次 {batch_id} 异常: {e}")
+        threading.Thread(target=_bg_thumb, daemon=True).start()
     except Exception:
         pass
 
@@ -2883,6 +2926,33 @@ def api_batch_delete_history(body: Dict[str, List[str]]):
             results.append({"batch_id": bid, "status": "failed", "reason": str(e)})
 
     return {"results": results}
+
+
+@app.get("/api/history/{batch_id}/download")
+def api_download_batch(batch_id: str):
+    """打包下载批次中所有图片（ZIP）"""
+    import zipfile
+    import io
+
+    batch_dir = OUTPUT_ROOT / batch_id
+    if not batch_dir.exists() or not batch_dir.is_dir():
+        raise HTTPException(status_code=404, detail="批次不存在")
+
+    pngs = sorted(batch_dir.glob("*.png"))
+    if not pngs:
+        raise HTTPException(status_code=404, detail="该批次无图片")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for png in pngs:
+            zf.write(str(png), png.name)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=batch_{batch_id}.zip"}
+    )
 
 
 # ====== 配置持久化 API ======
