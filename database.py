@@ -566,6 +566,15 @@ def init_db() -> None:
                 UNIQUE(novel_id, chapter_no)
             );
 
+            CREATE TABLE IF NOT EXISTS novel_spend_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                novel_id TEXT NOT NULL,
+                snap_date DATE NOT NULL,
+                book_ad_spend REAL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(novel_id, snap_date)
+            );
+
             CREATE TABLE IF NOT EXISTS meta_accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 act_id TEXT NOT NULL,
@@ -1208,6 +1217,37 @@ def upsert_novel_books(rows: List[Dict[str, Any]]) -> int:
             ))
             count += 1
         return count
+
+
+def save_novel_spend_snapshots(books: List[Dict[str, Any]]) -> int:
+    """保存小说当日消耗快照（用于计算区间消耗增量）"""
+    if not books:
+        return 0
+    today = time.strftime("%Y-%m-%d")
+    count = 0
+    with get_conn() as conn:
+        for b in books:
+            nid = b.get("novel_id")
+            spend = b.get("book_ad_spend", 0) or 0
+            if not nid:
+                continue
+            conn.execute("""
+                INSERT OR REPLACE INTO novel_spend_snapshots (novel_id, snap_date, book_ad_spend)
+                VALUES (?, ?, ?)
+            """, (nid, today, spend))
+            count += 1
+    return count
+
+
+def get_novel_spend_snapshot(novel_id: str, target_date: str) -> Optional[float]:
+    """获取小说在指定日期或之前最近的消耗快照值"""
+    with get_conn() as conn:
+        row = conn.execute("""
+            SELECT book_ad_spend FROM novel_spend_snapshots
+            WHERE novel_id = ? AND snap_date <= ?
+            ORDER BY snap_date DESC LIMIT 1
+        """, (novel_id, target_date)).fetchone()
+        return row["book_ad_spend"] if row else None
 
 
 def get_novel_books(page: int = 1, page_size: int = 20, keyword: str = None,

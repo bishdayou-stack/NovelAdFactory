@@ -667,7 +667,7 @@
           </div>
           <div class="overflow-x-auto">
             <table id="novelTotalTable" class="w-full text-xs">
-              <thead><tr class="border-b-2 border-slate-100 text-left"><th class="pb-2 font-medium text-slate-500">#</th><th class="pb-2 font-medium text-slate-500">书名</th><th class="pb-2 font-medium text-slate-500">书ID</th><th class="pb-2 font-medium text-right text-indigo-600 cursor-pointer select-none sortable-header" data-sort="order_count">订单量 ▾</th><th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none sortable-header" data-sort="total_amount">订单金额</th></tr></thead>
+              <thead><tr class="border-b-2 border-slate-100 text-left"><th class="pb-2 font-medium text-slate-500">#</th><th class="pb-2 font-medium text-slate-500">书名</th><th class="pb-2 font-medium text-slate-500">书ID</th><th class="pb-2 font-medium text-right text-indigo-600 cursor-pointer select-none sortable-header" data-sort="order_count">订单量 ▾</th><th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none sortable-header" data-sort="total_amount">订单金额</th><th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none sortable-header" data-sort="conversion_cost">转化成本</th></tr></thead>
               <tbody id="dashNovelBody"></tbody>
             </table>
           </div>
@@ -677,7 +677,7 @@
           <h3 class="text-xs font-semibold text-slate-700 mb-3">最近7天小说订单排行</h3>
           <div class="overflow-x-auto">
             <table id="novel7dTable" class="w-full text-xs">
-              <thead><tr class="border-b-2 border-slate-100 text-left"><th class="pb-2 font-medium text-slate-500">#</th><th class="pb-2 font-medium text-slate-500">书名</th><th class="pb-2 font-medium text-slate-500">书ID</th><th class="pb-2 font-medium text-right text-indigo-600 cursor-pointer select-none sortable-header" data-sort="order_count">订单量 ▾</th><th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none sortable-header" data-sort="total_amount">订单金额</th></tr></thead>
+              <thead><tr class="border-b-2 border-slate-100 text-left"><th class="pb-2 font-medium text-slate-500">#</th><th class="pb-2 font-medium text-slate-500">书名</th><th class="pb-2 font-medium text-slate-500">书ID</th><th class="pb-2 font-medium text-right text-indigo-600 cursor-pointer select-none sortable-header" data-sort="order_count">订单量 ▾</th><th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none sortable-header" data-sort="total_amount">订单金额</th><th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none sortable-header" data-sort="conversion_cost">转化成本</th></tr></thead>
               <tbody id="dashNovel7dBody"></tbody>
             </table>
           </div>
@@ -3701,7 +3701,7 @@
     function renderNovelTable(data, tbodyId, tableId) {
       var tbody = document.getElementById(tbodyId);
       if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-slate-300">暂无数据</td></tr>';
         return;
       }
       // 更新表头样式
@@ -3716,12 +3716,16 @@
       tbody.innerHTML = data.map(function(r, i) {
         var name = r.novel_name || '未知';
         var nid = r.novel_id || '-';
+        var cc = r.conversion_cost != null ? Number(r.conversion_cost) : null;
+        var ccDisplay = cc !== null ? '$' + cc.toFixed(2) : '-';
+        var ccColor = cc === null ? 'text-slate-400' : cc < 60 ? 'text-emerald-600 font-medium' : cc <= 70 ? 'text-amber-600 font-medium' : 'text-red-600 font-medium';
         return '<tr class="border-b border-slate-50 hover:bg-slate-50/50">' +
           '<td class="py-1.5 text-slate-400">' + (i + 1) + '</td>' +
           '<td class="py-1.5 font-medium text-slate-700 max-w-[200px] truncate" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</td>' +
           '<td class="py-1.5 text-slate-500 font-mono text-xs">' + escapeHtml(String(nid)) + '</td>' +
           '<td class="py-1.5 text-right text-slate-600 font-medium">' + (r.order_count || 0).toLocaleString() + ' 单</td>' +
           '<td class="py-1.5 text-right text-emerald-600 font-semibold">¥' + ((r.total_amount || 0)).toLocaleString() + '</td>' +
+          '<td class="py-1.5 text-right text-xs ' + ccColor + '">' + ccDisplay + '</td>' +
           '</tr>';
       }).join('');
     }
@@ -3737,7 +3741,7 @@
         renderNovelTable(res.data || res, 'dashNovelBody', 'novelTotalTable');
         renderPager('novelTotalPager', res, function(p) { novelTotalPage = p; loadNovelStats(); });
       }).catch(function() {
-        document.getElementById('dashNovelBody').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">加载失败</td></tr>';
+        document.getElementById('dashNovelBody').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-slate-300">加载失败</td></tr>';
       });
       // 近7天排行
       var d7 = new Date(Date.now() - 7*86400000).toISOString().slice(0,10);
@@ -3745,7 +3749,7 @@
         renderNovelTable(res.data || res, 'dashNovel7dBody', 'novel7dTable');
         renderPager('novel7dPager', res, function(p) { novel7dPage = p; loadNovelStats(); });
       }).catch(function() {
-        document.getElementById('dashNovel7dBody').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">加载失败</td></tr>';
+        document.getElementById('dashNovel7dBody').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-slate-300">加载失败</td></tr>';
       });
     }
 

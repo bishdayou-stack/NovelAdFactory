@@ -887,6 +887,10 @@ def sync_novel_books(user_id: int = None, full_sync: bool = False) -> Tuple[int,
             count = database.upsert_novel_books(books)
             if count > 0 or full_sync:
                 database.set_last_sync_date("novels", today)
+            # 保存当日消耗快照（用于计算区间消耗增量）
+            snap_count = database.save_novel_spend_snapshots(books)
+            if snap_count > 0:
+                print(f"[Scraper] 小说消耗快照已保存: {snap_count} 本")
             return count, ""
         if err:
             err_msgs.append(f"{api_path}: {err}")

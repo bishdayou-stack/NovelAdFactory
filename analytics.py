@@ -389,7 +389,71 @@ def get_novel_stats(start_date: str = None, end_date: str = None,
             groups[key]["total_amount"] += r["amount"] or 0
 
         result = list(groups.values())
-        if sort_by == "total_amount":
+
+        # 补充 book_ad_spend 和 conversion_cost
+        # - 总排行（无时间过滤）：转化成本 = 累计消耗 / 总订单数
+        # - 7日排行（有 start_date）：转化成本 = 近7天消耗 / 近7天订单数
+        #   近7天消耗 = 当前累计消耗 - 7天前的快照值
+        novel_ids = [r["novel_id"] for r in result if r["novel_id"]]
+        if novel_ids:
+            placeholders = ",".join("?" for _ in novel_ids)
+            spend_rows = conn.execute(
+                f"SELECT novel_id, book_ad_spend FROM novel_books WHERE novel_id IN ({placeholders})",
+                novel_ids
+            ).fetchall()
+            spend_map = {r["novel_id"]: (r["book_ad_spend"] or 0) for r in spend_rows}
+
+            # 查询每本书的订单总数（不限时间范围，用于总排行）
+            _uid_filter = user_id
+            total_where = ["status = '成功'"]
+            total_params = []
+            if _uid_filter:
+                total_where.append("user_id = ?")
+                total_params.append(_uid_filter)
+            total_rows = conn.execute(
+                f"""SELECT json_extract(customer_info, '$.novelId') AS nid, COUNT(*) AS total_cnt
+                    FROM orders WHERE {' AND '.join(total_where)}
+                    GROUP BY json_extract(customer_info, '$.novelId')""",
+                total_params
+            ).fetchall()
+            total_order_map = {r["nid"]: r["total_cnt"] for r in total_rows if r["nid"]}
+
+            # 近7天消耗：从快照表取 start_date 前一天的累计值，用当前值减它
+            has_date_range = bool(start_date)
+            for r in result:
+                nid = r["novel_id"]
+                book_ad_spend = spend_map.get(nid, 0)
+                total_orders = total_order_map.get(nid, r["order_count"])
+                r["book_ad_spend"] = book_ad_spend
+
+                if has_date_range and start_date:
+                    # 取 start_date 前一天或更早的快照值
+                    from datetime import datetime as _dt, timedelta as _td
+                    snap_before = (_dt.strptime(start_date, "%Y-%m-%d") - _td(days=1)).strftime("%Y-%m-%d")
+                    prev_spend = database.get_novel_spend_snapshot(nid, snap_before)
+                    if prev_spend is not None and prev_spend > 0:
+                        recent_spend = max(0, book_ad_spend - prev_spend)
+                        r["recent_spend"] = round(recent_spend, 2)
+                        r["conversion_cost"] = round(recent_spend / r["order_count"], 2) if recent_spend > 0 and r["order_count"] > 0 else None
+                    else:
+                        # 无快照数据，回退到累计消耗 / 总订单数
+                        r["recent_spend"] = None
+                        denominator = total_orders or r["order_count"]
+                        r["conversion_cost"] = round(book_ad_spend / denominator, 2) if book_ad_spend > 0 and denominator > 0 else None
+                else:
+                    # 总排行：使用累计消耗 / 总订单数
+                    r["recent_spend"] = None
+                    denominator = total_orders or r["order_count"]
+                    r["conversion_cost"] = round(book_ad_spend / denominator, 2) if book_ad_spend > 0 and denominator > 0 else None
+        else:
+            for r in result:
+                r["book_ad_spend"] = 0
+                r["recent_spend"] = None
+                r["conversion_cost"] = None
+
+        if sort_by == "conversion_cost":
+            result.sort(key=lambda x: (x["conversion_cost"] is None, x["conversion_cost"] or 0))
+        elif sort_by == "total_amount":
             result.sort(key=lambda x: x["total_amount"], reverse=True)
         else:
             result.sort(key=lambda x: x["order_count"], reverse=True)
