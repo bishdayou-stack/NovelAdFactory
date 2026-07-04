@@ -244,6 +244,35 @@ _scheduler.add_job(
     id='auto_keepalive',
     max_instances=1,
 )
+
+
+def _auto_full_novel_sync():
+    """每天定时全量同步所有用户的书籍消耗数据（确保快照完整，用于7日消耗计算）"""
+    try:
+        users = database.list_active_users_with_credentials()
+        for u in users:
+            uid = u["id"]
+            try:
+                count, err = scraper.sync_novel_books(uid, full_sync=True)
+                if err:
+                    print(f"[全量小说同步] 用户 {u['username']}: {count} 本, 警告: {err}")
+                else:
+                    print(f"[全量小说同步] 用户 {u['username']}: {count} 本")
+            except Exception as e:
+                print(f"[全量小说同步] 用户 {u['username']} 失败: {e}")
+    except Exception as e:
+        print(f"[全量小说同步] 异常: {e}")
+
+
+# 每天凌晨 1:30 和下午 13:30 各全量同步一次书籍消耗
+_scheduler.add_job(
+    _auto_full_novel_sync,
+    'cron',
+    hour='1,13',
+    minute=30,
+    id='full_novel_sync',
+    max_instances=1,
+)
 _scheduler.start()
 
 # Meta 数据定时同步（遍历所有用户）
