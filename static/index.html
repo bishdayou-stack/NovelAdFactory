@@ -417,6 +417,10 @@
     <div id="tab-prompt-generate" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
       <div class="card p-5 space-y-4 max-w-3xl">
         <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">提示词生图</h3>
+        <div id="pgNovelInfo" hidden class="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 text-xs text-indigo-600">
+          <span class="font-medium">来源小说ID：</span><span id="pgNovelIdDisplay"></span>
+          <input type="hidden" id="pgNovelId" value="" />
+        </div>
         <div>
           <label class="mb-1 flex justify-between text-[11px] font-medium text-slate-500">
             <span>提示词</span>
@@ -2150,7 +2154,7 @@
               '<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">' +
               '<div class="flex items-center gap-1">' +
               '<button type="button" class="rounded-md bg-white/20 px-1.5 py-0.5 text-[8px] text-white hover:bg-white/30 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();var t=this.parentElement.parentElement.previousElementSibling?this.parentElement.parentElement.previousElementSibling.getAttribute(\'data-prompt\'):\'\';copyPromptText(t||\'\',this)">复制</button>' +
-              '<button type="button" class="rounded-md bg-indigo-500/80 px-1.5 py-0.5 text-[8px] text-white hover:bg-indigo-500 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();goGenerateFromPrompt(\'' + safePrompt + '\')">生图</button>' +
+              '<button type="button" class="rounded-md bg-indigo-500/80 px-1.5 py-0.5 text-[8px] text-white hover:bg-indigo-500 transition-all border-0 cursor-pointer" onclick="event.stopPropagation();goGenerateFromPrompt(\'' + safePrompt + '\',\'' + (data.novel_id || '').replace(/'/g, '') + '\')">生图</button>' +
               '<button type="button" class="rounded-md bg-amber-500/80 px-1.5 py-0.5 text-[8px] text-white hover:bg-amber-500 transition-all border-0 cursor-pointer hit-register-btn"' +
               ' data-batch="' + (data.batch_id || '') + '"' +
               ' data-url="' + full + '"' +
@@ -2240,9 +2244,14 @@
       });
     }
 
-    function goGenerateFromPrompt(promptText) {
+    function goGenerateFromPrompt(promptText, novelId) {
       if (!confirm('是否使用此提示词前往生图页面生成图片？')) return;
       switchTab('prompt-generate');
+      // 记录来源小说ID
+      var nid = novelId || '';
+      document.getElementById('pgNovelId').value = nid;
+      document.getElementById('pgNovelIdDisplay').textContent = nid || '未关联';
+      document.getElementById('pgNovelInfo').hidden = !nid;
       // 填入第一个提示词卡片
       setTimeout(function() {
         var firstCard = document.querySelector('#pgCards .pg-prompt');
@@ -2884,6 +2893,7 @@
         text_bottom_list: withText ? [document.getElementById('pgTextBottom').value] : [],
         text_left_list: withText ? [document.getElementById('pgTextLeft').value] : [],
         text_right_list: withText ? [document.getElementById('pgTextRight').value] : [],
+        novel_id: document.getElementById('pgNovelId').value || '',
       };
 
       var btn = document.getElementById('pgStartBtn');

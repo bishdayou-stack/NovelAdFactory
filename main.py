@@ -4114,6 +4114,7 @@ class PromptGenerateRequest(BaseModel):
     text_bottom_list: List[str] = []
     text_left_list: List[str] = []
     text_right_list: List[str] = []
+    novel_id: str = ""
 
 @app.post("/api/generate-from-prompts")
 def api_generate_from_prompts(body: PromptGenerateRequest, user: dict = Depends(get_current_user)):
@@ -4186,6 +4187,7 @@ def api_generate_from_prompts(body: PromptGenerateRequest, user: dict = Depends(
 
         meta = {
             "batch_id": batch_id,
+            "novel_id": body.novel_id,
             "status": "success" if results else "failed",
             "message": f"生成 {len(results)}/{len(body.prompts)} 张",
             "images": results,
@@ -4193,7 +4195,7 @@ def api_generate_from_prompts(body: PromptGenerateRequest, user: dict = Depends(
             "errors": errors,
             "used_prompts": used_prompts,
             "chat_status": "skipped",
-            "source": "小说分析",
+            "source": "提示词生图",
         }
         _save_batch_meta(meta)
 
