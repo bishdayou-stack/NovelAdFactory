@@ -1265,8 +1265,10 @@
 
       if (currentUser.role === 'admin') {
         document.getElementById('nav-users').style.display = 'flex';
+        document.getElementById('nav-meta-assign').style.display = 'flex';
       } else {
         document.getElementById('nav-users').style.display = 'none';
+        document.getElementById('nav-meta-assign').style.display = 'none';
       }
     }
 
