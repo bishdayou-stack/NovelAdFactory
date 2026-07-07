@@ -4299,6 +4299,10 @@ class MetaAccountBody(BaseModel):
 def _get_meta_accounts(user: dict = Depends(get_current_user)):
     uid = _opt_user_id(user)
     accounts = database.get_meta_accounts(uid)
+    # 附上用户名
+    for a in accounts:
+        u = database.get_user(a.get("user_id", 1))
+        a["user_name"] = u.get("display_name") or u.get("username", "") if u else ""
     # 普通用户只看 active 账户（管理员看全部，含已停用）
     if user.get("role") != "admin":
         accounts = [a for a in accounts if a.get("status") == "active"]
@@ -4680,38 +4684,43 @@ def _get_delivery_records(page: int = 1, page_size: int = 20, status: str = None
 @app.get("/api/meta/summary")
 def _meta_summary(start: str = Query(default=None), end: str = Query(default=None),
                   account: str = Query(default=None), keyword: str = Query(default=None),
+                  user_id: int = Query(default=None),
                   user: dict = Depends(get_current_user)):
-    uid = _opt_user_id(user)
+    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
     return analytics.meta_summary(start_date=start, end_date=end, account=account, keyword=keyword, user_id=uid)
 
 @app.get("/api/meta/daily-stats")
 def _meta_daily_stats(start: str = Query(default=None), end: str = Query(default=None),
                       account: str = Query(default=None), keyword: str = Query(default=None),
                       page: int = Query(default=1), page_size: int = Query(default=20),
+                      user_id: int = Query(default=None),
                       user: dict = Depends(get_current_user)):
-    uid = _opt_user_id(user)
+    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
     return analytics.meta_daily_stats(start_date=start, end_date=end, account=account,
                                       keyword=keyword, page=page, page_size=page_size, user_id=uid)
 
 @app.get("/api/meta/trend")
 def _meta_trend(days: int = Query(default=30), account: str = Query(default=None),
+                user_id: int = Query(default=None),
                 user: dict = Depends(get_current_user)):
-    uid = _opt_user_id(user)
+    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
     return analytics.meta_trend(days=days, account=account, user_id=uid)
 
 @app.get("/api/meta/account-ranking")
 def _meta_account_ranking(start: str = Query(default=None), end: str = Query(default=None),
                           page: int = Query(default=1), page_size: int = Query(default=20),
+                          user_id: int = Query(default=None),
                           user: dict = Depends(get_current_user)):
-    uid = _opt_user_id(user)
+    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
     return analytics.meta_account_ranking(start_date=start, end_date=end, page=page, page_size=page_size, user_id=uid)
 
 
 @app.get("/api/meta/bm-summary")
 def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=None),
+                      user_id: int = Query(default=None),
                       user: dict = Depends(get_current_user)):
     """按 BM（pingykj_account）聚合 Meta 账户 KPI"""
-    uid = _opt_user_id(user)
+    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
     with database.get_conn() as conn:
         where = ["source = 'meta'"]
         params = []

@@ -4301,6 +4301,8 @@
       });
     }
 
+    var _treeCollapsed = {};  // 存储节点折叠状态
+
     function renderMetaAccountTree() {
       var tree = document.getElementById('metaAccountTree');
       var searchText = (document.getElementById('metaAccountSearch').value || '').toLowerCase();
@@ -4312,33 +4314,81 @@
                  (a.pingykj_account || '').toLowerCase().indexOf(searchText) >= 0;
         });
       }
-      var groups = {};
-      accounts.forEach(function(a) {
-        var bm = a.pingykj_account || '未归类';
-        if (!groups[bm]) groups[bm] = [];
-        groups[bm].push(a);
-      });
-      var html = '';
-      html += '<div class="meta-tree-item' + (_metaSelectedAccount === null ? ' active' : '') + '" onclick="selectMetaAccount(null)">📊 全部账户</div>';
-      var bmNames = Object.keys(groups).sort();
-      bmNames.forEach(function(bm) {
-        var bmAccounts = groups[bm];
-        html += '<div class="meta-tree-bm">' + escapeHtml(bm) + ' (' + bmAccounts.length + ')</div>';
-        var bmKey = 'bm:' + bm;
-        html += '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === bmKey ? ' active' : '') + '" onclick="selectMetaAccount(\'' + bmKey + '\')">📁 ' + escapeHtml(bm) + ' 汇总</div>';
-        var isAdmin = currentUser && currentUser.role === 'admin';
-        bmAccounts.forEach(function(a) {
-          var actKey = a.act_id;
-          var isActive = a.status === 'active';
-          var toggleTitle = isActive ? '停用（不再拉数据）' : '启用';
-          html += '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === actKey ? ' active' : '') + '" onclick="selectMetaAccount(\'' + actKey + '\')" title="' + escapeHtml(a.act_name || a.act_id) + '">' +
-            '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + (isActive ? 'bg-emerald-400' : 'bg-slate-500') + '"></span>' +
-            '<span class="flex-1 truncate">' + escapeHtml(a.act_name || a.act_id) + '</span>' +
-            (isAdmin ? '<button class="ml-1 w-5 h-5 rounded text-[10px] leading-none flex items-center justify-center border-0 cursor-pointer ' + (isActive ? 'text-slate-500 hover:text-amber-400 hover:bg-slate-700' : 'text-slate-600 hover:text-emerald-400 hover:bg-slate-700') + ' transition-all bg-transparent" onclick="event.stopPropagation();toggleMetaAccountStatus(\'' + actKey + '\',\'' + (isActive ? 'paused' : 'active') + '\')" title="' + toggleTitle + '">' + (isActive ? '⏸' : '▶') + '</button>' : '') +
-            '</div>';
-        });
-      });
-      tree.innerHTML = html || '<div class="p-3 text-slate-500 text-center">暂无账户，请先发现并导入</div>';
+      var isAdmin = currentUser && currentUser.role === 'admin';
+
+      function makeTreeItem(key, label, icon, depth, children) {
+        var collapsed = _treeCollapsed[key] === true;
+        var arrow = children ? (collapsed ? '▶' : '▼') : '';
+        var isSelected = _metaSelectedAccount === key;
+        return '<div class="meta-tree-item' + (isSelected ? ' active' : '') + '" style="padding-left:' + (8 + depth*12) + 'px" onclick="event.stopPropagation();selectMetaAccount(\'' + key + '\')">' +
+          (children ? '<span class="inline-block w-4 text-center cursor-pointer text-slate-500 mr-0.5" onclick="event.stopPropagation();_treeCollapsed[\'' + key + '\']=!_treeCollapsed[\'' + key + '\'];renderMetaAccountTree();">' + arrow + '</span>' : '<span class="inline-block w-4 mr-0.5"></span>') +
+          '<span class="flex-1 truncate">' + icon + ' ' + escapeHtml(label) + '</span>' +
+          '</div>' +
+          (children && !collapsed ? children : '');
+      }
+
+      function buildTree() {
+        var html = '';
+        html += makeTreeItem('__all__', '全部账户', '📊', 0, null);
+
+        if (isAdmin) {
+          // 管理员：按用户 → BM → 账户
+          var userGroups = {};
+          accounts.forEach(function(a) {
+            var uname = a.user_name || ('用户' + (a.user_id || ''));
+            if (!userGroups[uname]) userGroups[uname] = { id: a.user_id, accounts: [] };
+            userGroups[uname].accounts.push(a);
+          });
+          Object.keys(userGroups).sort().forEach(function(uname) {
+            var ug = userGroups[uname];
+            var userKey = 'user:' + ug.id;
+            // 按 BM 分组
+            var bmGroups = {};
+            ug.accounts.forEach(function(a) {
+              var bm = a.pingykj_account || '未归类';
+              if (!bmGroups[bm]) bmGroups[bm] = [];
+              bmGroups[bm].push(a);
+            });
+            var bmChildren = '';
+            Object.keys(bmGroups).sort().forEach(function(bm) {
+              var bmAccounts = bmGroups[bm];
+              var bmKey = 'bm:' + ug.id + ':' + bm;
+              var acctChildren = bmAccounts.map(function(a) {
+                var actKey = a.act_id;
+                var isActive = a.status === 'active';
+                var toggleBtn = isAdmin ? '<button class="ml-1 w-5 h-5 rounded text-[10px] leading-none flex items-center justify-center border-0 cursor-pointer ' + (isActive ? 'text-slate-500 hover:text-amber-400' : 'text-slate-600 hover:text-emerald-400') + ' transition-all bg-transparent" onclick="event.stopPropagation();toggleMetaAccountStatus(\'' + actKey + '\',\'' + (isActive ? 'paused' : 'active') + '\')" title="' + (isActive ? '停用' : '启用') + '">' + (isActive ? '⏸' : '▶') + '</button>' : '';
+                return '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === actKey ? ' active' : '') + '" style="padding-left:36px" onclick="event.stopPropagation();selectMetaAccount(\'' + actKey + '\')">' +
+                  '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + (isActive ? 'bg-emerald-400' : 'bg-slate-500') + '"></span>' +
+                  '<span class="flex-1 truncate">' + escapeHtml(a.act_name || a.act_id) + '</span>' + toggleBtn + '</div>';
+              }).join('');
+              bmChildren += makeTreeItem(bmKey, bm, '📁', 2, acctChildren);
+            });
+            html += makeTreeItem(userKey, uname + ' (' + ug.accounts.length + '个账户)', '👤', 1, bmChildren);
+          });
+        } else {
+          // 普通用户：按 BM → 账户
+          var bmGroups = {};
+          accounts.forEach(function(a) {
+            var bm = a.pingykj_account || '未归类';
+            if (!bmGroups[bm]) bmGroups[bm] = [];
+            bmGroups[bm].push(a);
+          });
+          Object.keys(bmGroups).sort().forEach(function(bm) {
+            var bmAccounts = bmGroups[bm];
+            var bmKey = 'bm:' + bm;
+            var acctChildren = bmAccounts.map(function(a) {
+              var actKey = a.act_id;
+              return '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === actKey ? ' active' : '') + '" style="padding-left:24px" onclick="event.stopPropagation();selectMetaAccount(\'' + actKey + '\')">' +
+                '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + (a.status === 'active' ? 'bg-emerald-400' : 'bg-slate-500') + '"></span>' +
+                '<span class="flex-1 truncate">' + escapeHtml(a.act_name || a.act_id) + '</span></div>';
+            }).join('');
+            html += makeTreeItem(bmKey, bm, '📁', 1, acctChildren);
+          });
+        }
+        return html;
+      }
+
+      tree.innerHTML = buildTree() || '<div class="p-3 text-slate-500 text-center">暂无账户，请先发现并导入</div>';
       document.getElementById('metaAccountFooter').textContent = '已导入 ' + _metaAccounts.length + ' 个账户';
     }
 
@@ -4625,11 +4675,16 @@
       var compareRange = getCompareDateRange();
       var params = '?start=' + range.start + '&end=' + range.end;
       var compareParams = '?start=' + compareRange.start + '&end=' + compareRange.end;
-      if (_metaSelectedAccount) {
-        if (_metaSelectedAccount.indexOf('bm:') === 0) {
-          params += '&bm=' + encodeURIComponent(_metaSelectedAccount.slice(3));
-          compareParams += '&bm=' + encodeURIComponent(_metaSelectedAccount.slice(3));
-        } else {
+      if (_metaSelectedAccount && _metaSelectedAccount !== '__all__') {
+        if (_metaSelectedAccount.indexOf('user:') === 0) {
+          var uid = _metaSelectedAccount.slice(5);
+          params += '&user_id=' + uid;
+          compareParams += '&user_id=' + uid;
+        } else if (_metaSelectedAccount.indexOf('bm:') === 0) {
+          var bmName = _metaSelectedAccount.slice(3).split(':').pop();  // "bm:uid:name" or "bm:name"
+          params += '&keyword=' + encodeURIComponent(bmName);
+          compareParams += '&keyword=' + encodeURIComponent(bmName);
+        } else if (_metaSelectedAccount.indexOf('act_') === 0) {
           params += '&account=' + _metaSelectedAccount;
           compareParams += '&account=' + _metaSelectedAccount;
         }
