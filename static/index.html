@@ -4647,7 +4647,7 @@
         }
       }
       try {
-        var [summaryRes, bmRes, dailyRes, rankRes, userRes] = await Promise.all([
+        var [summaryRes, bmRes, userRes, dailyRes, rankRes] = await Promise.all([
           fetch('/api/meta/summary' + params).then(function(r) { return r.json(); }),
           fetch('/api/meta/bm-summary' + params).then(function(r) { return r.json(); }),
           fetch('/api/meta/user-summary' + params).then(function(r) { return r.json(); }),
