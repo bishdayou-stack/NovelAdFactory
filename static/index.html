@@ -26,6 +26,22 @@
     .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
     .pagination { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 12px; }
     .hide-novel-cc .novelCCCol { display: none !important; }
+.card-dark { background: #1e293b; border: 1px solid rgba(51,65,85,0.5); border-radius: 1rem; }
+.meta-tree-item { padding: 6px 12px; border-radius: 8px; cursor: pointer; transition: all 0.15s; color: #94a3b8; }
+.meta-tree-item:hover { background: rgba(255,255,255,0.05); color: #e2e8f0; }
+.meta-tree-item.active { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+.meta-tree-bm { font-weight: 600; color: #e2e8f0; padding: 8px 12px 4px; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+.meta-tree-account { padding-left: 20px; }
+.meta-kpi-card { background: #1e293b; border: 1px solid rgba(51,65,85,0.5); border-radius: 1rem; padding: 16px; text-align: center; }
+.meta-kpi-value { font-size: 1.5rem; font-weight: 700; color: #fff; margin-top: 2px; }
+.meta-kpi-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+.meta-kpi-change { font-size: 10px; margin-top: 4px; }
+.meta-kpi-up { color: #34d399; }
+.meta-kpi-down { color: #f87171; }
+#metaDailyTable table, #metaAccountRank table, #metaBmTable table, #metaAnomalies table { width: 100%; border-collapse: collapse; }
+#metaDailyTable th, #metaAccountRank th, #metaBmTable th, #metaAnomalies th { color: #94a3b8; text-align: left; padding: 6px 8px; font-weight: 500; border-bottom: 1px solid rgba(51,65,85,0.5); }
+#metaDailyTable td, #metaAccountRank td, #metaBmTable td, #metaAnomalies td { color: #cbd5e1; padding: 5px 8px; border-bottom: 1px solid rgba(51,65,85,0.2); }
+
   </style>
 </head>
 <body class="min-h-screen bg-slate-50 flex">
@@ -118,17 +134,9 @@
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
         <span class="truncate">配置管理</span>
       </button>
-      <button type="button" id="nav-delivery" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
-        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-        <span class="truncate">投放管理</span>
-      </button>
-      <button type="button" id="nav-meta-data" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
-        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-        <span class="truncate">Meta 数据</span>
-      </button>
-      <button type="button" id="nav-meta-accounts" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
-        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-        <span class="truncate">账户配置</span>
+      <button type="button" id="nav-meta" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16l4-4 4 4 4-6"/></svg>
+        <span class="truncate">Meta 管理</span>
       </button>
       <button type="button" id="nav-users" class="w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer" style="display:none">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
@@ -754,173 +762,55 @@
 
     </div>
 
-    <!-- ====== Tab: 投放管理 ====== -->
-    <div id="tab-delivery" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
-      <div class="flex items-center justify-between mb-4 mt-2">
-        <h2 class="text-lg font-bold text-slate-800">投放管理</h2>
-      </div>
-
-      <!-- 子 Tab 导航 -->
-      <div class="flex items-center gap-1 mb-4 bg-slate-100 rounded-lg p-0.5 w-fit">
-        <button class="sub-tab-btn active px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-white text-indigo-600 shadow-sm" data-subtab="delivery-queue">审核队列</button>
-        <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700" data-subtab="delivery-templates">投放模板</button>
-        <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700" data-subtab="delivery-records">投放记录</button>
-      </div>
-
-      <!-- 审核队列 -->
-      <div id="subtab-delivery-queue" class="sub-tab-content">
-        <div class="toolbar">
-          <select id="queue-filter-status" class="rounded-xl border border-slate-200 px-3 py-2 text-xs input-focus bg-slate-50/50">
-            <option value="">全部状态</option>
-            <option value="pending">待审核</option>
-            <option value="approved">已通过</option>
-            <option value="rejected">已驳回</option>
-            <option value="delivered">已投放</option>
-          </select>
-          <button onclick="loadDeliveryQueue()" class="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer">刷新</button>
-          <button onclick="batchApprove()" class="rounded-xl border border-indigo-200 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer">批量通过</button>
-          <button onclick="submitDelivery()" class="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">提交投放</button>
+    <!-- ====== Tab: Meta 管理中心 ====== -->
+    <div id="tab-meta" class="flex-1 flex overflow-hidden" hidden>
+      <!-- 左侧面板 -->
+      <div class="w-64 shrink-0 bg-slate-950 border-r border-slate-800 flex flex-col overflow-hidden">
+        <div class="p-3 border-b border-slate-800">
+          <h2 class="text-sm font-bold text-white">Meta 管理中心</h2>
         </div>
-        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table class="w-full text-xs whitespace-nowrap" id="delivery-queue-table">
-            <thead class="bg-slate-50 border-b border-slate-200">
-              <tr class="text-slate-500 text-left">
-                <th class="py-2.5 px-3 font-medium w-8"><input type="checkbox" id="queue-select-all" onchange="toggleSelectAllQueue()" class="accent-indigo-600 w-3.5 h-3.5 cursor-pointer"></th>
-                <th class="py-2.5 px-3 font-medium">ID</th><th class="py-2.5 px-3 font-medium">批次</th><th class="py-2.5 px-3 font-medium">类型</th><th class="py-2.5 px-3 font-medium">文案</th><th class="py-2.5 px-3 font-medium">状态</th><th class="py-2.5 px-3 font-medium">操作</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+        <div class="px-3 py-2">
+          <input id="metaAccountSearch" type="text" placeholder="搜索账户..." class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none">
         </div>
-        <div class="pagination" id="queue-pagination"></div>
+        <div class="px-3 py-1.5 flex gap-1.5">
+          <button id="btnMetaDiscover" class="flex-1 rounded-lg bg-indigo-600 px-2 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer">+ 发现账户</button>
+          <button id="btnMetaConfig" class="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 text-sm hover:bg-slate-700 hover:text-white transition-all flex items-center justify-center cursor-pointer border-0" title="API 配置">&#9874;</button>
+        </div>
+        <div id="metaAccountTree" class="flex-1 overflow-y-auto px-2 py-1 text-xs"></div>
+        <div id="metaAccountFooter" class="px-3 py-2 border-t border-slate-800 text-[10px] text-slate-500"></div>
       </div>
-
-      <!-- 投放模板 -->
-      <div id="subtab-delivery-templates" class="sub-tab-content" style="display:none">
-        <div class="toolbar">
-          <button onclick="openCreateTemplate()" class="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">+ 手动创建</button>
-          <button onclick="openImportTemplate()" class="rounded-xl border border-indigo-200 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer">从 FB 导入</button>
-        </div>
-        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table class="w-full text-xs whitespace-nowrap" id="templates-table">
-            <thead class="bg-slate-50 border-b border-slate-200">
-              <tr class="text-slate-500 text-left"><th class="py-2.5 px-3 font-medium">名称</th><th class="py-2.5 px-3 font-medium">来源</th><th class="py-2.5 px-3 font-medium">预算</th><th class="py-2.5 px-3 font-medium">出价策略</th><th class="py-2.5 px-3 font-medium">关联账户</th><th class="py-2.5 px-3 font-medium">操作</th></tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- 投放记录 -->
-      <div id="subtab-delivery-records" class="sub-tab-content" style="display:none">
-        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table class="w-full text-xs whitespace-nowrap" id="delivery-records-table">
-            <thead class="bg-slate-50 border-b border-slate-200">
-              <tr class="text-slate-500 text-left"><th class="py-2.5 px-3 font-medium">ID</th><th class="py-2.5 px-3 font-medium">批次</th><th class="py-2.5 px-3 font-medium">类型</th><th class="py-2.5 px-3 font-medium">FB Ad ID</th><th class="py-2.5 px-3 font-medium">FB Campaign ID</th><th class="py-2.5 px-3 font-medium">状态</th><th class="py-2.5 px-3 font-medium">时间</th></tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div class="pagination" id="records-pagination"></div>
-      </div>
-    </div>
-
-    <!-- ====== Tab: Meta 数据 ====== -->
-    <div id="tab-meta-data" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
-      <div class="section-header">
-        <h2 class="text-lg font-bold text-slate-800">Meta 广告数据</h2>
-        <div class="flex items-center gap-2">
-          <select id="metaAccountFilter" class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs bg-white">
-            <option value="">全部账户</option>
-          </select>
-          <div id="metaDatePills" class="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-            <button data-range="today" class="metaDatePill metaDatePillActive px-3 py-1.5 text-[11px] font-medium rounded-md transition-all bg-white text-indigo-600 shadow-sm">今天</button>
-            <button data-range="yesterday" class="metaDatePill px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">昨天</button>
-            <button data-range="daybefore" class="metaDatePill px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">前天</button>
-            <button data-range="3" class="metaDatePill px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">近三天</button>
-            <button data-range="7" class="metaDatePill px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">近7天</button>
-            <button data-range="30" class="metaDatePill px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-500 hover:text-slate-700">近30天</button>
+      <!-- 右侧主区域 -->
+      <div class="flex-1 bg-slate-900 overflow-y-auto px-5 py-4">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-1 bg-slate-800 rounded-lg p-0.5" id="metaDatePills">
+            <button data-range="today" class="metaDatePillActive px-3 py-1.5 text-[11px] font-medium rounded-md transition-all bg-slate-700 text-white">今天</button>
+            <button data-range="yesterday" class="px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-400 hover:text-white">昨天</button>
+            <button data-range="3" class="px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-400 hover:text-white">近3天</button>
+            <button data-range="7" class="px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-400 hover:text-white">近7天</button>
+            <button data-range="30" class="px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-400 hover:text-white">近30天</button>
           </div>
-          <button onclick="triggerMetaSync()" class="rounded-xl bg-indigo-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">手动同步</button>
-          <span id="meta-sync-status" class="text-[11px] text-slate-400"></span>
-        </div>
-      </div>
-
-      <!-- KPI 卡片 -->
-      <div class="grid grid-cols-4 gap-3 mb-4">
-        <div class="card p-3 text-center"><div class="text-[10px] text-slate-400">消耗</div><div id="metaKpiSpend" class="text-lg font-bold text-slate-800 mt-0.5">-</div></div>
-        <div class="card p-3 text-center"><div class="text-[10px] text-slate-400">转化</div><div id="metaKpiPurchase" class="text-lg font-bold text-slate-800 mt-0.5">-</div></div>
-        <div class="card p-3 text-center"><div class="text-[10px] text-slate-400">ROI</div><div id="metaKpiRoi" class="text-lg font-bold text-emerald-600 mt-0.5">-</div></div>
-        <div class="card p-3 text-center"><div class="text-[10px] text-slate-400">CPA</div><div id="metaKpiCpa" class="text-lg font-bold text-slate-800 mt-0.5">-</div></div>
-        <div class="card p-3 text-center"><div class="text-[10px] text-slate-400">展示</div><div id="metaKpiImp" class="text-lg font-bold text-slate-800 mt-0.5">-</div></div>
-        <div class="card p-3 text-center"><div class="text-[10px] text-slate-400">点击</div><div id="metaKpiClick" class="text-lg font-bold text-slate-800 mt-0.5">-</div></div>
-        <div class="card p-3 text-center"><div class="text-[10px] text-slate-400">CPM</div><div id="metaKpiCpm" class="text-lg font-bold text-slate-800 mt-0.5">-</div></div>
-        <div class="card p-3 text-center"><div class="text-[10px] text-slate-400">CTR</div><div id="metaKpiCtr" class="text-lg font-bold text-slate-800 mt-0.5">-</div></div>
-      </div>
-
-      <!-- 趋势图 -->
-      <div class="card p-4 mb-4"><div class="h-48"><canvas id="metaChartTrend"></canvas></div></div>
-
-      <!-- 日报 + 排行 -->
-      <div class="grid grid-cols-2 gap-4 mb-4">
-        <div class="card p-4">
-          <h3 class="text-xs font-semibold text-slate-700 mb-2">日报</h3>
-          <div class="overflow-x-auto"><table class="w-full text-[11px]"><thead><tr class="border-b border-slate-100 text-slate-400 text-left"><th class="pb-1 font-medium">日期</th><th class="pb-1 font-medium">账户</th><th class="pb-1 font-medium text-right">消耗</th><th class="pb-1 font-medium text-right">转化</th><th class="pb-1 font-medium text-right">ROI</th></tr></thead><tbody id="metaDailyBody"></tbody></table></div>
-          <div id="metaDailyPager" class="mt-2"></div>
-        </div>
-        <div class="card p-4">
-          <h3 class="text-xs font-semibold text-slate-700 mb-2">账户排行</h3>
-          <div class="overflow-x-auto"><table class="w-full text-[11px]"><thead><tr class="border-b border-slate-100 text-slate-400 text-left"><th class="pb-1 font-medium">#</th><th class="pb-1 font-medium">账户</th><th class="pb-1 font-medium text-right">消耗</th><th class="pb-1 font-medium text-right">ROI</th></tr></thead><tbody id="metaRankBody"></tbody></table></div>
-        </div>
-      </div>
-
-      <!-- API 配置（可折叠） -->
-      <details class="card mb-4">
-        <summary class="p-4 cursor-pointer text-xs font-semibold text-slate-500 hover:text-slate-700 select-none">Meta API 配置</summary>
-        <div class="px-4 pb-4">
-          <div class="grid grid-cols-2 gap-3 text-xs">
-            <div><label class="block text-slate-500 mb-1">App ID</label><input id="meta-app-id" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-700" placeholder="Facebook App ID"></div>
-            <div><label class="block text-slate-500 mb-1">App Secret</label><input id="meta-app-secret" type="password" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-700" placeholder="留空则不修改"><span class="text-[10px] text-slate-400">填写后保存，出于安全不回显</span></div>
-            <div><label class="block text-slate-500 mb-1">Access Token</label><input id="meta-access-token" type="password" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-700" placeholder="留空则不修改"><span class="text-[10px] text-slate-400">填写后保存，出于安全不回显</span></div>
-            <div><label class="block text-slate-500 mb-1">API 版本</label><input id="meta-api-version" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-700" placeholder="v25.0"></div>
-            <div><label class="block text-slate-500 mb-1">同步间隔（秒）</label><input id="meta-sync-interval" type="number" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-700" placeholder="300"></div>
-            <div><label class="block text-slate-500 mb-1">速率（次/秒）</label><input id="meta-rate-limit" type="number" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-700" placeholder="4"></div>
-            <div><label class="block text-slate-500 mb-1">代理地址</label><input id="meta-proxy" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-700" placeholder="如 http://127.0.0.1:10808"></div>
-          </div>
-          <div class="mt-3 flex items-center gap-2"><button onclick="saveMetaConfig()" class="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 cursor-pointer">保存配置</button><span id="meta-config-msg" class="text-xs text-green-600 hidden">已保存</span></div>
-        </div>
-      </details>
-    </div>
-
-    <!-- ====== Tab: 账户配置 ====== -->
-    <div id="tab-meta-accounts" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
-      <div class="section-header">
-        <h2 class="text-lg font-bold text-slate-800">Meta 账户配置</h2>
-        <div class="flex items-center gap-2">
-          <button onclick="discoverAccounts()" id="btn-discover" class="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">发现账户</button>
-          <span id="discover-status" class="text-xs text-slate-400"></span>
-        </div>
-      </div>
-
-      <!-- 发现结果 -->
-      <div id="discover-results" class="card p-4 mb-3" hidden>
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-sm font-semibold text-slate-700">发现的广告账户 (<span id="discover-count">0</span>)</h3>
-          <div class="flex gap-2">
-            <button onclick="toggleSelectAllDiscovered()" class="text-xs text-indigo-600 cursor-pointer">全选</button>
-            <button onclick="importSelectedAccounts()" class="rounded-lg bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700 cursor-pointer">导入选中</button>
+          <div class="flex items-center gap-3">
+            <select id="metaCompareBaseline" class="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-[11px] text-slate-300 focus:border-indigo-500 focus:outline-none cursor-pointer">
+              <option value="yesterday">对比: 昨天</option>
+              <option value="daybefore">对比: 前天</option>
+              <option value="lastweek">对比: 上周同期</option>
+              <option value="avg7" selected>对比: 前7天均值</option>
+              <option value="avg30">对比: 前30天均值</option>
+            </select>
+            <button id="btnMetaSync" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer">手动同步</button>
+            <span id="metaSyncStatus" class="text-[11px] text-slate-500"></span>
           </div>
         </div>
-        <div id="discover-list" class="max-h-60 overflow-y-auto text-xs"></div>
-      </div>
-
-      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table class="w-full text-xs whitespace-nowrap" id="meta-accounts-table">
-          <thead class="bg-slate-50 border-b border-slate-200">
-            <tr class="text-slate-500 text-left"><th class="py-2.5 px-3 font-medium">账户 ID</th><th class="py-2.5 px-3 font-medium">名称</th><th class="py-2.5 px-3 font-medium">状态</th><th class="py-2.5 px-3 font-medium">BM</th><th class="py-2.5 px-3 font-medium">货币</th><th class="py-2.5 px-3 font-medium">操作</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+        <div class="grid grid-cols-6 gap-3 mb-4" id="metaKpiRow"></div>
+        <div class="grid grid-cols-3 gap-4 mb-4">
+          <div class="col-span-2 card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">趋势</h3><div class="h-48"><canvas id="metaChartTrend"></canvas></div></div>
+          <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">BM 汇总</h3><div id="metaBmTable" class="text-[11px]"></div></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">异常预警</h3><div id="metaAnomalies" class="text-[11px]"></div></div>
+          <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">账户排行</h3><div id="metaAccountRank" class="text-[11px]"></div></div>
+        </div>
+        <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">日报明细</h3><div id="metaDailyTable" class="text-[11px]"></div><div id="metaDailyPager" class="mt-2"></div></div>
       </div>
     </div>
 
@@ -1726,7 +1616,7 @@
       // 隐藏所有 tab
       var allTabs = ['generate', 'history', 'assets', 'video-style', 'prompt-generate',
                      'novel-analyze', 'dashboard', 'novel-mgr', 'hit-gallery', 'config',
-                     'delivery', 'meta-data', 'meta-accounts', 'users'];
+                     'meta', 'users'];
       for (var i = 0; i < allTabs.length; i++) {
         var el = document.getElementById('tab-' + allTabs[i]);
         if (el) el.hidden = true;
@@ -1750,7 +1640,7 @@
       }
 
       // 更新面包屑
-      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'delivery': '投放管理', 'meta-data': 'Meta 数据', 'meta-accounts': '账户配置', 'users': '用户管理' };
+      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'meta': 'Meta 管理', 'users': '用户管理' };
       document.getElementById('breadcrumb').textContent = titles[tab] || tab;
       document.getElementById('pageTitle').textContent = titles[tab] || tab;
 
@@ -1769,9 +1659,7 @@
       if (tab === 'dashboard') { loadDashboard(); }
       if (tab === 'novel-mgr') { if (novelMgrPages.books === 1) loadNovelBooks(1); else loadNovelBooks(novelMgrPages.books); }
       if (tab === 'hit-gallery') loadHitGallery();
-      if (tab === 'delivery') loadDeliveryQueue();
-      if (tab === 'meta-data') loadMetaDashboard();
-      if (tab === 'meta-accounts') loadMetaAccounts();
+      if (tab === 'meta') { loadMetaAccountTree(); refreshMetaDashboard(); }
       if (tab === 'users') loadUserList();
     }
 
@@ -3376,25 +3264,7 @@
     document.getElementById('nav-novel-mgr').addEventListener('click', function() { switchTab('novel-mgr'); });
     document.getElementById('nav-hit-gallery').addEventListener('click', function() { switchTab('hit-gallery'); });
     document.getElementById('nav-config').addEventListener('click', function() { switchTab('config'); });
-    document.getElementById('nav-delivery').addEventListener('click', function() { switchTab('delivery'); });
-    document.getElementById('nav-meta-data').addEventListener('click', function() { switchTab('meta-data'); });
-    document.getElementById('nav-meta-accounts').addEventListener('click', function() { switchTab('meta-accounts'); });
-
-    // === 投放管理子 Tab 切换 ===
-    document.querySelectorAll('.sub-tab-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var subtab = this.dataset.subtab;
-        document.querySelectorAll('.sub-tab-content').forEach(function(t) { t.style.display = 'none'; });
-        var target = document.getElementById('subtab-' + subtab);
-        if (target) target.style.display = 'block';
-        document.querySelectorAll('.sub-tab-btn').forEach(function(b) { b.classList.remove('active', 'bg-white', 'text-indigo-600', 'shadow-sm'); b.classList.add('text-slate-500'); });
-        this.classList.add('active', 'bg-white', 'text-indigo-600', 'shadow-sm');
-        this.classList.remove('text-slate-500');
-
-        if (subtab === 'delivery-templates') loadTemplates();
-        if (subtab === 'delivery-records') loadDeliveryRecords();
-      });
-    });
+    document.getElementById('nav-meta').addEventListener('click', function() { switchTab('meta'); });
 
     document.getElementById('btnAddStyle').addEventListener('click', function() { createNewStyle(); });
     document.getElementById('saveStyleBtn').addEventListener('click', function() { saveCurrentStyle(); });
@@ -4411,484 +4281,451 @@
     document.getElementById('novelMgrStatus').addEventListener('change', function() { loadNovelBooks(1); });
     document.getElementById('novelMgrPageSize').addEventListener('change', function() { loadNovelBooks(1); });
 
-    // ====== 投放模板 ======
-    async function loadTemplates() {
-      var resp = await fetch('/api/delivery/templates');
-      var data = await resp.json();
-      var tbody = document.querySelector('#templates-table tbody');
-      tbody.innerHTML = (data || []).map(function(t) {
-        return '<tr>' +
-          '<td class="py-2 px-3">' + (t.name || '') + '</td>' +
-          '<td class="py-2 px-3">' + (t.source === 'imported_from_fb' ? 'FB导入' : '手动') + '</td>' +
-          '<td class="py-2 px-3">' + ((t.budget_value || 0) / 100).toFixed(2) + ' ' + (t.budget_type === 'daily_budget' ? '日' : '总') + '</td>' +
-          '<td class="py-2 px-3">' + (t.bid_strategy || '') + '</td>' +
-          '<td class="py-2 px-3">' + (t.ad_account_id || '通用') + '</td>' +
-          '<td class="py-2 px-3"><button onclick="editTemplate(' + t.id + ')" class="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer mr-1">编辑</button><button onclick="deleteTemplate(' + t.id + ')" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">删除</button></td>' +
-          '</tr>';
-      }).join('');
-    }
-
-    async function openCreateTemplate() {
-      var name = prompt('模板名称:');
-      if (!name) return;
-      var budgetValue = parseInt(prompt('日预算（美元分，如 5000 = $50）:')) || 5000;
-      var adAccountId = prompt('关联账户 act_id（留空=通用）:') || '';
-      var resp = await fetch('/api/delivery/templates', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name: name, budget_value: budgetValue, ad_account_id: adAccountId, targeting: {age_min: 35, age_max: 65, genders: [1], geo_locations: {countries: ['US','UK','CA','AU']}, locales: [6]}})
-      });
-      if (resp.ok) loadTemplates();
-      else alert('创建失败');
-    }
-
-    async function editTemplate(id) {
-      var name = prompt('新名称:') || '';
-      var budgetValue = parseInt(prompt('日预算（美元分）:')) || 0;
-      if (!name && !budgetValue) return;
-      var body = {};
-      if (name) body.name = name;
-      if (budgetValue) body.budget_value = budgetValue;
-      await fetch('/api/delivery/templates/' + id, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-      loadTemplates();
-    }
-
-    async function deleteTemplate(id) {
-      if (!confirm('确认删除?')) return;
-      await fetch('/api/delivery/templates/' + id, {method: 'DELETE'});
-      loadTemplates();
-    }
-
-    async function openImportTemplate() {
-      var accountsResp = await fetch('/api/meta/accounts');
-      var accounts = await accountsResp.json();
-      if (!accounts.length) { alert('请先添加 Meta 账户'); return; }
-      var accountId = prompt('选择账户 act_id:\n' + accounts.map(function(a) { return a.act_id + ' - ' + a.act_name; }).join('\n'));
-      if (!accountId) return;
-      var adsetsResp = await fetch('/api/delivery/templates/fb-adsets/' + accountId);
-      var adsetsData = await adsetsResp.json();
-      var adsets = adsetsData.data || [];
-      if (!adsets.length) { alert('该账户没有 AdSet'); return; }
-      var adsetId = prompt('选择 AdSet:\n' + adsets.map(function(a) { return a.id + ' - ' + a.name; }).join('\n'));
-      if (!adsetId) return;
-      var name = prompt('导入后模板名称:') || '';
-      await fetch('/api/delivery/templates/import', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({account_id: accountId, adset_id: adsetId, name: name})
-      });
-      loadTemplates();
-    }
-
-    // ====== 审核队列 ======
-    var selectedQueueIds = new Set();
-
-    function toggleSelectAllQueue() {
-      var checkAll = document.getElementById('queue-select-all');
-      var tbody = document.querySelector('#delivery-queue-table tbody');
-      var checkboxes = tbody.querySelectorAll('input[type="checkbox"]');
-      checkboxes.forEach(function(cb) { cb.checked = checkAll.checked; });
-      selectedQueueIds.clear();
-      if (checkAll.checked) {
-        checkboxes.forEach(function(cb) { selectedQueueIds.add(parseInt(cb.dataset.id)); });
-      }
-    }
-
-    async function loadDeliveryQueue() {
-      var status = (document.getElementById('queue-filter-status') || {}).value || '';
-      var resp = await fetch('/api/delivery/queue?status=' + status);
-      var data = await resp.json();
-      var tbody = document.querySelector('#delivery-queue-table tbody');
-      var items = data.data || data || [];
-      tbody.innerHTML = items.map(function(item) {
-        return '<tr>' +
-          '<td class="py-2 px-3"><input type="checkbox" data-id="' + item.id + '" onchange="toggleQueueItem(' + item.id + ', this.checked)" class="accent-indigo-600 w-3.5 h-3.5 cursor-pointer"></td>' +
-          '<td class="py-2 px-3">' + item.id + '</td>' +
-          '<td class="py-2 px-3">' + (item.batch_id || '') + '</td>' +
-          '<td class="py-2 px-3">' + (item.image_type || '') + '</td>' +
-          '<td class="py-2 px-3 max-w-[200px] overflow-hidden text-ellipsis">' + (item.overlay_text || '') + '</td>' +
-          '<td class="py-2 px-3"><span style="color:' + (item.status === 'approved' ? 'green' : '#888') + '">' + item.status + '</span></td>' +
-          '<td class="py-2 px-3">' + (item.status === 'pending' || item.status === 'approved' ? '<button onclick="approveQueueItem(' + item.id + ')" class="rounded-lg border border-indigo-200 px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer mr-1">通过</button><button onclick="rejectQueueItem(' + item.id + ')" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">驳回</button>' : '') + '</td>' +
-          '</tr>';
-      }).join('');
-    }
-
-    function toggleQueueItem(id, checked) {
-      if (checked) selectedQueueIds.add(id); else selectedQueueIds.delete(id);
-    }
-
-    async function approveQueueItem(id) {
-      var templatesResp = await fetch('/api/delivery/templates');
-      var templates = await templatesResp.json();
-      if (!templates.length) { alert('请先创建投放模板'); return; }
-      var tplId = prompt('选择模板 ID:\n' + templates.map(function(t) { return t.id + ': ' + t.name; }).join('\n'));
-      if (!tplId) return;
-      await fetch('/api/delivery/queue/' + id + '/approve', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({template_id: parseInt(tplId), reviewer: 'admin'})
-      });
-      loadDeliveryQueue();
-    }
-
-    async function rejectQueueItem(id) {
-      await fetch('/api/delivery/queue/' + id + '/reject', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({reviewer: 'admin'})
-      });
-      loadDeliveryQueue();
-    }
-
-    async function batchApprove() {
-      if (selectedQueueIds.size === 0) { alert('请先勾选素材'); return; }
-      var templatesResp = await fetch('/api/delivery/templates');
-      var templates = await templatesResp.json();
-      if (!templates.length) { alert('请先创建投放模板'); return; }
-      var tplId = prompt('选择模板 ID:\n' + templates.map(function(t) { return t.id + ': ' + t.name; }).join('\n'));
-      if (!tplId) return;
-      await fetch('/api/delivery/queue/batch-approve', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ids: Array.from(selectedQueueIds), template_id: parseInt(tplId), reviewer: 'admin'})
-      });
-      selectedQueueIds.clear();
-      loadDeliveryQueue();
-    }
-
-    async function submitDelivery() {
-      if (selectedQueueIds.size === 0) { alert('请先勾选素材'); return; }
-      var templatesResp = await fetch('/api/delivery/templates');
-      var templates = await templatesResp.json();
-      if (!templates.length) { alert('请先创建投放模板'); return; }
-      var tplId = prompt('选择模板 ID:\n' + templates.map(function(t) { return t.id + ': ' + t.name; }).join('\n'));
-      if (!tplId) return;
-      var resp = await fetch('/api/delivery/submit', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({queue_ids: Array.from(selectedQueueIds), template_id: parseInt(tplId)})
-      });
-      var result = await resp.json();
-      if (result.success) { alert('投放已提交，batch_id: ' + result.batch_id); selectedQueueIds.clear(); loadDeliveryQueue(); }
-      else alert('投放提交失败: ' + (result.detail || JSON.stringify(result)));
-    }
-
-    async function loadDeliveryRecords() {
-      var resp = await fetch('/api/delivery/records');
-      var data = await resp.json();
-      var tbody = document.querySelector('#delivery-records-table tbody');
-      var records = data.data || data || [];
-      tbody.innerHTML = records.map(function(r) {
-        return '<tr>' +
-          '<td class="py-2 px-3">' + r.id + '</td>' +
-          '<td class="py-2 px-3">' + (r.batch_id || '') + '</td>' +
-          '<td class="py-2 px-3">' + (r.image_type || '') + '</td>' +
-          '<td class="py-2 px-3">' + (r.fb_ad_id || '') + '</td>' +
-          '<td class="py-2 px-3">' + (r.fb_campaign_id || '') + '</td>' +
-          '<td class="py-2 px-3">' + (r.status || '') + '</td>' +
-          '<td class="py-2 px-3">' + (r.updated_at || '') + '</td>' +
-          '</tr>';
-      }).join('');
-    }
-
-    // ====== Meta 账户管理 ======
-
     var _discoveredAccounts = [];
 
     var _STATUS_LABELS = {active:'正常',disabled:'已停用',unsettled:'未结算',pending_review:'审核中',pending_settlement:'结算中',grace_period:'宽限期',pending_closure:'待关闭',closed:'已关闭'};
     var _STATUS_COLORS = {active:'green',disabled:'red',unsettled:'orange',pending_review:'#f0ad4e',pending_settlement:'#f0ad4e',grace_period:'#f0ad4e',pending_closure:'red',closed:'#999'};
 
-    async function loadMetaAccounts() {
-      var resp = await fetch('/api/meta/accounts');
-      var accounts = await resp.json();
-      var tbody = document.querySelector('#meta-accounts-table tbody');
-      tbody.innerHTML = accounts.map(function(a) {
-        var label = _STATUS_LABELS[a.status] || a.status;
-        var color = _STATUS_COLORS[a.status] || '#888';
-        return '<tr>' +
-          '<td class="py-2 px-3 font-mono text-xs">' + (a.act_id || '') + '</td>' +
-          '<td class="py-2 px-3">' + (a.act_name || '') + '</td>' +
-          '<td class="py-2 px-3"><span style="color:' + color + ';font-weight:600">' + label + '</span></td>' +
-          '<td class="py-2 px-3 text-xs text-slate-500">' + (a.pingykj_account || '-') + '</td>' +
-          '<td class="py-2 px-3 text-xs text-slate-400">' + (a.token_expires_at ? a.token_expires_at.substring(0,10) : '-') + '</td>' +
-          '<td class="py-2 px-3"><button onclick="toggleAccountStatus(\'' + (a.act_id || '') + '\', \'' + (a.status || '') + '\')" class="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer mr-1">' + (a.status === 'active' ? '停用' : '启用') + '</button><button onclick="deleteMetaAccount(\'' + (a.act_id || '') + '\')" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 transition-all bg-white cursor-pointer">删除</button></td>' +
-          '</tr>';
-      }).join('');
-    }
+    
 
-    async function toggleAccountStatus(actId, currentStatus) {
-      var newStatus = currentStatus === 'active' ? 'paused' : 'active';
-      await fetch('/api/meta/accounts/' + actId, {
-        method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({act_id: actId, act_name: '', access_token: '', status: newStatus})
+    // ====== Meta 管理中心 JS ======
+
+    var _metaAccounts = [];
+    var _metaSelectedAccount = null;
+    var _metaChart = null;
+    var _discoveredMetaAccounts = [];
+    var _metaDailyPage = 1;
+
+    // ---- 账户树 ----
+    function loadMetaAccountTree() {
+      fetch('/api/meta/accounts').then(function(r) { return r.json(); }).then(function(data) {
+        _metaAccounts = data.accounts || data || [];
+        renderMetaAccountTree();
       });
-      loadMetaAccounts();
     }
 
-    async function deleteMetaAccount(actId) {
-      if (!confirm('确认删除 ' + actId + '?')) return;
-      await fetch('/api/meta/accounts/' + actId, {method: 'DELETE'});
-      loadMetaAccounts();
-    }
-
-    // ====== 账户发现 ======
-
-    async function discoverAccounts() {
-      var token = document.getElementById('meta-access-token').value.trim();
-
-      var btn = document.getElementById('btn-discover');
-      var status = document.getElementById('discover-status');
-      btn.disabled = true; btn.textContent = '发现中...';
-      status.textContent = '正在拉取，可能需要几秒...';
-      status.className = 'text-xs text-blue-500';
-
-      try {
-        var resp = await fetch('/api/meta/discover', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({access_token: token})
+    function renderMetaAccountTree() {
+      var tree = document.getElementById('metaAccountTree');
+      var searchText = (document.getElementById('metaAccountSearch').value || '').toLowerCase();
+      var accounts = _metaAccounts;
+      if (searchText) {
+        accounts = accounts.filter(function(a) {
+          return (a.act_id || '').toLowerCase().indexOf(searchText) >= 0 ||
+                 (a.act_name || '').toLowerCase().indexOf(searchText) >= 0 ||
+                 (a.pingykj_account || '').toLowerCase().indexOf(searchText) >= 0;
         });
-        var result = await resp.json();
-        if (!resp.ok) {
-          status.textContent = result.detail || '发现失败';
-          status.className = 'text-xs text-red-500';
-          btn.disabled = false; btn.textContent = '发现账户';
-          return;
-        }
-        _discoveredAccounts = result.ad_accounts || [];
-        var list = document.getElementById('discover-list');
-        if (_discoveredAccounts.length === 0) {
-          list.innerHTML = '<p class="text-slate-400 py-4 text-center">未发现任何广告账户。请确认 token 正确且该账号下有广告资产。</p>';
-          document.getElementById('discover-count').textContent = '0';
-        } else {
-          list.innerHTML = _discoveredAccounts.map(function(a, i) {
-            var label = _STATUS_LABELS[a.status] || a.status;
-            var color = _STATUS_COLORS[a.status] || '#888';
-            var reason = a.disable_reason ? ' (' + a.disable_reason + ')' : '';
-            return '<label class="flex items-center gap-2 py-1.5 px-2 hover:bg-slate-50 rounded cursor-pointer">' +
-              '<input type="checkbox" class="discover-cb" data-idx="' + i + '" ' + (a.status === 'active' ? 'checked' : '') + '>' +
-              '<span class="font-mono text-xs text-slate-600">' + (a.id || '') + '</span>' +
-              '<span class="text-slate-700">' + (a.name || '') + '</span>' +
-              (a.business_name ? '<span class="text-xs text-indigo-500">BM:' + a.business_name + '</span>' : '') +
-              '<span style="color:' + color + ';font-weight:600" class="text-xs">' + label + reason + '</span>' +
-              '<span class="text-xs text-slate-400">' + (a.currency || '') + '</span>' +
-              '</label>';
-          }).join('');
-          document.getElementById('discover-count').textContent = _discoveredAccounts.length;
-        }
-        document.getElementById('discover-results').hidden = false;
-        status.textContent = '发现 ' + _discoveredAccounts.length + ' 个账户';
-        status.className = 'text-xs text-green-600';
-      } catch(e) {
-        status.textContent = '网络错误: ' + e.message;
-        status.className = 'text-xs text-red-500';
       }
-      btn.disabled = false; btn.textContent = '发现账户';
+      var groups = {};
+      accounts.forEach(function(a) {
+        var bm = a.pingykj_account || '未归类';
+        if (!groups[bm]) groups[bm] = [];
+        groups[bm].push(a);
+      });
+      var html = '';
+      html += '<div class="meta-tree-item' + (_metaSelectedAccount === null ? ' active' : '') + '" onclick="selectMetaAccount(null)">📊 全部账户</div>';
+      var bmNames = Object.keys(groups).sort();
+      bmNames.forEach(function(bm) {
+        var bmAccounts = groups[bm];
+        html += '<div class="meta-tree-bm">' + escapeHtml(bm) + ' (' + bmAccounts.length + ')</div>';
+        var bmKey = 'bm:' + bm;
+        html += '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === bmKey ? ' active' : '') + '" onclick="selectMetaAccount(\'' + bmKey + '\')">📁 ' + escapeHtml(bm) + ' 汇总</div>';
+        bmAccounts.forEach(function(a) {
+          var actKey = a.act_id;
+          html += '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === actKey ? ' active' : '') + '" onclick="selectMetaAccount(\'' + actKey + '\')">' +
+            '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + (a.status === 'active' ? 'bg-emerald-400' : 'bg-slate-500') + '"></span>' +
+            escapeHtml(a.act_name || a.act_id) + '</div>';
+        });
+      });
+      tree.innerHTML = html || '<div class="p-3 text-slate-500 text-center">暂无账户，请先发现并导入</div>';
+      document.getElementById('metaAccountFooter').textContent = '已导入 ' + _metaAccounts.length + ' 个账户';
+    }
+
+    function selectMetaAccount(key) {
+      _metaSelectedAccount = key;
+      renderMetaAccountTree();
+      refreshMetaDashboard();
+    }
+
+    document.getElementById('metaAccountSearch').addEventListener('input', function() { renderMetaAccountTree(); });
+
+    // ---- 发现/导入面板 ----
+    function openDiscoverPanel() {
+      var html = '<div id="discoverOverlay" class="fixed inset-0 z-[140] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeDiscoverPanel()">' +
+        '<div class="bg-slate-800 rounded-2xl p-5 w-[480px] max-h-[80vh] overflow-y-auto border border-slate-700 shadow-2xl">' +
+        '<h3 class="text-sm font-bold text-white mb-3">发现账户</h3>' +
+        '<input id="discoverTokenInput" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white placeholder-slate-400 mb-3" placeholder="输入你的 Access Token">' +
+        '<button onclick="doDiscoverAccounts()" class="w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-500 mb-3 cursor-pointer">发现账户</button>' +
+        '<div id="discoverResultList" class="max-h-60 overflow-y-auto text-xs"></div>' +
+        '<div id="discoverImportArea" class="mt-2 flex gap-2" hidden>' +
+        '<button onclick="toggleSelectAllDiscovered()" class="text-xs text-indigo-400 cursor-pointer">全选</button>' +
+        '<button onclick="doImportAccounts()" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 cursor-pointer">导入选中</button>' +
+        '</div>' +
+        '<button onclick="closeDiscoverPanel()" class="mt-3 w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-400 hover:text-white cursor-pointer bg-transparent">关闭</button>' +
+        '</div></div>';
+      document.body.insertAdjacentHTML('beforeend', html);
+    }
+
+    function closeDiscoverPanel() {
+      var el = document.getElementById('discoverOverlay');
+      if (el) el.remove();
+    }
+
+    async function doDiscoverAccounts() {
+      var token = document.getElementById('discoverTokenInput').value.trim();
+      if (!token) { alert('请输入 Access Token'); return; }
+      var list = document.getElementById('discoverResultList');
+      list.innerHTML = '<div class="text-xs text-slate-400 py-4 text-center">正在发现...</div>';
+      var resp = await fetch('/api/meta/discover', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({access_token: token}) });
+      var result = await resp.json();
+      _discoveredMetaAccounts = result.ad_accounts || [];
+      document.getElementById('discoverImportArea').hidden = _discoveredMetaAccounts.length === 0;
+      list.innerHTML = _discoveredMetaAccounts.map(function(a, i) {
+        return '<label class="flex items-center gap-2 py-1.5 px-2 hover:bg-slate-700 rounded cursor-pointer text-xs text-slate-300">' +
+          '<input type="checkbox" class="discover-meta-cb" data-idx="' + i + '" ' + (a.status === 'active' ? 'checked' : '') + '>' +
+          '<span class="font-mono">' + (a.id || '') + '</span>' +
+          '<span>' + (a.name || '') + '</span>' +
+          (a.business_name ? '<span class="text-indigo-400">BM:' + a.business_name + '</span>' : '') +
+          '</label>';
+      }).join('') || '<div class="text-xs text-slate-500 py-4 text-center">未发现账户</div>';
     }
 
     function toggleSelectAllDiscovered() {
-      var cbs = document.querySelectorAll('.discover-cb');
+      var cbs = document.querySelectorAll('.discover-meta-cb');
       var allChecked = Array.from(cbs).every(function(cb) { return cb.checked; });
       cbs.forEach(function(cb) { cb.checked = !allChecked; });
     }
 
-    async function importSelectedAccounts() {
-      var cbs = document.querySelectorAll('.discover-cb');
+    async function doImportAccounts() {
+      var cbs = document.querySelectorAll('.discover-meta-cb');
       var selected = [];
       cbs.forEach(function(cb) {
         if (cb.checked) {
           var idx = parseInt(cb.dataset.idx);
-          if (_discoveredAccounts[idx]) selected.push(_discoveredAccounts[idx]);
+          if (_discoveredMetaAccounts[idx]) selected.push(_discoveredMetaAccounts[idx]);
         }
       });
-      if (selected.length === 0) { alert('至少勾选一个账户'); return; }
-
+      if (!selected.length) { alert('请勾选账户'); return; }
+      var token = document.getElementById('discoverTokenInput').value.trim();
       var resp = await fetch('/api/meta/accounts/import', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({accounts: selected})
+        body: JSON.stringify({accounts: selected, access_token: token})
       });
       var result = await resp.json();
       alert('已导入 ' + result.count + ' 个账户');
-      document.getElementById('discover-results').hidden = true;
-      _discoveredAccounts = [];
-      loadMetaAccounts();
+      closeDiscoverPanel();
+      loadMetaAccountTree();
     }
 
-    // ====== Meta 数据同步 ======
-    async function triggerMetaSync() {
-      var btn = event.target;
-      btn.disabled = true; btn.textContent = '同步中...';
-      var resp = await fetch('/api/meta/sync', {method: 'POST'});
-      var result = await resp.json();
-      var status = document.getElementById('meta-sync-status');
-      if (result.success) {
-        status.textContent = result.message || ('同步完成: ' + (result.total_count || 0) + ' 条');
-        status.className = 'text-xs text-green-600';
-      } else {
-        status.textContent = result.message || '同步失败';
-        status.className = 'text-xs text-red-500';
-      }
-      btn.disabled = false; btn.textContent = '手动同步';
-    }
+    document.getElementById('btnMetaDiscover').addEventListener('click', openDiscoverPanel);
 
-    // ====== Meta 数据看板 ======
-
-    var _metaChartInst = null;
-    var _metaDailyPage = 1;
-
-    function loadMetaDashboard() {
-      loadMetaSyncStatus();
-      loadMetaAccountFilter();
-      refreshMetaDashboard();
-    }
-
-    function loadMetaAccountFilter() {
-      fetch('/api/meta/accounts').then(function(r){return r.json();}).then(function(data){
-        var sel = document.getElementById('metaAccountFilter');
-        sel.innerHTML = '<option value="">全部账户</option>';
-        (data||[]).forEach(function(a){
-          if (a.status === 'active') { var optLabel = (a.act_name ? a.act_name + ' ' : '') + a.act_id; sel.innerHTML += '<option value="'+a.act_id+'">'+optLabel+'</option>'; }
-        });
-      }).catch(function(){});
-    }
-
+    // ---- 日期和对比基准 ----
     function getMetaDateRange() {
-      var active = document.querySelector('.metaDatePillActive');
-      if (!active) return {type: 'days', value: 30};
-      var range = active.getAttribute('data-range');
-      if (range === 'today') return {type: 'today'};
-      if (range === 'yesterday') return {type: 'yesterday'};
-      if (range === 'daybefore') return {type: 'daybefore'};
-      return {type: 'days', value: parseInt(range) || 30};
+      var activePill = document.querySelector('#metaDatePills .metaDatePillActive') || document.querySelector('#metaDatePills button');
+      var range = activePill ? activePill.dataset.range : 'today';
+      var today = new Date().toISOString().slice(0,10);
+      var start = today, end = today;
+      if (range === 'yesterday') {
+        var d = new Date(); d.setDate(d.getDate()-1);
+        start = end = d.toISOString().slice(0,10);
+      } else if (range === '3') {
+        var d = new Date(); d.setDate(d.getDate()-3);
+        start = d.toISOString().slice(0,10);
+      } else if (range === '7') {
+        var d = new Date(); d.setDate(d.getDate()-7);
+        start = d.toISOString().slice(0,10);
+      } else if (range === '30') {
+        var d = new Date(); d.setDate(d.getDate()-30);
+        start = d.toISOString().slice(0,10);
+      }
+      return { start: start, end: end, range: range };
     }
 
-    function _fmtDate(d) { return d.toISOString().slice(0,10); }
-    function _daysAgo(n) { var d = new Date(); d.setDate(d.getDate()-n); return _fmtDate(d); }
-
-    function refreshMetaDashboard() {
-      var range = getMetaDateRange();
-      var account = document.getElementById('metaAccountFilter').value;
-      var acctParam = account ? '&account=' + encodeURIComponent(account) : '';
-      var start, end, todayStr = _fmtDate(new Date());
-
-      if (range.type === 'today')       { start = end = todayStr; }
-      else if (range.type === 'yesterday')  { start = end = _daysAgo(1); }
-      else if (range.type === 'daybefore')  { start = end = _daysAgo(2); }
-      else                                 { start = _daysAgo(range.value); end = todayStr; }
-
-      var qs = '?start=' + start + '&end=' + end + acctParam;
-      var trendDays = range.type === 'days' ? range.value : (range.type === 'today' ? 1 : 3);
-      var trendQs = '?days=' + trendDays + acctParam;
-
-      // KPI
-      fetch('/api/meta/summary' + qs).then(function(r){return r.json();}).then(function(d){
-        document.getElementById('metaKpiSpend').textContent = '$' + (d.total_spend||0).toLocaleString();
-        document.getElementById('metaKpiPurchase').textContent = (d.purchases||0).toLocaleString();
-        document.getElementById('metaKpiRoi').textContent = (d.roi||0).toFixed(2);
-        document.getElementById('metaKpiCpa').textContent = '$' + (d.cpa||0).toFixed(2);
-        document.getElementById('metaKpiImp').textContent = (d.impressions||0).toLocaleString();
-        document.getElementById('metaKpiClick').textContent = (d.clicks||0).toLocaleString();
-        document.getElementById('metaKpiCpm').textContent = '$' + (d.cpm||0).toFixed(2);
-        document.getElementById('metaKpiCtr').textContent = (d.ctr||0).toFixed(2) + '%';
-      }).catch(function(){});
-
-      // 趋势
-      fetch('/api/meta/trend' + trendQs).then(function(r){return r.json();}).then(function(data){
-        if (!data||!data.length) return;
-        var ctx = document.getElementById('metaChartTrend').getContext('2d');
-        if (_metaChartInst) _metaChartInst.destroy();
-        _metaChartInst = new Chart(ctx, {
-          type: 'line', data: {
-            labels: data.map(function(d){return d.date;}),
-            datasets: [
-              {label:'消耗',data:data.map(function(d){return d.spend;}),borderColor:'#818cf8',backgroundColor:'rgba(129,140,248,0.08)',fill:true,tension:0.3,pointRadius:0,borderWidth:2},
-              {label:'转化',data:data.map(function(d){return d.purchases||0;}),borderColor:'#34d399',backgroundColor:'rgba(52,211,153,0.08)',fill:true,tension:0.3,pointRadius:0,borderWidth:2,yAxisID:'y1'}
-            ]
-          },
-          options: {responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,padding:16,font:{size:10},usePointStyle:true}}},scales:{x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:10}},y:{grid:{color:'#f1f5f9'},ticks:{font:{size:9},callback:function(v){return v>=1000?'$'+(v/1000).toFixed(1)+'k':'$'+v;}}},y1:{position:'right',grid:{display:false},ticks:{font:{size:9}}}}}
-        });
-      }).catch(function(){});
-
-      // 日报
-      fetch('/api/meta/daily-stats' + qs + '&page=' + _metaDailyPage + '&page_size=10').then(function(r){return r.json();}).then(function(res){
-        var rows = res.data||res;
-        var tbody = document.getElementById('metaDailyBody');
-        if (!rows||!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">暂无数据</td></tr>'; return; }
-        tbody.innerHTML = rows.map(function(r){
-          var displayName = (r.act_name ? r.act_name + ' ' : '') + (r.ad_account||'');
-return '<tr class="border-b border-slate-50"><td class="py-1">'+(r.date||'')+'</td><td class="py-1 text-slate-500">'+displayName+'</td><td class="py-1 text-right">$'+(r.total_spend||0).toLocaleString()+'</td><td class="py-1 text-right">'+(r.purchases||0)+'</td><td class="py-1 text-right font-medium '+(r.roi>=2?'text-emerald-600':'text-red-500')+'">'+(r.roi||0).toFixed(2)+'</td></tr>';
-        }).join('');
-      }).catch(function(){});
-
-      // 排行
-      fetch('/api/meta/account-ranking' + qs).then(function(r){return r.json();}).then(function(data){
-        var tbody = document.getElementById('metaRankBody');
-        if (!data||!data.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-300">暂无数据</td></tr>'; return; }
-        tbody.innerHTML = data.map(function(r,i){
-          var rankName = (r.act_name ? r.act_name + ' ' : '') + (r.ad_account||'');
-return '<tr class="border-b border-slate-50"><td class="py-1 text-slate-400">'+(i+1)+'</td><td class="py-1 font-medium">'+rankName+'</td><td class="py-1 text-right">$'+(r.spend||0).toLocaleString()+'</td><td class="py-1 text-right font-medium '+(r.roi>=2?'text-emerald-600':'text-red-500')+'">'+(r.roi||0).toFixed(2)+'</td></tr>';
-        }).join('');
-      }).catch(function(){});
+    function getCompareDateRange() {
+      var baseline = document.getElementById('metaCompareBaseline').value;
+      var start, end;
+      if (baseline === 'yesterday') {
+        var d = new Date(); d.setDate(d.getDate()-2);
+        start = end = d.toISOString().slice(0,10);
+      } else if (baseline === 'daybefore') {
+        var d = new Date(); d.setDate(d.getDate()-3);
+        start = end = d.toISOString().slice(0,10);
+      } else if (baseline === 'lastweek') {
+        var d = new Date(); d.setDate(d.getDate()-7);
+        start = end = d.toISOString().slice(0,10);
+      } else if (baseline === 'avg7') {
+        var d = new Date(); d.setDate(d.getDate()-1);
+        end = d.toISOString().slice(0,10);
+        d.setDate(d.getDate()-7);
+        start = d.toISOString().slice(0,10);
+      } else if (baseline === 'avg30') {
+        var d = new Date(); d.setDate(d.getDate()-1);
+        end = d.toISOString().slice(0,10);
+        d.setDate(d.getDate()-30);
+        start = d.toISOString().slice(0,10);
+      }
+      return { start: start, end: end };
     }
 
-    // Meta 日期药片
-    document.querySelectorAll('.metaDatePill').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        document.querySelectorAll('.metaDatePill').forEach(function(b){
-          b.className = 'metaDatePill px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-500 hover:text-slate-700';
+    document.querySelectorAll('#metaDatePills button').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('#metaDatePills button').forEach(function(b) {
+          b.classList.remove('metaDatePillActive', 'bg-slate-700', 'text-white');
+          b.classList.add('text-slate-400');
         });
-        this.className = 'metaDatePill metaDatePillActive px-3 py-1.5 text-[11px] font-medium rounded-md transition-all bg-white text-indigo-600 shadow-sm';
-        _metaDailyPage = 1;
+        this.classList.add('metaDatePillActive', 'bg-slate-700', 'text-white');
+        this.classList.remove('text-slate-400');
         refreshMetaDashboard();
       });
     });
-    document.getElementById('metaAccountFilter').addEventListener('change', function(){ _metaDailyPage = 1; refreshMetaDashboard(); });
 
-    async function loadMetaSyncStatus() {
-      var resp = await fetch('/api/meta/sync-status');
-      var data = await resp.json();
-      document.getElementById('meta-sync-status').textContent = (data.active_accounts || 0) + '/' + (data.total_accounts || 0) + ' 账户活跃';
-      loadMetaConfig();
+    document.getElementById('metaCompareBaseline').addEventListener('change', function() { refreshMetaDashboard(); });
+    document.getElementById('btnMetaSync').addEventListener('click', triggerMetaSync);
+
+    // ---- KPI 卡片 ----
+    function renderMetaKpis(summary, compareSummary) {
+      var kpis = [
+        { id: 'spend', label: '消耗', value: summary.total_spend || 0, prev: compareSummary.total_spend || 0, format: '$', digits: 2 },
+        { id: 'purchases', label: '转化', value: summary.purchases || 0, prev: compareSummary.purchases || 0, format: '', digits: 0 },
+        { id: 'roi', label: 'ROI', value: summary.roi || 0, prev: compareSummary.roi || 0, format: '', digits: 2, suffix: 'x', positive: true },
+        { id: 'cpa', label: 'CPA', value: summary.cpa || 0, prev: compareSummary.cpa || 0, format: '$', digits: 2, inverse: true },
+        { id: 'impressions', label: '展示', value: summary.impressions || 0, prev: compareSummary.impressions || 0, format: '', digits: 0, compact: true },
+        { id: 'clicks', label: '点击', value: summary.clicks || 0, prev: compareSummary.clicks || 0, format: '', digits: 0, compact: true },
+      ];
+      var html = '';
+      kpis.forEach(function(k) {
+        var change = k.prev > 0 ? ((k.value - k.prev) / k.prev * 100) : 0;
+        var changeClass = change >= 0 ? 'meta-kpi-up' : 'meta-kpi-down';
+        if (k.inverse) changeClass = change <= 0 ? 'meta-kpi-up' : 'meta-kpi-down';
+        var arrow = change >= 0 ? '▲' : '▼';
+        var valStr = k.format + (k.compact ?
+          (k.value >= 1000 ? (k.value/1000).toFixed(1)+'K' : k.value.toLocaleString()) :
+          k.value.toLocaleString(undefined, {minimumFractionDigits: k.digits, maximumFractionDigits: k.digits}))
+          + (k.suffix || '');
+        html += '<div class="meta-kpi-card">' +
+          '<div class="meta-kpi-label">' + k.label + '</div>' +
+          '<div class="meta-kpi-value">' + valStr + '</div>' +
+          '<div class="meta-kpi-change ' + changeClass + '">' + arrow + ' ' + Math.abs(change).toFixed(1) + '%</div>' +
+          '</div>';
+      });
+      document.getElementById('metaKpiRow').innerHTML = html;
     }
 
-    async function loadMetaConfig() {
-      var resp = await fetch('/api/meta/config');
-      var data = await resp.json();
-      document.getElementById('meta-app-id').value = data.app_id || '';
-      // Secret/Token 不回显，用占位提示
-      document.getElementById('meta-app-secret').placeholder = data.app_id ? '已保存（不回显）' : 'App Secret';
-      document.getElementById('meta-app-secret').value = '';
-      document.getElementById('meta-access-token').placeholder = data.app_id ? '已保存（不回显）' : 'Access Token';
-      document.getElementById('meta-access-token').value = '';
-      document.getElementById('meta-api-version').value = data.api_version || 'v25.0';
-      document.getElementById('meta-sync-interval').value = data.sync_interval_seconds || 300;
-      document.getElementById('meta-rate-limit').value = data.rate_limit_per_second || 4;
-      document.getElementById('meta-proxy').value = data.proxy || '';
+    // ---- 趋势图 ----
+    function renderMetaChart(trendData) {
+      var ctx = document.getElementById('metaChartTrend').getContext('2d');
+      if (_metaChart) _metaChart.destroy();
+      Chart.defaults.color = '#94a3b8';
+      Chart.defaults.borderColor = 'rgba(51,65,85,0.3)';
+      _metaChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: trendData.map(function(d) { return d.date; }),
+          datasets: [
+            { label: '消耗', data: trendData.map(function(d) { return d.spend || 0; }),
+              backgroundColor: 'rgba(99,102,241,0.6)', borderRadius: 4, yAxisID: 'y', order: 2 },
+            { label: 'ROI', data: trendData.map(function(d) { return d.roi || 0; }),
+              type: 'line', borderColor: '#34d399', pointBackgroundColor: '#34d399',
+              pointRadius: 2, tension: 0.3, yAxisID: 'y1', order: 1 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { intersect: false, mode: 'index' },
+          scales: {
+            y: { type: 'linear', position: 'left',
+              grid: { color: 'rgba(51,65,85,0.2)' },
+              ticks: { callback: function(v) { return '$' + (v >= 1000 ? (v/1000).toFixed(1)+'K' : v); } } },
+            y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false },
+              ticks: { callback: function(v) { return v.toFixed(1) + 'x'; } } },
+            x: { grid: { display: false } }
+          },
+          plugins: { legend: { labels: { boxWidth: 12, padding: 16, font: { size: 10 } } } }
+        }
+      });
+    }
+
+    // ---- BM 汇总 ----
+    function renderBmTable(bmData) {
+      var html = '<table><thead><tr><th>BM</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">ROI</th><th class="text-right">CPA</th></tr></thead><tbody>';
+      bmData.forEach(function(bm) {
+        html += '<tr>' +
+          '<td class="text-indigo-400">' + escapeHtml(bm.bm_name || '未归类') + '</td>' +
+          '<td class="text-right">' + (bm.account_count || 0) + '</td>' +
+          '<td class="text-right">$' + ((bm.spend || 0).toLocaleString()) + '</td>' +
+          '<td class="text-right ' + ((bm.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((bm.roi || 0).toFixed(2)) + 'x</td>' +
+          '<td class="text-right">$' + ((bm.cpa || 0).toFixed(2)) + '</td>' +
+          '</tr>';
+      });
+      if (!bmData.length) html += '<tr><td colspan="5" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      html += '</tbody></table>';
+      document.getElementById('metaBmTable').innerHTML = html;
+    }
+
+    // ---- 异常预警 ----
+    function renderMetaAnomalies(summary, compareSummary, dailyData) {
+      var anomalies = [];
+      if (compareSummary.total_spend > 0) {
+        var spendChange = (summary.total_spend - compareSummary.total_spend) / compareSummary.total_spend * 100;
+        if (spendChange < -50) anomalies.push({ level: '🔴', type: '消耗骤降', detail: '下降 ' + Math.abs(spendChange).toFixed(0) + '%', current: '$' + (summary.total_spend || 0).toLocaleString(), prev: '$' + (compareSummary.total_spend || 0).toLocaleString() });
+      }
+      if (compareSummary.roi > 0) {
+        var roiChange = (summary.roi - compareSummary.roi) / compareSummary.roi * 100;
+        if (roiChange < -30) anomalies.push({ level: '🟡', type: 'ROI下降', detail: '下降 ' + Math.abs(roiChange).toFixed(0) + '%', current: (summary.roi || 0).toFixed(2) + 'x', prev: (compareSummary.roi || 0).toFixed(2) + 'x' });
+      }
+      if (compareSummary.cpa > 0) {
+        var cpaChange = (summary.cpa - compareSummary.cpa) / compareSummary.cpa * 100;
+        if (cpaChange > 100) anomalies.push({ level: '🟠', type: 'CPA翻倍', detail: '上涨 ' + cpaChange.toFixed(0) + '%', current: '$' + (summary.cpa || 0).toFixed(2), prev: '$' + (compareSummary.cpa || 0).toFixed(2) });
+      }
+      var html = '<table><thead><tr><th></th><th>类型</th><th>详情</th><th>当前</th><th>对比</th></tr></thead><tbody>';
+      if (!anomalies.length) {
+        html += '<tr><td colspan="5" class="text-center text-emerald-400 py-4">✓ 各项指标正常</td></tr>';
+      } else {
+        anomalies.forEach(function(a) {
+          html += '<tr><td>' + a.level + '</td><td class="text-amber-400">' + a.type + '</td><td>' + a.detail + '</td><td>' + a.current + '</td><td class="text-slate-500">' + a.prev + '</td></tr>';
+        });
+      }
+      html += '</tbody></table>';
+      document.getElementById('metaAnomalies').innerHTML = html;
+    }
+
+    // ---- 账户排行 ----
+    function renderAccountRank(data) {
+      var items = Array.isArray(data) ? data : (data.data || []);
+      var html = '<table><thead><tr><th>#</th><th>账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">ROI</th><th class="text-right">CPA</th></tr></thead><tbody>';
+      items.forEach(function(a, i) {
+        var actName = a.act_name || a.ad_account || '-';
+        html += '<tr>' +
+          '<td class="text-slate-500">' + (i+1) + '</td>' +
+          '<td>' + escapeHtml(actName) + '</td>' +
+          '<td class="text-right">$' + ((a.total_spend || a.spend || 0).toLocaleString()) + '</td>' +
+          '<td class="text-right">' + (a.purchases || 0) + '</td>' +
+          '<td class="text-right ' + ((a.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((a.roi || 0).toFixed(2)) + 'x</td>' +
+          '<td class="text-right">$' + ((a.cpa || 0).toFixed(2)) + '</td>' +
+          '</tr>';
+      });
+      if (!items.length) html += '<tr><td colspan="6" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      html += '</tbody></table>';
+      document.getElementById('metaAccountRank').innerHTML = html;
+    }
+
+    // ---- 日报明细 ----
+    function renderMetaDaily(data) {
+      var items = Array.isArray(data) ? data : (data.data || []);
+      var html = '<table><thead><tr><th>日期</th><th>账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">展示</th><th class="text-right">点击</th></tr></thead><tbody>';
+      items.forEach(function(d) {
+        html += '<tr>' +
+          '<td>' + (d.date || '-') + '</td>' +
+          '<td class="font-mono">' + escapeHtml(d.act_name || d.ad_account || '-') + '</td>' +
+          '<td class="text-right">$' + ((d.total_spend || 0).toLocaleString()) + '</td>' +
+          '<td class="text-right">' + (d.purchases || 0) + '</td>' +
+          '<td class="text-right ' + ((d.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((d.roi || 0).toFixed(2)) + 'x</td>' +
+          '<td class="text-right">$' + ((d.cpa || 0).toFixed(2)) + '</td>' +
+          '<td class="text-right">' + ((d.impressions || 0).toLocaleString()) + '</td>' +
+          '<td class="text-right">' + ((d.clicks || 0).toLocaleString()) + '</td>' +
+          '</tr>';
+      });
+      if (!items.length) html += '<tr><td colspan="8" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      html += '</tbody></table>';
+      document.getElementById('metaDailyTable').innerHTML = html;
+    }
+
+    // ---- 主刷新函数 ----
+    async function refreshMetaDashboard() {
+      var range = getMetaDateRange();
+      var compareRange = getCompareDateRange();
+      var params = '?start=' + range.start + '&end=' + range.end;
+      var compareParams = '?start=' + compareRange.start + '&end=' + compareRange.end;
+      if (_metaSelectedAccount) {
+        if (_metaSelectedAccount.indexOf('bm:') === 0) {
+          params += '&bm=' + encodeURIComponent(_metaSelectedAccount.slice(3));
+          compareParams += '&bm=' + encodeURIComponent(_metaSelectedAccount.slice(3));
+        } else {
+          params += '&account=' + _metaSelectedAccount;
+          compareParams += '&account=' + _metaSelectedAccount;
+        }
+      }
+      try {
+        var [summaryRes, compareRes, trendRes, bmRes, dailyRes, rankRes] = await Promise.all([
+          fetch('/api/meta/summary' + params).then(function(r) { return r.json(); }),
+          fetch('/api/meta/summary' + compareParams).then(function(r) { return r.json(); }),
+          fetch('/api/meta/trend?start=' + range.start + '&end=' + range.end).then(function(r) { return r.json(); }),
+          fetch('/api/meta/bm-summary' + params).then(function(r) { return r.json(); }),
+          fetch('/api/meta/daily-stats' + params + '&page=' + _metaDailyPage + '&page_size=10').then(function(r) { return r.json(); }),
+          fetch('/api/meta/account-ranking' + params).then(function(r) { return r.json(); }),
+        ]);
+        renderMetaKpis(summaryRes, compareRes);
+        renderMetaChart(trendRes.data || trendRes);
+        renderBmTable(bmRes.bm_summary || []);
+        renderMetaAnomalies(summaryRes, compareRes, dailyRes.data || dailyRes);
+        renderAccountRank(rankRes.data || rankRes);
+        renderMetaDaily(dailyRes.data || dailyRes);
+      } catch(e) { console.error('Meta dashboard error:', e); }
+    }
+
+    // ---- 手动同步 ----
+    async function triggerMetaSync() {
+      var statusEl = document.getElementById('metaSyncStatus');
+      statusEl.textContent = '同步中...';
+      var resp = await fetch('/api/meta/sync', { method: 'POST' });
+      var result = await resp.json();
+      if (result.success) {
+        statusEl.textContent = '同步完成 (' + (result.total_count || 0) + '条)';
+        setTimeout(refreshMetaDashboard, 2000);
+      } else {
+        statusEl.textContent = '✗ ' + (result.message || '同步失败');
+      }
+    }
+
+    // ---- API 配置弹窗 ----
+    function openMetaConfig() {
+      fetch('/api/meta/config').then(function(r) { return r.json(); }).then(function(cfg) {
+        var html = '<div id="configOverlay" class="fixed inset-0 z-[140] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeMetaConfig()">' +
+          '<div class="bg-slate-800 rounded-2xl p-5 w-[480px] border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">' +
+          '<h3 class="text-sm font-bold text-white mb-4">Meta API 配置</h3>' +
+          '<div class="grid grid-cols-2 gap-3 text-xs">' +
+          '<div><label class="block text-slate-400 mb-1">App ID</label><input id="cfg-app-id" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + (cfg.app_id || '') + '"></div>' +
+          '<div><label class="block text-slate-400 mb-1">App Secret</label><input id="cfg-app-secret" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" placeholder="留空不修改"></div>' +
+          '<div><label class="block text-slate-400 mb-1">默认 Token</label><input id="cfg-default-token" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" placeholder="留空不修改"></div>' +
+          '<div><label class="block text-slate-400 mb-1">API 版本</label><input id="cfg-api-version" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + (cfg.api_version || 'v25.0') + '"></div>' +
+          '<div><label class="block text-slate-400 mb-1">同步间隔(秒)</label><input id="cfg-sync-interval" type="number" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + (cfg.sync_interval_seconds || 300) + '"></div>' +
+          '<div><label class="block text-slate-400 mb-1">速率(次/秒)</label><input id="cfg-rate-limit" type="number" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + (cfg.rate_limit_per_second || 4) + '"></div>' +
+          '<div class="col-span-2"><label class="block text-slate-400 mb-1">代理</label><input id="cfg-proxy" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + (cfg.proxy || '') + '"></div>' +
+          '</div>' +
+          '<div class="mt-4 flex gap-2"><button onclick="saveMetaConfig()" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 cursor-pointer">保存</button><span id="cfgMsg" class="text-xs text-emerald-400 hidden self-center">✓ 已保存</span></div>' +
+          '<button onclick="closeMetaConfig()" class="mt-2 w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-400 hover:text-white cursor-pointer bg-transparent">关闭</button>' +
+          '</div></div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+      });
+    }
+
+    function closeMetaConfig() {
+      var el = document.getElementById('configOverlay');
+      if (el) el.remove();
     }
 
     async function saveMetaConfig() {
       var body = {
-        app_id: document.getElementById('meta-app-id').value,
-        app_secret: document.getElementById('meta-app-secret').value,
-        default_access_token: document.getElementById('meta-access-token').value,
-        api_version: document.getElementById('meta-api-version').value,
-        sync_interval_seconds: parseInt(document.getElementById('meta-sync-interval').value) || 300,
-        rate_limit_per_second: parseInt(document.getElementById('meta-rate-limit').value) || 4,
-        proxy: document.getElementById('meta-proxy').value.trim(),
+        app_id: document.getElementById('cfg-app-id').value,
+        app_secret: document.getElementById('cfg-app-secret').value,
+        default_access_token: document.getElementById('cfg-default-token').value,
+        api_version: document.getElementById('cfg-api-version').value,
+        sync_interval_seconds: parseInt(document.getElementById('cfg-sync-interval').value) || 300,
+        rate_limit_per_second: parseInt(document.getElementById('cfg-rate-limit').value) || 4,
+        proxy: document.getElementById('cfg-proxy').value,
       };
-      var resp = await fetch('/api/meta/config', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(body)
-      });
-      var msg = document.getElementById('meta-config-msg');
+      var resp = await fetch('/api/meta/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
       if (resp.ok) {
-        loadMetaConfig();
-        msg.textContent = '已保存';
-        msg.className = 'text-xs text-green-600';
+        var el = document.getElementById('cfgMsg');
+        el.hidden = false;
+        setTimeout(function() { el.hidden = true; }, 2000);
       } else {
-        var err = await resp.json().catch(function() { return {detail: '保存失败'}; });
-        msg.textContent = err.detail || '保存失败';
-        msg.className = 'text-xs text-red-500';
+        var err = await resp.json();
+        alert('保存失败: ' + (err.detail || ''));
       }
-      msg.classList.remove('hidden');
-      setTimeout(function() { msg.classList.add('hidden'); }, 3000);
     }
+
+    document.getElementById('btnMetaConfig').addEventListener('click', openMetaConfig);
+
 
     // ====== 爆款素材登记 ======
 
