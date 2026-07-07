@@ -276,7 +276,7 @@ _scheduler.add_job(
 _scheduler.start()
 
 # Meta 数据定时同步（遍历所有用户）
-meta_interval = json.loads(Path("config.json").read_text(encoding="utf-8")).get("meta", {}).get("sync_interval_seconds", 300)
+meta_interval = json.loads(Path("config.json").read_text(encoding="utf-8")).get("meta", {}).get("sync_interval_seconds", 1200)
 if hasattr(scraper, 'sync_all_meta_insights'):
     try:
         def _auto_meta_sync_all():

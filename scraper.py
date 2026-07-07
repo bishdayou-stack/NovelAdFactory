@@ -1254,7 +1254,7 @@ def sync_all_meta_insights(user_id: int = None, concurrency: int = 1) -> Dict[st
             print(f"[Meta同步]   ✓ {count} 条")
         # 账户间延迟，避免风控
         if i < len(active_accounts) - 1:
-            time.sleep(3)
+            time.sleep(5)
 
     succeeded = len(active_accounts) - len(errors)
     result["total_count"] = total_count
