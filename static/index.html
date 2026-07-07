@@ -4283,6 +4283,7 @@
     var _metaSelectedAccount = null;
     var _discoveredMetaAccounts = [];
     var _metaDailyPage = 1;
+    var _metaRankPage = 1;
 
     // ---- 账户树 ----
     function loadMetaAccountTree() {
@@ -4385,6 +4386,7 @@
 
     function selectMetaAccount(key) {
       _metaSelectedAccount = key;
+      _metaDailyPage = 1; _metaRankPage = 1;
       renderMetaAccountTree();
       refreshMetaDashboard();
     }
@@ -4504,6 +4506,7 @@
         });
         this.classList.add('metaDatePillActive', 'bg-slate-700', 'text-white');
         this.classList.remove('text-slate-400');
+        _metaDailyPage = 1; _metaRankPage = 1;
         refreshMetaDashboard();
       });
     });
@@ -4585,11 +4588,14 @@
     // ---- 账户排行 ----
     function renderAccountRank(data) {
       var items = Array.isArray(data) ? data : (data.data || []);
+      var total = data.total || items.length;
+      var page = data.page || 1;
+      var pageSize = data.page_size || 20;
       var html = '<table class="w-full"><thead><tr><th class="text-left">#</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th><th class="text-right">CTR</th></tr></thead><tbody>';
       items.forEach(function(a, i) {
         var actName = a.act_name || a.ad_account || '-';
         html += '<tr>' +
-          '<td class="text-left text-slate-500">' + (i+1) + '</td>' +
+          '<td class="text-left text-slate-500">' + ((page-1)*pageSize + i + 1) + '</td>' +
           '<td class="text-left">' + escapeHtml(actName) + '</td>' +
           '<td class="text-left text-slate-500 text-xs">' + escapeHtml(a.user_name || '-') + '</td>' +
           '<td class="text-right">$' + ((a.total_spend || a.spend || 0).toLocaleString()) + '</td>' +
@@ -4603,6 +4609,7 @@
       });
       if (!items.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
+      html += renderMetaPager(total, page, pageSize, 'rank');
       document.getElementById('metaAccountRank').innerHTML = html;
     }
 
@@ -4628,7 +4635,25 @@
       });
       if (!items.length) html += '<tr><td colspan="12" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
+      html += renderMetaPager(total, page, pageSize, 'daily');
       document.getElementById('metaDailyTable').innerHTML = html;
+    }
+
+    function renderMetaPager(total, page, pageSize, type) {
+      if (total <= pageSize) return '';
+      var totalPages = Math.ceil(total / pageSize);
+      var html = '<div class="flex justify-center items-center gap-1 mt-2">';
+      html += '<button class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400 hover:text-white border-0 cursor-pointer' + (page <= 1 ? ' opacity-30' : '') + '" ' + (page > 1 ? 'onclick="goMetaPage(\'' + type + '\',' + (page-1) + ')"' : '') + '>◀</button>';
+      html += '<span class="text-[10px] text-slate-400 px-2">' + page + '/' + totalPages + '</span>';
+      html += '<button class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400 hover:text-white border-0 cursor-pointer' + (page >= totalPages ? ' opacity-30' : '') + '" ' + (page < totalPages ? 'onclick="goMetaPage(\'' + type + '\',' + (page+1) + ')"' : '') + '>▶</button>';
+      html += '</div>';
+      return html;
+    }
+
+    function goMetaPage(type, page) {
+      if (type === 'daily') _metaDailyPage = page;
+      else _metaRankPage = page;
+      refreshMetaDashboard();
     }
 
     // ---- 主刷新函数 ----
@@ -4651,8 +4676,8 @@
           fetch('/api/meta/summary' + params).then(function(r) { return r.json(); }),
           fetch('/api/meta/bm-summary' + params).then(function(r) { return r.json(); }),
           fetch('/api/meta/user-summary' + params).then(function(r) { return r.json(); }),
-          fetch('/api/meta/daily-stats' + params + '&page=' + _metaDailyPage + '&page_size=10').then(function(r) { return r.json(); }),
-          fetch('/api/meta/account-ranking' + params).then(function(r) { return r.json(); }),
+          fetch('/api/meta/daily-stats' + params + '&page=' + _metaDailyPage + '&page_size=15').then(function(r) { return r.json(); }),
+          fetch('/api/meta/account-ranking' + params + '&page=' + _metaRankPage + '&page_size=20').then(function(r) { return r.json(); }),
         ]);
         renderMetaKpis(summaryRes);
         renderUserSummary(userRes.user_summary || []);
