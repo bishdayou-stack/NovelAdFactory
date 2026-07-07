@@ -789,10 +789,11 @@
             <button data-range="7" class="px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-400 hover:text-white">近7天</button>
             <button data-range="30" class="px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-400 hover:text-white">近30天</button>
           </div>
-          <div class="flex items-center gap-2">
-            <input id="metaDateFrom" type="date" class="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-[11px] text-slate-300 focus:border-indigo-500 focus:outline-none w-32" onchange="onMetaCustomDate()">
-            <span class="text-slate-500 text-[11px]">至</span>
-            <input id="metaDateTo" type="date" class="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-[11px] text-slate-300 focus:border-indigo-500 focus:outline-none w-32" onchange="onMetaCustomDate()">
+          <div class="flex items-center gap-1.5 bg-slate-800 rounded-lg px-2 py-1 border border-indigo-500/30">
+            <span class="text-[10px] text-indigo-400 font-medium whitespace-nowrap">📅 自定义</span>
+            <input id="metaDateFrom" type="date" class="rounded border border-slate-600 bg-slate-700 px-1.5 py-1 text-[11px] text-white focus:border-indigo-400 focus:outline-none w-[120px]" onchange="onMetaCustomDate()" title="开始日期">
+            <span class="text-slate-400 text-[11px]">→</span>
+            <input id="metaDateTo" type="date" class="rounded border border-slate-600 bg-slate-700 px-1.5 py-1 text-[11px] text-white focus:border-indigo-400 focus:outline-none w-[120px]" onchange="onMetaCustomDate()" title="结束日期">
           </div>
           <div class="flex items-center gap-3">
             <button id="btnMetaSync" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer">手动同步</button>
