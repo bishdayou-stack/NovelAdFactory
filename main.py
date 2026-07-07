@@ -4763,6 +4763,45 @@ def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=
         return {"bm_summary": [dict(r) for r in rows]}
 
 
+@app.get("/api/meta/user-summary")
+def _meta_user_summary(start: str = Query(default=None), end: str = Query(default=None),
+                        user: dict = Depends(get_current_user)):
+    """按用户聚合 Meta 账户 KPI"""
+    uid = _opt_user_id(user)
+    with database.get_conn() as conn:
+        where = ["ads.source = 'meta'"]
+        params = []
+        if start:
+            where.append("ads.date >= ?"); params.append(start)
+        if end:
+            where.append("ads.date <= ?"); params.append(end)
+        if uid is not None:
+            where.append("ads.user_id = ?"); params.append(uid)
+
+        rows = conn.execute(f"""
+            SELECT
+                COALESCE(u.display_name, u.username, '用户'||ads.user_id) AS user_name,
+                ads.user_id,
+                COUNT(DISTINCT ads.ad_account) AS account_count,
+                COALESCE(SUM(ads.total_spend), 0) AS spend,
+                COALESCE(SUM(ads.purchases), 0) AS purchases,
+                COALESCE(SUM(ads.purchase_value), 0) AS revenue,
+                CASE WHEN SUM(ads.total_spend) > 0
+                     THEN ROUND(COALESCE(SUM(ads.purchase_value), 0) / SUM(ads.total_spend), 2)
+                     ELSE NULL END AS roi,
+                CASE WHEN SUM(ads.purchases) > 0
+                     THEN ROUND(SUM(ads.total_spend) / SUM(ads.purchases), 2)
+                     ELSE NULL END AS cpa
+            FROM ad_daily_stats ads
+            LEFT JOIN users u ON ads.user_id = u.id
+            WHERE {' AND '.join(where)}
+            GROUP BY ads.user_id
+            ORDER BY spend DESC
+        """, params).fetchall()
+
+        return {"user_summary": [dict(r) for r in rows]}
+
+
 # ---- Meta 账户发现 API ----
 
 class DiscoverBody(BaseModel):

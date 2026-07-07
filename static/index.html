@@ -795,9 +795,9 @@
           </div>
         </div>
         <div class="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 mb-4" id="metaKpiRow"></div>
-        <div class="grid grid-cols-5 gap-4 mb-4">
-          <div class="col-span-3 card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">BM 汇总</h3><div id="metaBmTable" class="text-[11px]"></div></div>
-          <div class="col-span-2 card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">趋势</h3><div class="h-48"><canvas id="metaChartTrend"></canvas></div></div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">用户汇总</h3><div id="metaUserSummary" class="text-[11px]"></div></div>
+          <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">BM 汇总</h3><div id="metaBmTable" class="text-[11px]"></div></div>
         </div>
         <div class="card-dark p-4 mb-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">账户排行</h3><div id="metaAccountRank" class="text-[11px]"></div></div>
         <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">日报明细</h3><div id="metaDailyTable" class="text-[11px]"></div><div id="metaDailyPager" class="mt-2"></div></div>
@@ -4281,7 +4281,6 @@
 
     var _metaAccounts = [];
     var _metaSelectedAccount = null;
-    var _metaChart = null;
     var _discoveredMetaAccounts = [];
     var _metaDailyPage = 1;
 
@@ -4543,38 +4542,24 @@
       document.getElementById('metaKpiRow').innerHTML = html;
     }
 
-    // ---- 趋势图 ----
-    function renderMetaChart(trendData) {
-      var ctx = document.getElementById('metaChartTrend').getContext('2d');
-      if (_metaChart) _metaChart.destroy();
-      Chart.defaults.color = '#94a3b8';
-      Chart.defaults.borderColor = 'rgba(51,65,85,0.3)';
-      _metaChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: trendData.map(function(d) { return d.date; }),
-          datasets: [
-            { label: '消耗', data: trendData.map(function(d) { return d.spend || 0; }),
-              backgroundColor: 'rgba(99,102,241,0.6)', borderRadius: 4, yAxisID: 'y', order: 2 },
-            { label: 'ROI', data: trendData.map(function(d) { return d.roi || 0; }),
-              type: 'line', borderColor: '#34d399', pointBackgroundColor: '#34d399',
-              pointRadius: 2, tension: 0.3, yAxisID: 'y1', order: 1 }
-          ]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          interaction: { intersect: false, mode: 'index' },
-          scales: {
-            y: { type: 'linear', position: 'left',
-              grid: { color: 'rgba(51,65,85,0.2)' },
-              ticks: { callback: function(v) { return '$' + (v >= 1000 ? (v/1000).toFixed(1)+'K' : v); } } },
-            y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false },
-              ticks: { callback: function(v) { return v.toFixed(1) + 'x'; } } },
-            x: { grid: { display: false } }
-          },
-          plugins: { legend: { labels: { boxWidth: 12, padding: 16, font: { size: 10 } } } }
-        }
+
+    // ---- 用户汇总 ----
+    function renderUserSummary(data) {
+      var html = '<table class="w-full"><thead><tr><th>用户</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">CPA</th></tr></thead><tbody>';
+      data.forEach(function(u) {
+        html += '<tr>' +
+          '<td class="text-indigo-400">' + escapeHtml(u.user_name || '未知') + '</td>' +
+          '<td class="text-right">' + (u.account_count || 0) + '</td>' +
+          '<td class="text-right">$' + ((u.spend || 0).toLocaleString()) + '</td>' +
+          '<td class="text-right">' + (u.purchases || 0) + '</td>' +
+          '<td class="text-right">$' + ((u.revenue || 0).toLocaleString()) + '</td>' +
+          '<td class="text-right ' + ((u.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((u.roi || 0).toFixed(2)) + 'x</td>' +
+          '<td class="text-right">$' + ((u.cpa || 0).toFixed(2)) + '</td>' +
+          '</tr>';
       });
+      if (!data.length) html += '<tr><td colspan="7" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      html += '</tbody></table>';
+      document.getElementById('metaUserSummary').innerHTML = html;
     }
 
     // ---- BM 汇总 ----
@@ -4606,6 +4591,7 @@
         html += '<tr>' +
           '<td class="text-left text-slate-500">' + (i+1) + '</td>' +
           '<td class="text-left">' + escapeHtml(actName) + '</td>' +
+          '<td class="text-left text-slate-500 text-xs">' + escapeHtml(a.user_name || '-') + '</td>' +
           '<td class="text-right">$' + ((a.total_spend || a.spend || 0).toLocaleString()) + '</td>' +
           '<td class="text-right">' + (a.purchases || 0) + '</td>' +
           '<td class="text-right">$' + ((a.revenue || 0).toLocaleString()) + '</td>' +
@@ -4615,7 +4601,7 @@
           '<td class="text-right">' + ((a.ctr || 0).toFixed(2)) + '%</td>' +
           '</tr>';
       });
-      if (!items.length) html += '<tr><td colspan="9" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      if (!items.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
       document.getElementById('metaAccountRank').innerHTML = html;
     }
@@ -4628,6 +4614,7 @@
         html += '<tr>' +
           '<td class="text-left">' + (d.date || '-') + '</td>' +
           '<td class="text-left font-mono">' + escapeHtml(d.act_name || d.ad_account || '-') + '</td>' +
+          '<td class="text-left text-slate-500 text-xs">' + escapeHtml(d.user_name || '-') + '</td>' +
           '<td class="text-right">$' + ((d.total_spend || 0).toLocaleString()) + '</td>' +
           '<td class="text-right">' + (d.purchases || 0) + '</td>' +
           '<td class="text-right">$' + ((d.purchase_value || 0).toLocaleString()) + '</td>' +
@@ -4639,7 +4626,7 @@
           '<td class="text-right">' + ((d.clicks || 0).toLocaleString()) + '</td>' +
           '</tr>';
       });
-      if (!items.length) html += '<tr><td colspan="11" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      if (!items.length) html += '<tr><td colspan="12" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
       document.getElementById('metaDailyTable').innerHTML = html;
     }
@@ -4660,15 +4647,15 @@
         }
       }
       try {
-        var [summaryRes, trendRes, bmRes, dailyRes, rankRes] = await Promise.all([
+        var [summaryRes, bmRes, dailyRes, rankRes, userRes] = await Promise.all([
           fetch('/api/meta/summary' + params).then(function(r) { return r.json(); }),
-          fetch('/api/meta/trend?start=' + range.start + '&end=' + range.end).then(function(r) { return r.json(); }),
           fetch('/api/meta/bm-summary' + params).then(function(r) { return r.json(); }),
+          fetch('/api/meta/user-summary' + params).then(function(r) { return r.json(); }),
           fetch('/api/meta/daily-stats' + params + '&page=' + _metaDailyPage + '&page_size=10').then(function(r) { return r.json(); }),
           fetch('/api/meta/account-ranking' + params).then(function(r) { return r.json(); }),
         ]);
         renderMetaKpis(summaryRes);
-        renderMetaChart(trendRes.data || trendRes);
+        renderUserSummary(userRes.user_summary || []);
         renderBmTable(bmRes.bm_summary || []);
         renderAccountRank(rankRes.data || rankRes);
         renderMetaDaily(dailyRes.data || dailyRes);
