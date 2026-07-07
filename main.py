@@ -4613,6 +4613,46 @@ def _meta_account_ranking(start: str = Query(default=None), end: str = Query(def
     return analytics.meta_account_ranking(start_date=start, end_date=end, page=page, page_size=page_size, user_id=uid)
 
 
+@app.get("/api/meta/bm-summary")
+def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=None),
+                      user: dict = Depends(get_current_user)):
+    """按 BM（pingykj_account）聚合 Meta 账户 KPI"""
+    uid = _opt_user_id(user)
+    with database.get_conn() as conn:
+        where = ["source = 'meta'"]
+        params = []
+        if start:
+            where.append("date >= ?"); params.append(start)
+        if end:
+            where.append("date <= ?"); params.append(end)
+        if uid is not None:
+            where.append("ads.user_id = ?"); params.append(uid)
+
+        rows = conn.execute(f"""
+            SELECT
+                COALESCE(ma.pingykj_account, '未归类') AS bm_name,
+                COUNT(DISTINCT ads.ad_account) AS account_count,
+                COALESCE(SUM(ads.total_spend), 0) AS spend,
+                COALESCE(SUM(ads.purchases), 0) AS purchases,
+                COALESCE(SUM(ads.purchase_value), 0) AS revenue,
+                CASE WHEN SUM(ads.total_spend) > 0
+                     THEN ROUND(COALESCE(SUM(ads.purchase_value), 0) / SUM(ads.total_spend), 2)
+                     ELSE NULL END AS roi,
+                CASE WHEN SUM(ads.purchases) > 0
+                     THEN ROUND(SUM(ads.total_spend) / SUM(ads.purchases), 2)
+                     ELSE NULL END AS cpa,
+                COALESCE(SUM(ads.impressions), 0) AS impressions,
+                COALESCE(SUM(ads.clicks), 0) AS clicks
+            FROM ad_daily_stats ads
+            LEFT JOIN meta_accounts ma ON ads.ad_account = ma.act_id AND ads.user_id = ma.user_id
+            WHERE {' AND '.join(where)}
+            GROUP BY COALESCE(ma.pingykj_account, '未归类')
+            ORDER BY spend DESC
+        """, params).fetchall()
+
+        return {"bm_summary": [dict(r) for r in rows]}
+
+
 # ---- Meta 账户发现 API ----
 
 class DiscoverBody(BaseModel):
@@ -4672,13 +4712,15 @@ def _discover_meta_assets(body: DiscoverBody, user: dict = Depends(get_current_u
 
 class ImportAccountBody(BaseModel):
     accounts: list
+    access_token: str = ""
 
 
 @app.post("/api/meta/accounts/import")
 def _import_meta_accounts(body: ImportAccountBody,
                            user: dict = Depends(get_current_user)):
-    """批量导入/更新广告账户"""
+    """批量导入/更新广告账户（每用户使用自己的 access_token，关联到自己的 BM）"""
     uid = _opt_user_id(user)
+    token = body.access_token or ""
     count = 0
     for acct in body.accounts:
         act_id = acct.get("id", "")
@@ -4689,7 +4731,7 @@ def _import_meta_accounts(body: ImportAccountBody,
             status = "active"
         database.upsert_meta_account(
             act_id=act_id, act_name=acct.get("name", ""),
-            access_token="", pingykj_account=acct.get("business_name", ""),
+            access_token=token, pingykj_account=acct.get("business_name", ""),
             status=status, user_id=uid
         )
         count += 1
