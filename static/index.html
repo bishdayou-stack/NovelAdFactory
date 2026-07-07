@@ -4751,7 +4751,7 @@
             refreshMetaDashboard();
           }
           // 超时 5 分钟
-          if (pollCount > 600) { clearInterval(timer); statusEl.textContent = '同步超时(10分钟)'; }
+          if (pollCount > 1800) { clearInterval(timer); statusEl.textContent = '同步超时(30分钟)'; }
         } catch(e) {}
       }, 1000);
     }
