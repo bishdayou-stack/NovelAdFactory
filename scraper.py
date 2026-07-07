@@ -1203,8 +1203,8 @@ def _sync_one_meta_account(act_id: str, access_token: str,
     return act_id, count, ""
 
 
-def sync_all_meta_insights(user_id: int = None, concurrency: int = 8) -> Dict[str, Any]:
-    """并行同步所有 active 状态的 Meta 账户数据"""
+def sync_all_meta_insights(user_id: int = None, concurrency: int = 1) -> Dict[str, Any]:
+    """逐个同步所有 active 状态的 Meta 账户数据（串行，避免触发风控）"""
     uid = user_id or 1
     default_token = _load_default_token()
     accounts = database.get_meta_accounts(uid)
@@ -1233,18 +1233,24 @@ def sync_all_meta_insights(user_id: int = None, concurrency: int = 8) -> Dict[st
     total_count = 0
     errors = []
 
-    workers = min(concurrency, len(active_accounts), 3)
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {}
-        for act_id, token in active_accounts:
-            futures[executor.submit(_sync_one_meta_account, act_id, token, uid)] = act_id
-            time.sleep(0.5)
-        for future in as_completed(futures):
-            act_id, count, err = future.result()
-            result["accounts"][act_id] = {"count": count, "error": err}
-            total_count += count
-            if err:
-                errors.append(f"{act_id}: {err}")
+    # 逐个串行同步，每个账户间隔 3 秒，避免触发 Meta 风控
+    for i, (act_id, token) in enumerate(active_accounts):
+        print(f"[Meta同步] 账户 {i+1}/{len(active_accounts)}: {act_id} ...")
+        try:
+            a_result = _sync_one_meta_account(act_id, token, uid)
+            act_id, count, err = a_result
+        except Exception as e:
+            act_id, count, err = act_id, 0, str(e)
+        result["accounts"][act_id] = {"count": count, "error": err}
+        total_count += count
+        if err:
+            errors.append(f"{act_id}: {err}")
+            print(f"[Meta同步]   ✗ {err[:80]}")
+        else:
+            print(f"[Meta同步]   ✓ {count} 条")
+        # 账户间延迟，避免风控
+        if i < len(active_accounts) - 1:
+            time.sleep(3)
 
     succeeded = len(active_accounts) - len(errors)
     result["total_count"] = total_count
