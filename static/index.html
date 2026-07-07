@@ -790,13 +790,6 @@
             <button data-range="30" class="px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-400 hover:text-white">近30天</button>
           </div>
           <div class="flex items-center gap-3">
-            <select id="metaCompareBaseline" class="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-[11px] text-slate-300 focus:border-indigo-500 focus:outline-none cursor-pointer">
-              <option value="yesterday">对比: 昨天</option>
-              <option value="daybefore">对比: 前天</option>
-              <option value="lastweek">对比: 上周同期</option>
-              <option value="avg7" selected>对比: 前7天均值</option>
-              <option value="avg30">对比: 前30天均值</option>
-            </select>
             <button id="btnMetaSync" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer">手动同步</button>
             <span id="metaSyncStatus" class="text-[11px] text-slate-500"></span>
           </div>
@@ -3117,7 +3110,6 @@
     }
 
 
-
     // ====== 删除功能 ======
     var pendingDeleteIds = [];
 
@@ -4504,31 +4496,6 @@
       return { start: start, end: end, range: range };
     }
 
-    function getCompareDateRange() {
-      var baseline = document.getElementById('metaCompareBaseline').value;
-      var start, end;
-      if (baseline === 'yesterday') {
-        var d = new Date(); d.setDate(d.getDate()-2);
-        start = end = d.toISOString().slice(0,10);
-      } else if (baseline === 'daybefore') {
-        var d = new Date(); d.setDate(d.getDate()-3);
-        start = end = d.toISOString().slice(0,10);
-      } else if (baseline === 'lastweek') {
-        var d = new Date(); d.setDate(d.getDate()-7);
-        start = end = d.toISOString().slice(0,10);
-      } else if (baseline === 'avg7') {
-        var d = new Date(); d.setDate(d.getDate()-1);
-        end = d.toISOString().slice(0,10);
-        d.setDate(d.getDate()-7);
-        start = d.toISOString().slice(0,10);
-      } else if (baseline === 'avg30') {
-        var d = new Date(); d.setDate(d.getDate()-1);
-        end = d.toISOString().slice(0,10);
-        d.setDate(d.getDate()-30);
-        start = d.toISOString().slice(0,10);
-      }
-      return { start: start, end: end };
-    }
 
     document.querySelectorAll('#metaDatePills button').forEach(function(btn) {
       btn.addEventListener('click', function() {
@@ -4542,21 +4509,20 @@
       });
     });
 
-    document.getElementById('metaCompareBaseline').addEventListener('change', function() { refreshMetaDashboard(); });
-    document.getElementById('btnMetaSync').addEventListener('click', triggerMetaSync);
+        document.getElementById('btnMetaSync').addEventListener('click', triggerMetaSync);
 
     // ---- KPI 卡片 ----
-    function renderMetaKpis(summary, compareSummary) {
+    function renderMetaKpis(summary) {
       var kpis = [
-        { id: 'spend', label: '消耗', value: summary.total_spend || 0, prev: compareSummary.total_spend || 0, format: '$', digits: 2 },
-        { id: 'purchases', label: '转化', value: summary.purchases || 0, prev: compareSummary.purchases || 0, format: '', digits: 0 },
-        { id: 'revenue', label: '转化金额', value: summary.total_revenue || 0, prev: compareSummary.total_revenue || 0, format: '$', digits: 2 },
-        { id: 'roi', label: 'ROI', value: summary.roi || 0, prev: compareSummary.roi || 0, format: '', digits: 2, suffix: 'x', positive: true },
-        { id: 'cpa', label: 'CPA', value: summary.cpa || 0, prev: compareSummary.cpa || 0, format: '$', digits: 2, inverse: true },
-        { id: 'cpm', label: 'CPM', value: summary.cpm || 0, prev: compareSummary.cpm || 0, format: '$', digits: 2 },
-        { id: 'ctr', label: 'CTR', value: summary.ctr || 0, prev: compareSummary.ctr || 0, format: '', digits: 2, suffix: '%' },
-        { id: 'impressions', label: '展示', value: summary.impressions || 0, prev: compareSummary.impressions || 0, format: '', digits: 0, compact: true },
-        { id: 'clicks', label: '点击', value: summary.clicks || 0, prev: compareSummary.clicks || 0, format: '', digits: 0, compact: true },
+        { id: 'spend', label: '消耗', value: summary.total_spend || 0, prev: 0, format: '$', digits: 2 },
+        { id: 'purchases', label: '转化', value: summary.purchases || 0, prev: 0, format: '', digits: 0 },
+        { id: 'revenue', label: '转化金额', value: summary.total_revenue || 0, prev: 0, format: '$', digits: 2 },
+        { id: 'roi', label: 'ROI', value: summary.roi || 0, prev: 0, format: '', digits: 2, suffix: 'x', positive: true },
+        { id: 'cpa', label: 'CPA', value: summary.cpa || 0, prev: 0, format: '$', digits: 2, inverse: true },
+        { id: 'cpm', label: 'CPM', value: summary.cpm || 0, prev: 0, format: '$', digits: 2 },
+        { id: 'ctr', label: 'CTR', value: summary.ctr || 0, prev: 0, format: '', digits: 2, suffix: '%' },
+        { id: 'impressions', label: '展示', value: summary.impressions || 0, prev: 0, format: '', digits: 0, compact: true },
+        { id: 'clicks', label: '点击', value: summary.clicks || 0, prev: 0, format: '', digits: 0, compact: true },
       ];
       var html = '';
       kpis.forEach(function(k) {
@@ -4681,33 +4647,27 @@
     // ---- 主刷新函数 ----
     async function refreshMetaDashboard() {
       var range = getMetaDateRange();
-      var compareRange = getCompareDateRange();
       var params = '?start=' + range.start + '&end=' + range.end;
-      var compareParams = '?start=' + compareRange.start + '&end=' + compareRange.end;
       if (_metaSelectedAccount && _metaSelectedAccount !== '__all__') {
         if (_metaSelectedAccount.indexOf('user:') === 0) {
           var uid = _metaSelectedAccount.slice(5);
           params += '&user_id=' + uid;
-          compareParams += '&user_id=' + uid;
         } else if (_metaSelectedAccount.indexOf('bm:') === 0) {
           var bmName = _metaSelectedAccount.slice(3).split(':').pop();  // "bm:uid:name" or "bm:name"
           params += '&keyword=' + encodeURIComponent(bmName);
-          compareParams += '&keyword=' + encodeURIComponent(bmName);
         } else if (_metaSelectedAccount.indexOf('act_') === 0) {
           params += '&account=' + _metaSelectedAccount;
-          compareParams += '&account=' + _metaSelectedAccount;
         }
       }
       try {
-        var [summaryRes, compareRes, trendRes, bmRes, dailyRes, rankRes] = await Promise.all([
+        var [summaryRes, trendRes, bmRes, dailyRes, rankRes] = await Promise.all([
           fetch('/api/meta/summary' + params).then(function(r) { return r.json(); }),
-          fetch('/api/meta/summary' + compareParams).then(function(r) { return r.json(); }),
           fetch('/api/meta/trend?start=' + range.start + '&end=' + range.end).then(function(r) { return r.json(); }),
           fetch('/api/meta/bm-summary' + params).then(function(r) { return r.json(); }),
           fetch('/api/meta/daily-stats' + params + '&page=' + _metaDailyPage + '&page_size=10').then(function(r) { return r.json(); }),
           fetch('/api/meta/account-ranking' + params).then(function(r) { return r.json(); }),
         ]);
-        renderMetaKpis(summaryRes, compareRes);
+        renderMetaKpis(summaryRes);
         renderMetaChart(trendRes.data || trendRes);
         renderBmTable(bmRes.bm_summary || []);
         renderAccountRank(rankRes.data || rankRes);
