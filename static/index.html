@@ -801,7 +801,7 @@
             <span id="metaSyncStatus" class="text-[11px] text-slate-500"></span>
           </div>
         </div>
-        <div class="grid grid-cols-6 gap-3 mb-4" id="metaKpiRow"></div>
+        <div class="grid grid-cols-7 gap-2 mb-4" id="metaKpiRow"></div>
         <div class="grid grid-cols-3 gap-4 mb-4">
           <div class="col-span-2 card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">趋势</h3><div class="h-48"><canvas id="metaChartTrend"></canvas></div></div>
           <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">BM 汇总</h3><div id="metaBmTable" class="text-[11px]"></div></div>
@@ -4552,6 +4552,7 @@
         { id: 'purchases', label: '转化', value: summary.purchases || 0, prev: compareSummary.purchases || 0, format: '', digits: 0 },
         { id: 'roi', label: 'ROI', value: summary.roi || 0, prev: compareSummary.roi || 0, format: '', digits: 2, suffix: 'x', positive: true },
         { id: 'cpa', label: 'CPA', value: summary.cpa || 0, prev: compareSummary.cpa || 0, format: '$', digits: 2, inverse: true },
+        { id: 'cpm', label: 'CPM', value: summary.cpm || 0, prev: compareSummary.cpm || 0, format: '$', digits: 2 },
         { id: 'impressions', label: '展示', value: summary.impressions || 0, prev: compareSummary.impressions || 0, format: '', digits: 0, compact: true },
         { id: 'clicks', label: '点击', value: summary.clicks || 0, prev: compareSummary.clicks || 0, format: '', digits: 0, compact: true },
       ];
