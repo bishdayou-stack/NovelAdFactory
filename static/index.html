@@ -4585,7 +4585,7 @@
     // ---- 账户排行 ----
     function renderAccountRank(data) {
       var items = Array.isArray(data) ? data : (data.data || []);
-      var html = '<table class="w-full"><thead><tr><th class="text-left">#</th><th class="text-left">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th><th class="text-right">CTR</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th class="text-left">#</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th><th class="text-right">CTR</th></tr></thead><tbody>';
       items.forEach(function(a, i) {
         var actName = a.act_name || a.ad_account || '-';
         html += '<tr>' +
@@ -4609,7 +4609,7 @@
     // ---- 日报明细 ----
     function renderMetaDaily(data) {
       var items = Array.isArray(data) ? data : (data.data || []);
-      var html = '<table class="w-full"><thead><tr><th class="text-left">日期</th><th class="text-left">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th><th class="text-right">CTR</th><th class="text-right">展示</th><th class="text-right">点击</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th class="text-left">日期</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th><th class="text-right">CTR</th><th class="text-right">展示</th><th class="text-right">点击</th></tr></thead><tbody>';
       items.forEach(function(d) {
         html += '<tr>' +
           '<td class="text-left">' + (d.date || '-') + '</td>' +
