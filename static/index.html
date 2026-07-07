@@ -789,6 +789,11 @@
             <button data-range="7" class="px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-400 hover:text-white">近7天</button>
             <button data-range="30" class="px-3 py-1.5 text-[11px] font-medium rounded-md transition-all text-slate-400 hover:text-white">近30天</button>
           </div>
+          <div class="flex items-center gap-2">
+            <input id="metaDateFrom" type="date" class="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-[11px] text-slate-300 focus:border-indigo-500 focus:outline-none w-32" onchange="onMetaCustomDate()">
+            <span class="text-slate-500 text-[11px]">至</span>
+            <input id="metaDateTo" type="date" class="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-[11px] text-slate-300 focus:border-indigo-500 focus:outline-none w-32" onchange="onMetaCustomDate()">
+          </div>
           <div class="flex items-center gap-3">
             <button id="btnMetaSync" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer">手动同步</button>
             <span id="metaSyncStatus" class="text-[11px] text-slate-500"></span>
@@ -4476,7 +4481,24 @@
     document.getElementById('btnMetaDiscover').addEventListener('click', openDiscoverPanel);
 
     // ---- 日期和对比基准 ----
+    var _metaCustomDate = false;
+    function onMetaCustomDate() {
+      _metaCustomDate = true;
+      // 清除日期 pill 高亮
+      document.querySelectorAll('#metaDatePills button').forEach(function(b) {
+        b.classList.remove('metaDatePillActive', 'bg-slate-700', 'text-white');
+        b.classList.add('text-slate-400');
+      });
+      _metaDailyPage = 1; _metaRankPage = 1;
+      refreshMetaDashboard();
+    }
+
     function getMetaDateRange() {
+      var fromEl = document.getElementById('metaDateFrom');
+      var toEl = document.getElementById('metaDateTo');
+      if (_metaCustomDate && fromEl.value && toEl.value) {
+        return { start: fromEl.value, end: toEl.value, range: 'custom' };
+      }
       var activePill = document.querySelector('#metaDatePills .metaDatePillActive') || document.querySelector('#metaDatePills button');
       var range = activePill ? activePill.dataset.range : 'today';
       var today = new Date().toISOString().slice(0,10);
@@ -4506,6 +4528,7 @@
         });
         this.classList.add('metaDatePillActive', 'bg-slate-700', 'text-white');
         this.classList.remove('text-slate-400');
+        _metaCustomDate = false;
         _metaDailyPage = 1; _metaRankPage = 1;
         refreshMetaDashboard();
       });
@@ -4616,6 +4639,9 @@
     // ---- 日报明细 ----
     function renderMetaDaily(data) {
       var items = Array.isArray(data) ? data : (data.data || []);
+      var total = data.total || items.length;
+      var page = data.page || 1;
+      var pageSize = data.page_size || 15;
       var html = '<table class="w-full"><thead><tr><th class="text-left">日期</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th><th class="text-right">CTR</th><th class="text-right">展示</th><th class="text-right">点击</th></tr></thead><tbody>';
       items.forEach(function(d) {
         html += '<tr>' +
