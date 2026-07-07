@@ -1126,6 +1126,17 @@ def _sync_one_meta_account(act_id: str, access_token: str,
 
     rows, err = meta_api.get_insights(act_id, access_token, from_date, today)
     if err:
+        # 同步失败 → 检查 Meta 端是否停用了该账户
+        try:
+            info, info_err = meta_api.get_ad_account_info(act_id, access_token)
+            if info and not info_err:
+                raw_status = info.get("account_status", 0)
+                # Meta 状态：2=disabled, 101=closed, 100=pending_closure
+                if raw_status in (2, 100, 101):
+                    database.update_meta_account_status(act_id, "paused", user_id)
+                    return act_id, 0, f"Meta端已停用(状态{raw_status})，已自动标灰: {err}"
+        except Exception:
+            pass
         return act_id, 0, err
     if not rows:
         database.set_meta_sync_state(act_id, today, user_id)
