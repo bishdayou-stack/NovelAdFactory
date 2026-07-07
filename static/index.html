@@ -4560,7 +4560,7 @@
 
     // ---- BM 汇总 ----
     function renderBmTable(bmData) {
-      var html = '<table><thead><tr><th>BM</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">ROI</th><th class="text-right">CPA</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th>BM</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th></tr></thead><tbody>';
       bmData.forEach(function(bm) {
         html += '<tr>' +
           '<td class="text-indigo-400">' + escapeHtml(bm.bm_name || '未归类') + '</td>' +
@@ -4568,9 +4568,10 @@
           '<td class="text-right">$' + ((bm.spend || 0).toLocaleString()) + '</td>' +
           '<td class="text-right ' + ((bm.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((bm.roi || 0).toFixed(2)) + 'x</td>' +
           '<td class="text-right">$' + ((bm.cpa || 0).toFixed(2)) + '</td>' +
+          '<td class="text-right">$' + ((bm.cpm || 0).toFixed(2)) + '</td>' +
           '</tr>';
       });
-      if (!bmData.length) html += '<tr><td colspan="5" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      if (!bmData.length) html += '<tr><td colspan="6" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
       document.getElementById('metaBmTable').innerHTML = html;
     }
@@ -4578,7 +4579,7 @@
     // ---- 账户排行 ----
     function renderAccountRank(data) {
       var items = Array.isArray(data) ? data : (data.data || []);
-      var html = '<table><thead><tr><th>#</th><th>账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">ROI</th><th class="text-right">CPA</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th>#</th><th>账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th></tr></thead><tbody>';
       items.forEach(function(a, i) {
         var actName = a.act_name || a.ad_account || '-';
         html += '<tr>' +
@@ -4588,9 +4589,10 @@
           '<td class="text-right">' + (a.purchases || 0) + '</td>' +
           '<td class="text-right ' + ((a.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((a.roi || 0).toFixed(2)) + 'x</td>' +
           '<td class="text-right">$' + ((a.cpa || 0).toFixed(2)) + '</td>' +
+          '<td class="text-right">$' + ((a.cpm || 0).toFixed(2)) + '</td>' +
           '</tr>';
       });
-      if (!items.length) html += '<tr><td colspan="6" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      if (!items.length) html += '<tr><td colspan="7" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
       document.getElementById('metaAccountRank').innerHTML = html;
     }
@@ -4598,7 +4600,7 @@
     // ---- 日报明细 ----
     function renderMetaDaily(data) {
       var items = Array.isArray(data) ? data : (data.data || []);
-      var html = '<table><thead><tr><th>日期</th><th>账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">展示</th><th class="text-right">点击</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th>日期</th><th>账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th><th class="text-right">展示</th><th class="text-right">点击</th></tr></thead><tbody>';
       items.forEach(function(d) {
         html += '<tr>' +
           '<td>' + (d.date || '-') + '</td>' +
@@ -4607,11 +4609,12 @@
           '<td class="text-right">' + (d.purchases || 0) + '</td>' +
           '<td class="text-right ' + ((d.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((d.roi || 0).toFixed(2)) + 'x</td>' +
           '<td class="text-right">$' + ((d.cpa || 0).toFixed(2)) + '</td>' +
+          '<td class="text-right">$' + ((d.cpm || 0).toFixed(2)) + '</td>' +
           '<td class="text-right">' + ((d.impressions || 0).toLocaleString()) + '</td>' +
           '<td class="text-right">' + ((d.clicks || 0).toLocaleString()) + '</td>' +
           '</tr>';
       });
-      if (!items.length) html += '<tr><td colspan="8" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      if (!items.length) html += '<tr><td colspan="9" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
       document.getElementById('metaDailyTable').innerHTML = html;
     }
