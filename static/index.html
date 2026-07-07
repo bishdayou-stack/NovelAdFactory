@@ -32,8 +32,8 @@
 .meta-tree-item.active { background: rgba(99,102,241,0.2); color: #a5b4fc; }
 .meta-tree-bm { font-weight: 600; color: #e2e8f0; padding: 8px 12px 4px; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
 .meta-tree-account { padding-left: 20px; }
-.meta-kpi-card { background: #1e293b; border: 1px solid rgba(51,65,85,0.5); border-radius: 1rem; padding: 16px; text-align: center; }
-.meta-kpi-value { font-size: 1.5rem; font-weight: 700; color: #fff; margin-top: 2px; }
+.meta-kpi-card { background: #1e293b; border: 1px solid rgba(51,65,85,0.5); border-radius: 1rem; padding: 12px 8px; text-align: center; min-height: 80px; display: flex; flex-direction: column; justify-content: center; }
+.meta-kpi-value { font-size: 1.25rem; font-weight: 700; color: #fff; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meta-kpi-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
 .meta-kpi-change { font-size: 10px; margin-top: 4px; }
 .meta-kpi-up { color: #34d399; }
@@ -801,10 +801,10 @@
             <span id="metaSyncStatus" class="text-[11px] text-slate-500"></span>
           </div>
         </div>
-        <div class="grid grid-cols-9 gap-1.5 mb-4" id="metaKpiRow"></div>
+        <div class="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 mb-4" id="metaKpiRow"></div>
         <div class="grid grid-cols-3 gap-4 mb-4">
-          <div class="col-span-2 card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">趋势</h3><div class="h-48"><canvas id="metaChartTrend"></canvas></div></div>
           <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">BM 汇总</h3><div id="metaBmTable" class="text-[11px]"></div></div>
+          <div class="col-span-2 card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">趋势</h3><div class="h-48"><canvas id="metaChartTrend"></canvas></div></div>
         </div>
         <div class="card-dark p-4 mb-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">账户排行</h3><div id="metaAccountRank" class="text-[11px]"></div></div>
         <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">日报明细</h3><div id="metaDailyTable" class="text-[11px]"></div><div id="metaDailyPager" class="mt-2"></div></div>
