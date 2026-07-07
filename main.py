@@ -4337,9 +4337,20 @@ def _refresh_meta_token(act_id: str, body: TokenRefreshBody,
 
 @app.post("/api/meta/sync")
 def _trigger_meta_sync(user: dict = Depends(get_current_user)):
+    """后台同步 Meta Insights 数据"""
     uid = user["id"]
-    result = scraper.sync_all_meta_insights(uid)
-    return result
+
+    def _bg_sync():
+        try:
+            result = scraper.sync_all_meta_insights(uid)
+            print(f"[Meta同步] 用户 {uid}: {result.get('total_count', 0)} 条, {result.get('message', '')}")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"[Meta同步] 用户 {uid} 异常: {e}")
+
+    _EXECUTOR.submit(_bg_sync)
+    return {"success": True, "message": "后台同步已启动，请稍后刷新查看"}
 
 @app.get("/api/meta/sync-status")
 def _meta_sync_status(user: dict = Depends(get_current_user)):

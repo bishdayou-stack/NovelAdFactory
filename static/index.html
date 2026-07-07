@@ -4665,12 +4665,22 @@
     // ---- 手动同步 ----
     async function triggerMetaSync() {
       var statusEl = document.getElementById('metaSyncStatus');
-      statusEl.textContent = '同步中...';
+      statusEl.textContent = '提交中...';
       var resp = await fetch('/api/meta/sync', { method: 'POST' });
       var result = await resp.json();
       if (result.success) {
-        statusEl.textContent = '同步完成 (' + (result.total_count || 0) + '条)';
-        setTimeout(refreshMetaDashboard, 2000);
+        statusEl.textContent = '后台同步中...';
+        var countdown = 10;
+        var timer = setInterval(function() {
+          countdown--;
+          if (countdown <= 0) {
+            clearInterval(timer);
+            statusEl.textContent = '刷新中...';
+            refreshMetaDashboard();
+          } else {
+            statusEl.textContent = '后台同步中... ' + countdown + '秒后刷新';
+          }
+        }, 1000);
       } else {
         statusEl.textContent = '✗ ' + (result.message || '同步失败');
       }
