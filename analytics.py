@@ -570,10 +570,11 @@ def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20,
         rows = conn.execute(f"""
             SELECT a.ad_account, m.act_name, SUM(a.total_spend) AS spend,
                    SUM(a.total_revenue) AS revenue, SUM(a.purchases) AS purchases,
-                   SUM(a.impressions) AS impressions,
+                   SUM(a.impressions) AS impressions, SUM(a.clicks) AS clicks,
                    CASE WHEN SUM(a.total_spend)>0 THEN ROUND(SUM(a.total_revenue)/SUM(a.total_spend),2) ELSE 0 END AS roi,
                    CASE WHEN SUM(a.purchases)>0 THEN ROUND(SUM(a.total_spend)/SUM(a.purchases),2) ELSE 0 END AS cpa,
-                   CASE WHEN SUM(a.impressions)>0 THEN ROUND(SUM(a.total_spend)/SUM(a.impressions)*1000,2) ELSE 0 END AS cpm
+                   CASE WHEN SUM(a.impressions)>0 THEN ROUND(SUM(a.total_spend)/SUM(a.impressions)*1000,2) ELSE 0 END AS cpm,
+                   CASE WHEN SUM(a.impressions)>0 THEN ROUND(SUM(a.clicks)*100.0/SUM(a.impressions),2) ELSE 0 END AS ctr
             FROM ad_daily_stats a LEFT JOIN meta_accounts m ON a.ad_account = m.act_id
             WHERE {' AND '.join(where)}
             GROUP BY a.ad_account ORDER BY spend DESC LIMIT ? OFFSET ?

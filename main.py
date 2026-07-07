@@ -4747,6 +4747,9 @@ def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=
                 CASE WHEN SUM(ads.impressions) > 0
                      THEN ROUND(SUM(ads.total_spend) / SUM(ads.impressions) * 1000, 2)
                      ELSE NULL END AS cpm,
+                CASE WHEN SUM(ads.impressions) > 0
+                     THEN ROUND(SUM(ads.clicks) * 100.0 / SUM(ads.impressions), 2)
+                     ELSE NULL END AS ctr,
                 COALESCE(SUM(ads.impressions), 0) AS impressions,
                 COALESCE(SUM(ads.clicks), 0) AS clicks
             FROM ad_daily_stats ads
