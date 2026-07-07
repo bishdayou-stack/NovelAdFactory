@@ -4298,7 +4298,11 @@ class MetaAccountBody(BaseModel):
 @app.get("/api/meta/accounts")
 def _get_meta_accounts(user: dict = Depends(get_current_user)):
     uid = _opt_user_id(user)
-    return database.get_meta_accounts(uid)
+    accounts = database.get_meta_accounts(uid)
+    # 普通用户只看 active 账户（管理员看全部，含已停用）
+    if user.get("role") != "admin":
+        accounts = [a for a in accounts if a.get("status") == "active"]
+    return accounts
 
 @app.post("/api/meta/accounts")
 def _add_meta_account(body: MetaAccountBody, user: dict = Depends(get_current_user)):

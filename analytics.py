@@ -21,12 +21,18 @@ def _add_keyword(where: List[str], params: List, keyword: str) -> None:
         params.extend([keyword, keyword, keyword])
 
 
-def _add_user_filter(where: List[str], params: List, user_id: int, prefix: str = ""):
-    """添加 user_id 过滤条件"""
+def _add_user_filter(where: List[str], params: List, user_id: int, prefix: str = "",
+                     exclude_paused_meta: bool = False):
+    """添加 user_id 过滤条件；可选排除已停用的 Meta 账户（历史数据也不统计）"""
     if user_id is not None:
         col = f"{prefix}user_id" if prefix else "user_id"
         where.append(f"{col} = ?")
         params.append(user_id)
+        if exclude_paused_meta:
+            where.append("""ad_account NOT IN (
+                SELECT act_id FROM meta_accounts WHERE user_id = ? AND status != 'active'
+            )""")
+            params.append(user_id)
     # user_id=None 表示管理员看全部，不加过滤
 
 
@@ -260,7 +266,7 @@ def detect_anomalies(days: int = 30, threshold_sigma: float = 2.0,
     with database.get_conn() as conn:
         where = ["date >= date('now', ?)"]
         params = [f"-{days} days"]
-        _add_user_filter(where, params, user_id)
+        _add_user_filter(where, params, user_id, exclude_paused_meta=True)
         rows = conn.execute(f"""
             SELECT date, SUM(total_spend) AS spend
             FROM ad_daily_stats
@@ -484,7 +490,7 @@ def meta_summary(start_date=None, end_date=None, account=None, keyword=None,
     with database.get_conn() as conn:
         where, params = [], []
         _meta_where(where, params, start_date, end_date, account, keyword)
-        _add_user_filter(where, params, user_id)
+        _add_user_filter(where, params, user_id, exclude_paused_meta=True)
         row = conn.execute(f"""
             SELECT COALESCE(SUM(total_spend),0) AS spend, COALESCE(SUM(total_revenue),0) AS revenue,
                    COUNT(DISTINCT date) AS days, COUNT(DISTINCT ad_account) AS accounts,
@@ -515,7 +521,7 @@ def meta_daily_stats(start_date=None, end_date=None, account=None, keyword=None,
     with database.get_conn() as conn:
         where, params = [], []
         _meta_where(where, params, start_date, end_date, account, keyword)
-        _add_user_filter(where, params, user_id, prefix="a.")
+        _add_user_filter(where, params, user_id, prefix="a.", exclude_paused_meta=True)
         wc = ' AND '.join(where)
         total = conn.execute(f"SELECT COUNT(DISTINCT a.date||a.ad_account) AS cnt FROM ad_daily_stats a WHERE {wc}", params).fetchone()["cnt"]
         rows = conn.execute(f"""
@@ -539,7 +545,7 @@ def meta_trend(days=30, account=None, user_id=None):
         where, params = ["source='meta'", "date >= date('now', ?)"], [f"-{days} days"]
         if account:
             where.append("ad_account = ?"); params.append(account)
-        _add_user_filter(where, params, user_id)
+        _add_user_filter(where, params, user_id, exclude_paused_meta=True)
         rows = conn.execute(f"""
             SELECT date, SUM(total_spend) AS spend, SUM(total_revenue) AS revenue,
                    SUM(purchases) AS purchases, SUM(impressions) AS impressions,
@@ -560,7 +566,7 @@ def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20,
     with database.get_conn() as conn:
         where, params = [], []
         _meta_where(where, params, start_date, end_date, None, None)
-        _add_user_filter(where, params, user_id, prefix="a.")
+        _add_user_filter(where, params, user_id, prefix="a.", exclude_paused_meta=True)
         rows = conn.execute(f"""
             SELECT a.ad_account, m.act_name, SUM(a.total_spend) AS spend,
                    SUM(a.total_revenue) AS revenue, SUM(a.purchases) AS purchases,
