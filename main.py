@@ -4335,22 +4335,101 @@ def _refresh_meta_token(act_id: str, body: TokenRefreshBody,
 
 # ---- Meta 数据同步控制 API ----
 
+# Meta 同步进度（按 user_id 存储）
+_meta_sync_progress: Dict[int, dict] = {}
+_meta_sync_lock = threading.Lock()
+
 @app.post("/api/meta/sync")
 def _trigger_meta_sync(user: dict = Depends(get_current_user)):
-    """后台同步 Meta Insights 数据"""
+    """后台逐个同步 Meta Insights 数据"""
     uid = user["id"]
 
+    with _meta_sync_lock:
+        existing = _meta_sync_progress.get(uid)
+        if existing and existing.get("status") == "running":
+            return {"success": False, "message": "已有同步任务在进行中"}
+
+    # 获取账户列表
+    accounts = database.get_meta_accounts(uid)
+    active = []
+    for a in accounts:
+        if a.get("status") != "active":
+            continue
+        token = a.get("access_token") or ""
+        if not token:
+            token = _load_meta_default_token()
+        if token:
+            active.append({"act_id": a["act_id"], "act_name": a.get("act_name", ""), "token": token})
+
+    if not active:
+        return {"success": False, "message": "没有活跃的 Meta 账户"}
+
+    # 初始化进度
+    with _meta_sync_lock:
+        _meta_sync_progress[uid] = {
+            "status": "running", "total": len(active), "current": 0,
+            "current_account": "", "results": []
+        }
+
     def _bg_sync():
-        try:
-            result = scraper.sync_all_meta_insights(uid)
-            print(f"[Meta同步] 用户 {uid}: {result.get('total_count', 0)} 条, {result.get('message', '')}")
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"[Meta同步] 用户 {uid} 异常: {e}")
+        total_count = 0
+        for i, acct in enumerate(active):
+            act_id = acct["act_id"]
+            with _meta_sync_lock:
+                _meta_sync_progress[uid]["current"] = i + 1
+                _meta_sync_progress[uid]["current_account"] = act_id
+
+            try:
+                a_id, count, err = scraper._sync_one_meta_account(
+                    act_id, acct["token"], uid)
+                total_count += count
+                with _meta_sync_lock:
+                    if uid in _meta_sync_progress:
+                        _meta_sync_progress[uid]["results"].append({
+                            "act_id": act_id, "act_name": acct["act_name"],
+                            "count": count, "error": err or "",
+                            "status": "done" if not err else "error"
+                        })
+            except Exception as e:
+                with _meta_sync_lock:
+                    if uid in _meta_sync_progress:
+                        _meta_sync_progress[uid]["results"].append({
+                            "act_id": act_id, "act_name": acct["act_name"],
+                            "count": 0, "error": str(e), "status": "error"
+                        })
+
+        with _meta_sync_lock:
+            if uid in _meta_sync_progress:
+                _meta_sync_progress[uid]["status"] = "done"
+                _meta_sync_progress[uid]["total_count"] = total_count
 
     _EXECUTOR.submit(_bg_sync)
-    return {"success": True, "message": "后台同步已启动，请稍后刷新查看"}
+    return {"success": True, "total": len(active), "message": f"开始逐个同步 {len(active)} 个账户"}
+
+
+@app.get("/api/meta/sync-progress")
+def _meta_sync_progress_api(user: dict = Depends(get_current_user)):
+    """查询 Meta 同步进度"""
+    uid = user["id"]
+    with _meta_sync_lock:
+        p = _meta_sync_progress.get(uid)
+    if not p:
+        return {"status": "idle", "total": 0, "current": 0, "current_account": "", "results": []}
+    result = dict(p)
+    # 返回后清除已完成的状态
+    if p.get("status") == "done":
+        with _meta_sync_lock:
+            _meta_sync_progress.pop(uid, None)
+    return result
+
+
+def _load_meta_default_token() -> str:
+    try:
+        config = json.loads((Path(__file__).parent / "config.json").read_text(encoding="utf-8"))
+        return config.get("meta", {}).get("default_access_token", "")
+    except Exception:
+        return ""
+
 
 @app.get("/api/meta/sync-status")
 def _meta_sync_status(user: dict = Depends(get_current_user)):

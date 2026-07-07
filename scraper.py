@@ -1114,7 +1114,11 @@ def _sync_one_meta_account(act_id: str, access_token: str,
     today = dt.utcnow().strftime("%Y-%m-%d")
 
     if last_date:
-        from_date = (dt.strptime(last_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+        from_date = (dt.strptime(last_date, "%Y-%m-%d") - timedelta(days=2)).strftime("%Y-%m-%d")
+        # 确保不早于 90 天前
+        min_date = (dt.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
+        if from_date < min_date:
+            from_date = min_date
         if from_date > today:
             return act_id, 0, ""
     else:

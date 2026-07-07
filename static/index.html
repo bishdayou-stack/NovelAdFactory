@@ -4668,22 +4668,34 @@
       statusEl.textContent = '提交中...';
       var resp = await fetch('/api/meta/sync', { method: 'POST' });
       var result = await resp.json();
-      if (result.success) {
-        statusEl.textContent = '后台同步中...';
-        var countdown = 10;
-        var timer = setInterval(function() {
-          countdown--;
-          if (countdown <= 0) {
-            clearInterval(timer);
-            statusEl.textContent = '刷新中...';
-            refreshMetaDashboard();
-          } else {
-            statusEl.textContent = '后台同步中... ' + countdown + '秒后刷新';
-          }
-        }, 1000);
-      } else {
+      if (!result.success) {
         statusEl.textContent = '✗ ' + (result.message || '同步失败');
+        return;
       }
+      // 轮询进度
+      var pollCount = 0;
+      statusEl.textContent = '同步中 0/' + result.total;
+      var timer = setInterval(async function() {
+        pollCount++;
+        try {
+          var pr = await fetch('/api/meta/sync-progress').then(function(r) { return r.json(); });
+          if (pr.status === 'running') {
+            var cur = pr.current || 0;
+            statusEl.textContent = '同步中 ' + cur + '/' + pr.total + ' ' + (pr.current_account || '');
+          } else if (pr.status === 'done') {
+            clearInterval(timer);
+            var ok = 0, fail = 0;
+            (pr.results || []).forEach(function(r) { if (r.status === 'done') ok++; else fail++; });
+            var msg = '完成: ' + ok + '成功';
+            if (fail > 0) msg += ', ' + fail + '失败';
+            var tc = pr.total_count || 0;
+            statusEl.textContent = msg + ' (' + tc + '条)';
+            refreshMetaDashboard();
+          }
+          // 超时 5 分钟
+          if (pollCount > 300) { clearInterval(timer); statusEl.textContent = '同步超时'; }
+        } catch(e) {}
+      }, 1000);
     }
 
     // ---- API 配置弹窗 ----
