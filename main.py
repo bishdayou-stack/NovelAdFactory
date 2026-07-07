@@ -4331,6 +4331,32 @@ def _delete_meta_account(act_id: str, user: dict = Depends(get_current_user)):
     database.delete_meta_account(act_id, uid)
     return {"success": True}
 
+
+class AssignAccountsBody(BaseModel):
+    act_ids: list
+    user_id: int
+
+@app.post("/api/meta/assign")
+def _assign_meta_accounts(body: AssignAccountsBody,
+                           user: dict = Depends(get_current_admin)):
+    """管理员将 Meta 账户分配给指定用户"""
+    count = 0
+    for act_id in body.act_ids:
+        # 更新该账户的 user_id
+        with database.get_conn() as conn:
+            conn.execute(
+                "UPDATE meta_accounts SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE act_id = ?",
+                (body.user_id, act_id)
+            )
+            # 同步更新已有 Meta 数据的 user_id
+            conn.execute(
+                "UPDATE ad_daily_stats SET user_id = ? WHERE ad_account = ? AND source = 'meta'",
+                (body.user_id, act_id)
+            )
+            count += 1
+    return {"success": True, "count": count, "message": f"已分配 {count} 个账户"}
+
+
 class TokenRefreshBody(BaseModel):
     access_token: str
 

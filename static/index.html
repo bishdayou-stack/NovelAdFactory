@@ -138,6 +138,10 @@
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16l4-4 4 4 4-6"/></svg>
         <span class="truncate">Meta 管理</span>
       </button>
+      <button type="button" id="nav-meta-assign" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer" style="display:none">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <span class="truncate">账户分配</span>
+      </button>
       <button type="button" id="nav-users" class="w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer" style="display:none">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
         <span class="truncate">用户管理</span>
@@ -810,7 +814,55 @@
       </div>
     </div>
 
-    <!-- ====== Tab: 爆款素材库 ====== -->
+    
+    <!-- ====== Tab: 账户分配 ====== -->
+    <div id="tab-meta-assign" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <div class="flex items-center justify-between mb-4 mt-2">
+        <h2 class="text-lg font-bold text-slate-800">账户分配</h2>
+        <span class="text-xs text-slate-400">管理员将 Meta 账户分配给用户</span>
+      </div>
+      <div class="grid grid-cols-3 gap-4">
+        <!-- 左侧账户树 -->
+        <div class="card p-4 max-h-[70vh] overflow-y-auto">
+          <h3 class="text-sm font-semibold text-slate-700 mb-3">Meta 账户列表</h3>
+          <div class="mb-2">
+            <input id="assignSearch" type="text" placeholder="搜索账户..." class="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs focus:border-indigo-400 focus:outline-none">
+          </div>
+          <div class="flex items-center gap-2 mb-2">
+            <button onclick="assignSelectAll()" class="text-xs text-indigo-600 cursor-pointer border-0 bg-transparent">全选</button>
+            <button onclick="assignDeselectAll()" class="text-xs text-slate-400 cursor-pointer border-0 bg-transparent">取消</button>
+          </div>
+          <div id="assignAccountTree" class="text-xs space-y-0.5"></div>
+        </div>
+        <!-- 右侧操作区 -->
+        <div class="col-span-2 card p-4">
+          <h3 class="text-sm font-semibold text-slate-700 mb-3">分配操作</h3>
+          <div id="assignSelectedInfo" class="text-xs text-slate-400 mb-3">未选择任何账户</div>
+          <div class="flex items-center gap-3 mb-4">
+            <select id="assignTargetUser" class="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
+              <option value="">选择目标用户...</option>
+            </select>
+            <button onclick="doAssignAccounts()" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 cursor-pointer">确认分配</button>
+          </div>
+          <div id="assignMsg" class="text-xs text-slate-500"></div>
+          <hr class="my-3">
+          <h3 class="text-sm font-semibold text-slate-700 mb-2">快捷操作：整个 BM 分配</h3>
+          <div class="flex items-center gap-3">
+            <select id="assignBmSelect" class="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
+              <option value="">选择 BM...</option>
+            </select>
+            <span class="text-xs">→</span>
+            <select id="assignBmTarget" class="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
+              <option value="">分配给...</option>
+            </select>
+            <button onclick="doAssignBm()" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 cursor-pointer">一键分配</button>
+          </div>
+          <div id="assignBmMsg" class="text-xs text-slate-500 mt-2"></div>
+        </div>
+      </div>
+    </div>
+
+<!-- ====== Tab: 爆款素材库 ====== -->
     <div id="tab-hit-gallery" class="flex-1 px-6 pb-6 overflow-y-auto min-w-0" hidden>
       <div class="flex items-center justify-between mb-4 mt-2">
         <div class="flex items-center gap-3">
@@ -1612,7 +1664,7 @@
       // 隐藏所有 tab
       var allTabs = ['generate', 'history', 'assets', 'video-style', 'prompt-generate',
                      'novel-analyze', 'dashboard', 'novel-mgr', 'hit-gallery', 'config',
-                     'meta', 'users'];
+                     'meta', 'meta-assign', 'users'];
       for (var i = 0; i < allTabs.length; i++) {
         var el = document.getElementById('tab-' + allTabs[i]);
         if (el) el.hidden = true;
@@ -1636,7 +1688,7 @@
       }
 
       // 更新面包屑
-      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'meta': 'Meta 管理', 'users': '用户管理' };
+      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'meta': 'Meta 管理', 'meta-assign': '账户分配', 'users': '用户管理' };
       document.getElementById('breadcrumb').textContent = titles[tab] || tab;
       document.getElementById('pageTitle').textContent = titles[tab] || tab;
 
@@ -1656,6 +1708,7 @@
       if (tab === 'novel-mgr') { if (novelMgrPages.books === 1) loadNovelBooks(1); else loadNovelBooks(novelMgrPages.books); }
       if (tab === 'hit-gallery') loadHitGallery();
       if (tab === 'meta') { loadMetaAccountTree(); refreshMetaDashboard(); }
+      if (tab === 'meta-assign') { loadAssignPage(); }
       if (tab === 'users') loadUserList();
     }
 
@@ -3260,6 +3313,7 @@
     document.getElementById('nav-hit-gallery').addEventListener('click', function() { switchTab('hit-gallery'); });
     document.getElementById('nav-config').addEventListener('click', function() { switchTab('config'); });
     document.getElementById('nav-meta').addEventListener('click', function() { switchTab('meta'); });
+    document.getElementById('nav-meta-assign').addEventListener('click', function() { switchTab('meta-assign'); });
 
     document.getElementById('btnAddStyle').addEventListener('click', function() { createNewStyle(); });
     document.getElementById('saveStyleBtn').addEventListener('click', function() { saveCurrentStyle(); });
@@ -4354,10 +4408,10 @@
               var acctChildren = bmAccounts.map(function(a) {
                 var actKey = a.act_id;
                 var isActive = a.status === 'active';
-                var toggleBtn = isAdmin ? '<button class="ml-1 w-5 h-5 rounded text-[10px] leading-none flex items-center justify-center border-0 cursor-pointer ' + (isActive ? 'text-slate-500 hover:text-amber-400' : 'text-slate-600 hover:text-emerald-400') + ' transition-all bg-transparent" onclick="event.stopPropagation();toggleMetaAccountStatus(\'' + actKey + '\',\'' + (isActive ? 'paused' : 'active') + '\')" title="' + (isActive ? '停用' : '启用') + '">' + (isActive ? '⏸' : '▶') + '</button>' : '';
+                var toggleBtn = '';
                 return '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === actKey ? ' active' : '') + '" style="padding-left:36px" onclick="event.stopPropagation();selectMetaAccount(\'' + actKey + '\')">' +
                   '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + (isActive ? 'bg-emerald-400' : 'bg-slate-500') + '"></span>' +
-                  '<span class="flex-1 truncate">' + escapeHtml(a.act_name || a.act_id) + '</span>' + toggleBtn + '</div>';
+                  '<span class="flex-1 truncate">' + escapeHtml(a.act_name || a.act_id) + '</span>' + '</div>';
               }).join('');
               bmChildren += makeTreeItem(bmKey, bm, '📁', 2, acctChildren);
             });
@@ -5036,6 +5090,130 @@
       else if (e.key === 'Escape') { modal.hidden = true; }
     });
 
-  </script>
+  
+
+    // ====== 账户分配 ======
+    var _assignAccounts = [];
+    var _assignSelected = {};  // act_id -> true
+
+    function loadAssignPage() {
+      var targetUser = document.getElementById('assignTargetUser');
+      var bmSelect = document.getElementById('assignBmSelect');
+      var bmTarget = document.getElementById('assignBmTarget');
+      // Load user list
+      fetch('/api/users').then(function(r) { return r.json(); }).then(function(users) {
+        var userOpts = '<option value="">选择目标用户...</option>';
+        users.forEach(function(u) {
+          userOpts += '<option value="' + u.id + '">' + escapeHtml(u.display_name || u.username) + '</option>';
+        });
+        targetUser.innerHTML = userOpts;
+        bmTarget.innerHTML = '<option value="">分配给...</option>' + userOpts.map(function(u) { return '<option value="' + u.id + '">' + escapeHtml(u.display_name || u.username) + '</option>'; }).join('');
+      });
+      // Load all meta accounts
+      fetch('/api/meta/accounts').then(function(r) { return r.json(); }).then(function(accounts) {
+        _assignAccounts = accounts || [];
+        _assignSelected = {};
+        renderAssignTree();
+        // Populate BM list
+        var bms = {};
+        _assignAccounts.forEach(function(a) { var bm = a.pingykj_account || '未归类'; if (!bms[bm]) bms[bm] = 0; bms[bm]++; });
+        var bmOpts = '<option value="">选择 BM...</option>';
+        Object.keys(bms).sort().forEach(function(bm) { bmOpts += '<option value="' + escapeHtml(bm) + '">' + escapeHtml(bm) + ' (' + bms[bm] + ')</option>'; });
+        bmSelect.innerHTML = bmOpts;
+      });
+    }
+
+    function renderAssignTree() {
+      var search = (document.getElementById('assignSearch').value || '').toLowerCase();
+      var accounts = _assignAccounts;
+      if (search) {
+        accounts = accounts.filter(function(a) {
+          return (a.act_id || '').toLowerCase().indexOf(search) >= 0 ||
+                 (a.act_name || '').toLowerCase().indexOf(search) >= 0 ||
+                 (a.pingykj_account || '').toLowerCase().indexOf(search) >= 0;
+        });
+      }
+      var groups = {};
+      accounts.forEach(function(a) {
+        var bm = a.pingykj_account || '未归类';
+        if (!groups[bm]) groups[bm] = [];
+        groups[bm].push(a);
+      });
+      var html = '';
+      Object.keys(groups).sort().forEach(function(bm) {
+        var bmAccounts = groups[bm];
+        var allChecked = bmAccounts.every(function(a) { return _assignSelected[a.act_id]; });
+        var someChecked = bmAccounts.some(function(a) { return _assignSelected[a.act_id]; });
+        html += '<div class="flex items-center gap-2 py-1 px-1 hover:bg-slate-50 rounded cursor-pointer" onclick="event.stopPropagation();var cb=this.querySelector('input');cb.checked=!cb.checked;assignToggleBm(\'' + bm.replace(/'/g, '\\\'') + '\',cb.checked);">';
+        html += '<input type="checkbox" ' + (allChecked ? 'checked' : '') + ' class="w-3.5 h-3.5 accent-indigo-600 cursor-pointer">';
+        html += '<span class="font-medium text-slate-600">' + escapeHtml(bm) + ' (' + bmAccounts.length + ')</span></div>';
+        bmAccounts.forEach(function(a) {
+          html += '<div class="flex items-center gap-2 py-0.5 px-1 pl-6 hover:bg-slate-50 rounded cursor-pointer text-xs" onclick="assignToggleAccount(\'' + a.act_id + '\')">';
+          html += '<input type="checkbox" ' + (_assignSelected[a.act_id] ? 'checked' : '') + ' class="w-3 h-3 accent-indigo-600 cursor-pointer" onclick="event.stopPropagation();_assignSelected[\'' + a.act_id + '\']=this.checked;updateAssignInfo();renderAssignTree();">';
+          html += '<span class="text-slate-500 font-mono">' + escapeHtml(a.act_id) + '</span>';
+          html += '<span class="text-slate-600">' + escapeHtml(a.act_name || '') + '</span>';
+          var uname = a.user_name || ('用户' + (a.user_id || ''));
+          html += '<span class="text-slate-400 text-[10px] ml-auto">👤 ' + escapeHtml(uname) + '</span>';
+          html += '</div>';
+        });
+      });
+      document.getElementById('assignAccountTree').innerHTML = html || '<div class="text-slate-400 text-center py-4">暂无账户</div>';
+      updateAssignInfo();
+    }
+
+    function assignToggleAccount(actId) {
+      _assignSelected[actId] = !_assignSelected[actId];
+      updateAssignInfo();
+      renderAssignTree();
+    }
+
+    function assignToggleBm(bm, checked) {
+      _assignAccounts.forEach(function(a) {
+        if ((a.pingykj_account || '未归类') === bm) _assignSelected[a.act_id] = checked;
+      });
+      updateAssignInfo();
+      renderAssignTree();
+    }
+
+    function assignSelectAll() { _assignAccounts.forEach(function(a) { _assignSelected[a.act_id] = true; }); renderAssignTree(); }
+    function assignDeselectAll() { _assignSelected = {}; renderAssignTree(); }
+
+    function updateAssignInfo() {
+      var count = Object.values(_assignSelected).filter(Boolean).length;
+      document.getElementById('assignSelectedInfo').textContent = count ? '已选 ' + count + ' 个账户' : '未选择任何账户';
+    }
+
+    async function doAssignAccounts() {
+      var targetUserId = document.getElementById('assignTargetUser').value;
+      if (!targetUserId) { alert('请选择目标用户'); return; }
+      var selected = Object.keys(_assignSelected).filter(function(k) { return _assignSelected[k]; });
+      if (!selected.length) { alert('请至少选择一个账户'); return; }
+      var resp = await fetch('/api/meta/assign', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({act_ids: selected, user_id: parseInt(targetUserId)})
+      });
+      var result = await resp.json();
+      document.getElementById('assignMsg').textContent = result.message || ('已分配 ' + result.count + ' 个账户');
+      _assignSelected = {};
+      loadAssignPage();
+    }
+
+    async function doAssignBm() {
+      var bm = document.getElementById('assignBmSelect').value;
+      var targetUserId = document.getElementById('assignBmTarget').value;
+      if (!bm || !targetUserId) { alert('请选择 BM 和目标用户'); return; }
+      var actIds = _assignAccounts.filter(function(a) { return (a.pingykj_account || '未归类') === bm; }).map(function(a) { return a.act_id; });
+      var resp = await fetch('/api/meta/assign', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({act_ids: actIds, user_id: parseInt(targetUserId)})
+      });
+      var result = await resp.json();
+      document.getElementById('assignBmMsg').textContent = result.message || ('已分配 ' + result.count + ' 个账户');
+      loadAssignPage();
+    }
+
+    document.getElementById('assignSearch').addEventListener('input', renderAssignTree);
+
+</script>
 </body>
 </html>
