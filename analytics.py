@@ -41,7 +41,7 @@ def _add_user_filter(where: List[str], params: List, user_id: int, prefix: str =
 def get_summary(start_date: str = None, end_date: str = None, account: str = None,
                 keyword: str = None, user_id: int = None) -> Dict[str, Any]:
     with database.get_conn() as conn:
-        where = ["1=1"]
+        where = ["(source IS NULL OR source != 'meta')"]
         params = []
         if start_date:
             where.append("date >= ?")
@@ -117,7 +117,7 @@ def get_daily_stats(start_date: str = None, end_date: str = None, account: str =
                     page: int = 1, page_size: int = 20, user_id: int = None) -> dict:
     """返回 {"data": [...], "total": N, "page": 1, "page_size": 20}"""
     with database.get_conn() as conn:
-        where = ["1=1"]
+        where = ["(source IS NULL OR source != 'meta')"]
         params = []
         if start_date:
             where.append("date >= ?")
@@ -171,7 +171,7 @@ def get_daily_stats(start_date: str = None, end_date: str = None, account: str =
 def get_trend(days: int = 30, account: str = None, keyword: str = None,
               user_id: int = None) -> List[Dict[str, Any]]:
     with database.get_conn() as conn:
-        where = ["date >= date('now', ?)"]
+        where = ["(source IS NULL OR source != 'meta')", "date >= date('now', ?)"]
         params = [f"-{days} days"]
         if account:
             where.append("ad_account = ?")
@@ -219,7 +219,7 @@ def get_account_ranking(start_date: str = None, end_date: str = None,
                          keyword: str = None, page: int = 1, page_size: int = 20,
                          user_id: int = None) -> dict:
     with database.get_conn() as conn:
-        where = ["1=1"]
+        where = ["(source IS NULL OR source != 'meta')"]
         params = []
         if start_date:
             where.append("date >= ?")
@@ -264,7 +264,7 @@ def get_account_ranking(start_date: str = None, end_date: str = None,
 def detect_anomalies(days: int = 30, threshold_sigma: float = 2.0,
                      user_id: int = None) -> List[Dict[str, Any]]:
     with database.get_conn() as conn:
-        where = ["date >= date('now', ?)"]
+        where = ["(source IS NULL OR source != 'meta')", "date >= date('now', ?)"]
         params = [f"-{days} days"]
         _add_user_filter(where, params, user_id, exclude_paused_meta=True)
         rows = conn.execute(f"""

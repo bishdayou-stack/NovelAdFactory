@@ -1099,13 +1099,12 @@ def delete_account_all(account_id: str, user_id: int = None) -> None:
         conn.execute("DELETE FROM raw_ad_stats WHERE ad_account_id = ? AND user_id = ?", (account_id, uid))
 
 def get_account_display_list(user_id: int = None) -> List[Dict[str, str]]:
-    """返回账户列表（含 pingykj + Meta），含别名"""
+    """返回账户列表（仅 pingykj 来源，含别名）"""
     with get_conn() as conn:
         aliases = get_account_aliases(user_id)
         result = []
         seen = set()
 
-        # 1. pingykj 来源
         if user_id is not None:
             raw_rows = conn.execute(
                 "SELECT DISTINCT ad_account_id FROM raw_ad_stats WHERE user_id = ? ORDER BY ad_account_id",
@@ -1124,33 +1123,6 @@ def get_account_display_list(user_id: int = None) -> List[Dict[str, str]]:
                     "account_id": acct_id,
                     "alias": alias,
                     "display": alias if alias else acct_id,
-                })
-
-        # 2. Meta 来源
-        if user_id is not None:
-            meta_rows = conn.execute(
-                "SELECT DISTINCT ad_account FROM ad_daily_stats WHERE source='meta' AND user_id = ? ORDER BY ad_account",
-                (user_id,)
-            ).fetchall()
-        else:
-            meta_rows = conn.execute(
-                "SELECT DISTINCT ad_account FROM ad_daily_stats WHERE source='meta' ORDER BY ad_account"
-            ).fetchall()
-        for r in meta_rows:
-            acct_id = r["ad_account"]
-            if acct_id and acct_id not in seen:
-                seen.add(acct_id)
-                alias = aliases.get(acct_id, "")
-                display = alias if alias else acct_id
-                meta_info = conn.execute(
-                    "SELECT act_name FROM meta_accounts WHERE act_id = ?", (acct_id,)
-                ).fetchone()
-                if meta_info and meta_info["act_name"] and not alias:
-                    display = f"{acct_id} ({meta_info['act_name']})"
-                result.append({
-                    "account_id": acct_id,
-                    "alias": alias,
-                    "display": display,
                 })
 
         return result
