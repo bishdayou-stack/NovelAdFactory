@@ -1377,12 +1377,13 @@ def upsert_meta_account(act_id: str, act_name: str = "", access_token: str = "",
             INSERT INTO meta_accounts (act_id, act_name, access_token, token_expires_at,
                 pingykj_account, status, user_id)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(act_id, user_id) DO UPDATE SET
+            ON CONFLICT(act_id) DO UPDATE SET
                 act_name=excluded.act_name,
                 access_token=excluded.access_token,
                 token_expires_at=excluded.token_expires_at,
                 pingykj_account=excluded.pingykj_account,
                 status=excluded.status,
+                user_id=excluded.user_id,
                 updated_at=CURRENT_TIMESTAMP
         """, (act_id, act_name, access_token, token_expires_at, pingykj_account, status, uid))
 
