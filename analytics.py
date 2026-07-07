@@ -526,14 +526,18 @@ def meta_daily_stats(start_date=None, end_date=None, account=None, keyword=None,
         total = conn.execute(f"SELECT COUNT(DISTINCT a.date||a.ad_account) AS cnt FROM ad_daily_stats a WHERE {wc}", params).fetchone()["cnt"]
         rows = conn.execute(f"""
             SELECT a.date, a.ad_account, m.act_name,
+                   COALESCE(u.display_name, u.username, '') AS user_name,
                    SUM(a.total_spend) AS total_spend, SUM(a.total_revenue) AS total_revenue,
                    SUM(a.impressions) AS impressions, SUM(a.clicks) AS clicks,
                    SUM(a.inline_link_clicks) AS link_clicks, SUM(a.purchases) AS purchases,
                    SUM(a.purchase_value) AS purchase_value, SUM(a.ad_count) AS ad_count,
                    CASE WHEN SUM(a.total_spend)>0 THEN ROUND(SUM(a.total_revenue)/SUM(a.total_spend),2) ELSE 0 END AS roi,
+                   CASE WHEN SUM(a.purchases)>0 THEN ROUND(SUM(a.total_spend)/SUM(a.purchases),2) ELSE 0 END AS cpa,
                    CASE WHEN SUM(a.impressions)>0 THEN ROUND(SUM(a.total_spend)/SUM(a.impressions)*1000,2) ELSE 0 END AS cpm,
                    CASE WHEN SUM(a.impressions)>0 THEN ROUND(SUM(a.clicks)*100.0/SUM(a.impressions),2) ELSE 0 END AS ctr
-            FROM ad_daily_stats a LEFT JOIN meta_accounts m ON a.ad_account = m.act_id
+            FROM ad_daily_stats a
+            LEFT JOIN meta_accounts m ON a.ad_account = m.act_id
+            LEFT JOIN users u ON a.user_id = u.id
             WHERE {wc}
             GROUP BY a.date, a.ad_account ORDER BY a.date DESC, a.ad_account LIMIT ? OFFSET ?
         """, params + [page_size, (page-1)*page_size]).fetchall()
@@ -568,14 +572,18 @@ def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20,
         _meta_where(where, params, start_date, end_date, None, None)
         _add_user_filter(where, params, user_id, prefix="a.", exclude_paused_meta=True)
         rows = conn.execute(f"""
-            SELECT a.ad_account, m.act_name, SUM(a.total_spend) AS spend,
+            SELECT a.ad_account, m.act_name,
+                   COALESCE(u.display_name, u.username, '') AS user_name,
+                   SUM(a.total_spend) AS spend,
                    SUM(a.total_revenue) AS revenue, SUM(a.purchases) AS purchases,
                    SUM(a.impressions) AS impressions, SUM(a.clicks) AS clicks,
                    CASE WHEN SUM(a.total_spend)>0 THEN ROUND(SUM(a.total_revenue)/SUM(a.total_spend),2) ELSE 0 END AS roi,
                    CASE WHEN SUM(a.purchases)>0 THEN ROUND(SUM(a.total_spend)/SUM(a.purchases),2) ELSE 0 END AS cpa,
                    CASE WHEN SUM(a.impressions)>0 THEN ROUND(SUM(a.total_spend)/SUM(a.impressions)*1000,2) ELSE 0 END AS cpm,
                    CASE WHEN SUM(a.impressions)>0 THEN ROUND(SUM(a.clicks)*100.0/SUM(a.impressions),2) ELSE 0 END AS ctr
-            FROM ad_daily_stats a LEFT JOIN meta_accounts m ON a.ad_account = m.act_id
+            FROM ad_daily_stats a
+            LEFT JOIN meta_accounts m ON a.ad_account = m.act_id
+            LEFT JOIN users u ON a.user_id = u.id
             WHERE {' AND '.join(where)}
             GROUP BY a.ad_account ORDER BY spend DESC LIMIT ? OFFSET ?
         """, params + [page_size, (page-1)*page_size]).fetchall()
