@@ -4682,8 +4682,8 @@
         renderMetaKpis(summaryRes);
         renderUserSummary(userRes.user_summary || []);
         renderBmTable(bmRes.bm_summary || []);
-        renderAccountRank(rankRes.data || rankRes);
-        renderMetaDaily(dailyRes.data || dailyRes);
+        renderAccountRank(rankRes);
+        renderMetaDaily(dailyRes);
       } catch(e) { console.error('Meta dashboard error:', e); }
     }
 

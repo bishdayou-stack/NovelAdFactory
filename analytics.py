@@ -571,6 +571,13 @@ def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20,
         where, params = [], []
         _meta_where(where, params, start_date, end_date, None, None)
         _add_user_filter(where, params, user_id, prefix="a.", exclude_paused_meta=True)
+        total_row = conn.execute(f"""
+            SELECT COUNT(DISTINCT a.ad_account) AS cnt
+            FROM ad_daily_stats a LEFT JOIN meta_accounts m ON a.ad_account = m.act_id
+            WHERE {' AND '.join(where)}
+        """, params).fetchone()
+        total = total_row["cnt"] if total_row else 0
+
         rows = conn.execute(f"""
             SELECT a.ad_account, m.act_name,
                    COALESCE(u.display_name, u.username, '') AS user_name,
@@ -587,7 +594,7 @@ def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20,
             WHERE {' AND '.join(where)}
             GROUP BY a.ad_account ORDER BY spend DESC LIMIT ? OFFSET ?
         """, params + [page_size, (page-1)*page_size]).fetchall()
-        return [dict(r) for r in rows]
+        return {"data": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
 
 
 # ====== 用户汇总排名 ======
