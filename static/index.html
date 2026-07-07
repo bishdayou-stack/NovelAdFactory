@@ -4719,7 +4719,12 @@
     async function triggerMetaSync() {
       var statusEl = document.getElementById('metaSyncStatus');
       statusEl.textContent = '提交中...';
-      var resp = await fetch('/api/meta/sync', { method: 'POST' });
+      // 如果管理员选中了某个用户节点，则为该用户同步
+      var url = '/api/meta/sync';
+      if (_metaSelectedAccount && _metaSelectedAccount.indexOf('user:') === 0) {
+        url += '?target_user_id=' + _metaSelectedAccount.slice(5);
+      }
+      var resp = await fetch(url, { method: 'POST' });
       var result = await resp.json();
       if (!result.success) {
         statusEl.textContent = '✗ ' + (result.message || '同步失败');
@@ -4746,7 +4751,7 @@
             refreshMetaDashboard();
           }
           // 超时 5 分钟
-          if (pollCount > 300) { clearInterval(timer); statusEl.textContent = '同步超时'; }
+          if (pollCount > 600) { clearInterval(timer); statusEl.textContent = '同步超时(10分钟)'; }
         } catch(e) {}
       }, 1000);
     }

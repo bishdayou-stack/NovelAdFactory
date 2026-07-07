@@ -4348,9 +4348,10 @@ _meta_sync_progress: Dict[int, dict] = {}
 _meta_sync_lock = threading.Lock()
 
 @app.post("/api/meta/sync")
-def _trigger_meta_sync(user: dict = Depends(get_current_user)):
-    """后台逐个同步 Meta Insights 数据"""
-    uid = user["id"]
+def _trigger_meta_sync(user: dict = Depends(get_current_user),
+                       target_user_id: int = None):
+    """后台逐个同步 Meta Insights 数据。管理员可指定 target_user_id 为其他用户同步"""
+    uid = target_user_id if target_user_id and user.get("role") == "admin" else user["id"]
 
     with _meta_sync_lock:
         existing = _meta_sync_progress.get(uid)
