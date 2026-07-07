@@ -187,7 +187,7 @@ def _recover_incomplete_batches():
 
 # 启动定时同步（默认3分钟，用户可调）
 from apscheduler.schedulers.background import BackgroundScheduler
-_scheduler = BackgroundScheduler()
+_scheduler = BackgroundScheduler(executors={'default': {'type': 'threadpool', 'max_workers': 20}})
 
 def _auto_sync_all_users():
     """每 120 秒检查一次，按用户各自间隔决定是否同步（间隔从 user_config 读取）"""
