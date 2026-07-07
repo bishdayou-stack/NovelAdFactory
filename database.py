@@ -325,7 +325,7 @@ def _migrate_user_isolation(conn) -> None:
                     user_id INTEGER DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(act_id, user_id)
+                    UNIQUE(act_id)
                 )
             """)
             conn.execute("""
@@ -588,7 +588,7 @@ def init_db() -> None:
                 user_id INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(act_id, user_id)
+                UNIQUE(act_id)
             );
 
             CREATE TABLE IF NOT EXISTS delivery_templates (

@@ -4909,6 +4909,12 @@ def _import_meta_accounts(body: ImportAccountBody,
             access_token=token, pingykj_account=acct.get("business_name", ""),
             status=status, user_id=uid
         )
+        # 后导入覆盖：历史 Meta 数据也转移归属
+        with database.get_conn() as conn:
+            conn.execute(
+                "UPDATE ad_daily_stats SET user_id = ? WHERE ad_account = ? AND source = 'meta'",
+                (uid, act_id)
+            )
         count += 1
     return {"success": True, "count": count}
 
