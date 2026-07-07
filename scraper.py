@@ -1127,7 +1127,78 @@ def _sync_one_meta_account(act_id: str, access_token: str,
         database.set_meta_sync_state(act_id, today, user_id)
         return act_id, 0, ""
 
-    count = database.upsert_meta_insights(act_id, rows, user_id)
+    # 按日期聚合：Meta API 返回按广告粒度的数据，同一日期可能有多条，
+    # 需要汇总为每日总计后再写入
+    from collections import defaultdict
+    aggregated = defaultdict(lambda: {
+        "spend": 0.0, "impressions": 0, "clicks": 0,
+        "ctr": 0.0, "cpm": 0.0, "cpc": 0.0,
+        "inline_link_clicks": 0, "inline_link_click_ctr": 0.0,
+        "cost_per_inline_link_click": 0.0,
+        "actions": [], "cost_per_action_type": [],
+        "action_values": [], "purchase_value": 0.0,
+    })
+    for r in rows:
+        d = r.get("date_start", "")
+        if not d:
+            continue
+        agg = aggregated[d]
+        agg["date_start"] = d
+        agg["spend"] += float(r.get("spend", 0) or 0)
+        agg["impressions"] += int(float(r.get("impressions", 0) or 0))
+        agg["clicks"] += int(float(r.get("clicks", 0) or 0))
+        agg["inline_link_clicks"] += int(float(r.get("inline_link_clicks", 0) or 0))
+        # 聚合 actions
+        for action in (r.get("actions") or []):
+            action_type = action.get("action_type", "")
+            value = float(action.get("value", 0) or 0)
+            found = False
+            for a in agg["actions"]:
+                if a.get("action_type") == action_type:
+                    a["value"] = str(float(a.get("value", 0) or 0) + value)
+                    found = True
+                    break
+            if not found:
+                agg["actions"].append({"action_type": action_type, "value": str(value)})
+        # 聚合 cost_per_action_type
+        for cpa in (r.get("cost_per_action_type") or []):
+            at = cpa.get("action_type", "")
+            v = float(cpa.get("value", 0) or 0)
+            found = False
+            for a in agg["cost_per_action_type"]:
+                if a.get("action_type") == at:
+                    a["value"] = str(float(a.get("value", 0) or 0) + v)
+                    found = True
+                    break
+            if not found:
+                agg["cost_per_action_type"].append({"action_type": at, "value": str(v)})
+        # 聚合 action_values
+        for av in (r.get("action_values") or []):
+            at = av.get("action_type", "")
+            v = float(av.get("value", 0) or 0)
+            found = False
+            for a in agg["action_values"]:
+                if a.get("action_type") == at:
+                    a["value"] = str(float(a.get("value", 0) or 0) + v)
+                    found = True
+                    break
+            if not found:
+                agg["action_values"].append({"action_type": at, "value": str(v)})
+
+    # 重新计算派生指标
+    agg_rows = []
+    for d, a in aggregated.items():
+        if a["impressions"] > 0:
+            a["ctr"] = round(a["clicks"] / a["impressions"] * 100, 4) if a["clicks"] > 0 else 0.0
+            a["cpm"] = round(a["spend"] / a["impressions"] * 1000, 2)
+        if a["clicks"] > 0:
+            a["cpc"] = round(a["spend"] / a["clicks"], 4)
+        if a["inline_link_clicks"] > 0:
+            a["inline_link_click_ctr"] = round(a["inline_link_clicks"] / a["impressions"] * 100, 4) if a["impressions"] > 0 else 0.0
+            a["cost_per_inline_link_click"] = round(a["spend"] / a["inline_link_clicks"], 4)
+        agg_rows.append(dict(a))
+
+    count = database.upsert_meta_insights(act_id, agg_rows, user_id)
     database.set_meta_sync_state(act_id, today, user_id)
     return act_id, count, ""
 
