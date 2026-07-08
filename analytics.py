@@ -822,6 +822,10 @@ def meta_creative_gallery(account: str = None, start_date: str = None, end_date:
             LEFT JOIN meta_ad_creatives c ON c.ad_id = s.ad_id AND c.user_id = s.user_id
             LEFT JOIN users u ON u.id = s.user_id
             LEFT JOIN meta_accounts ma ON ma.act_id = s.ad_account AND ma.user_id = s.user_id
+            LEFT JOIN (
+                SELECT ad_id, user_id, MAX(id) AS hit_id
+                FROM hit_materials WHERE ad_id != '' GROUP BY ad_id, user_id
+            ) hm ON hm.ad_id = s.ad_id AND hm.user_id = s.user_id
             WHERE {' AND '.join(where)}
             GROUP BY s.ad_id
         """
@@ -838,7 +842,8 @@ def meta_creative_gallery(account: str = None, start_date: str = None, end_date:
                 COALESCE(SUM(s.purchases),0) AS purchases,
                 COALESCE(SUM(s.purchase_value),0) AS purchase_value,
                 MAX(c.local_path) AS local_path, MAX(c.thumbnail_url) AS thumbnail_url,
-                MAX(c.video_id) AS video_id
+                MAX(c.video_id) AS video_id,
+                MAX(hm.hit_id) AS hit_id, s.user_id AS hit_owner
             {base}
             ORDER BY {sort_col} DESC
             LIMIT ? OFFSET ?
@@ -856,5 +861,7 @@ def meta_creative_gallery(account: str = None, start_date: str = None, end_date:
             m["account_name"] = r["account_name"] or r["ad_account"] or ""
             m["thumb"] = ("/static/" + r["local_path"]) if r["local_path"] else (r["thumbnail_url"] or "")
             m["video_id"] = r["video_id"] or ""
+            m["hit_id"] = r["hit_id"]
+            m["hit_owner"] = r["hit_owner"]
             items.append(m)
         return {"data": items, "total": total, "page": page, "page_size": page_size}

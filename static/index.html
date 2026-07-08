@@ -5140,6 +5140,19 @@
           var acctTag = a.account_name
             ? '<div class="text-[10px] text-sky-300 truncate mb-0.5" title="' + escapeHtml(a.account_name) + '">🏢 ' + escapeHtml(a.account_name) + '</div>'
             : '';
+          // 根据是否已推送 + 推送人，渲染正确的初始按钮态（刷新后保持）
+          var hitBtn;
+          var adAttr = ' data-ad="' + escapeHtml(a.ad_id || '') + '"';
+          if (a.hit_id) {
+            var canCancel = isAdmin || (currentUser && a.hit_owner == currentUser.id);
+            if (canCancel) {
+              hitBtn = '<button class="mt-1.5 w-full text-[10px] py-1 rounded border-0 cursor-pointer transition-all bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25" onclick="galleryHitToggle(this.getAttribute(\'data-ad\'), this)"' + adAttr + ' data-state="pushed" data-hit-id="' + a.hit_id + '">✓ 已推送（取消）</button>';
+            } else {
+              hitBtn = '<button class="mt-1.5 w-full text-[10px] py-1 rounded border-0 bg-slate-700 text-slate-500" disabled data-state="locked">✓ 已在爆款库</button>';
+            }
+          } else {
+            hitBtn = '<button class="mt-1.5 w-full text-[10px] py-1 rounded bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-0 cursor-pointer transition-all" onclick="galleryHitToggle(this.getAttribute(\'data-ad\'), this)"' + adAttr + ' data-state="">⭐ 推爆款</button>';
+          }
           html += '<div class="bg-slate-800 rounded-lg overflow-hidden border border-slate-700 hover:border-indigo-500 transition-all">' +
             '<div class="aspect-square bg-slate-900">' + img + '</div>' +
             '<div class="p-2">' +
@@ -5154,7 +5167,7 @@
               '<div class="flex items-center justify-between text-[10px] text-slate-500 mt-0.5">' +
                 '<span>转化 ' + (a.purchases||0) + '</span><span>$' + ((a.purchase_value||0).toLocaleString()) + '</span>' +
               '</div>' +
-              '<button class="mt-1.5 w-full text-[10px] py-1 rounded bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-0 cursor-pointer transition-all" onclick="galleryHitToggle(this.getAttribute(\'data-ad\'), this)" data-ad="' + escapeHtml(a.ad_id || '') + '">⭐ 推爆款</button>' +
+              hitBtn +
             '</div></div>';
         });
         grid.innerHTML = html;
