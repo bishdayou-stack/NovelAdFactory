@@ -489,6 +489,41 @@ def init_db() -> None:
                 UNIQUE(date, ad_account, adset_id, user_id)
             );
 
+            CREATE TABLE IF NOT EXISTS meta_ad_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date DATE NOT NULL,
+                ad_account TEXT NOT NULL,
+                campaign_id TEXT,
+                campaign_name TEXT,
+                adset_id TEXT,
+                adset_name TEXT,
+                ad_id TEXT,
+                ad_name TEXT,
+                spend REAL DEFAULT 0,
+                impressions INTEGER DEFAULT 0,
+                clicks INTEGER DEFAULT 0,
+                purchases INTEGER DEFAULT 0,
+                purchase_value REAL DEFAULT 0,
+                user_id INTEGER DEFAULT 1,
+                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(date, ad_account, ad_id, user_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS meta_ad_creatives (
+                ad_id TEXT NOT NULL,
+                ad_account TEXT,
+                ad_name TEXT,
+                adset_id TEXT,
+                campaign_id TEXT,
+                thumbnail_url TEXT,
+                image_url TEXT,
+                video_id TEXT,
+                local_path TEXT,
+                user_id INTEGER DEFAULT 1,
+                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(ad_id, user_id)
+            );
+
             CREATE TABLE IF NOT EXISTS orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 order_id TEXT UNIQUE NOT NULL,
@@ -1755,6 +1790,80 @@ def upsert_meta_adset_stats(act_id: str, rows: List[Dict[str, Any]],
             ))
             count += 1
         return count
+
+def upsert_meta_ad_stats(act_id: str, rows: List[Dict[str, Any]],
+                         user_id: int = None) -> int:
+    """批量写入 Meta 广告级 Insights（已按 日期+广告 聚合），返回写入行数。"""
+    if not rows:
+        return 0
+    uid = user_id or 1
+    with get_conn() as conn:
+        count = 0
+        for r in rows:
+            date = r.get("date_start", "")
+            ad_id = r.get("ad_id", "")
+            if not date or not ad_id:
+                continue
+            conn.execute("""
+                INSERT INTO meta_ad_stats (date, ad_account, campaign_id, campaign_name,
+                    adset_id, adset_name, ad_id, ad_name,
+                    spend, impressions, clicks, purchases, purchase_value, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(date, ad_account, ad_id, user_id) DO UPDATE SET
+                    campaign_id=excluded.campaign_id, campaign_name=excluded.campaign_name,
+                    adset_id=excluded.adset_id, adset_name=excluded.adset_name,
+                    ad_name=excluded.ad_name, spend=excluded.spend,
+                    impressions=excluded.impressions, clicks=excluded.clicks,
+                    purchases=excluded.purchases, purchase_value=excluded.purchase_value,
+                    synced_at=CURRENT_TIMESTAMP
+            """, (
+                date, act_id, r.get("campaign_id", ""), r.get("campaign_name", ""),
+                r.get("adset_id", ""), r.get("adset_name", ""),
+                ad_id, r.get("ad_name", ""),
+                _safe_float(r.get("spend")), _safe_int(r.get("impressions")),
+                _safe_int(r.get("clicks")), _safe_int(r.get("purchases")),
+                _safe_float(r.get("purchase_value")), uid,
+            ))
+            count += 1
+        return count
+
+def upsert_meta_ad_creative(rec: Dict[str, Any], user_id: int = None) -> None:
+    """写入/更新单条广告素材记录（按 ad_id 唯一）。local_path 为空时不覆盖已有缓存路径。"""
+    uid = user_id or 1
+    ad_id = rec.get("ad_id", "")
+    if not ad_id:
+        return
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO meta_ad_creatives (ad_id, ad_account, ad_name, adset_id, campaign_id,
+                thumbnail_url, image_url, video_id, local_path, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(ad_id, user_id) DO UPDATE SET
+                ad_account=excluded.ad_account, ad_name=excluded.ad_name,
+                adset_id=excluded.adset_id, campaign_id=excluded.campaign_id,
+                thumbnail_url=excluded.thumbnail_url, image_url=excluded.image_url,
+                video_id=excluded.video_id,
+                local_path=COALESCE(NULLIF(excluded.local_path, ''), meta_ad_creatives.local_path),
+                synced_at=CURRENT_TIMESTAMP
+        """, (
+            ad_id, rec.get("ad_account", ""), rec.get("ad_name", ""),
+            rec.get("adset_id", ""), rec.get("campaign_id", ""),
+            rec.get("thumbnail_url", ""), rec.get("image_url", ""),
+            rec.get("video_id", ""), rec.get("local_path", ""), uid,
+        ))
+
+def get_meta_ad_ids_with_stats(act_id: str, user_id: int = None,
+                               since_date: str = None) -> List[str]:
+    """返回某账户有投放数据的广告 ad_id 列表（用于限定下载素材范围）。"""
+    uid = user_id or 1
+    with get_conn() as conn:
+        sql = "SELECT DISTINCT ad_id FROM meta_ad_stats WHERE ad_account = ? AND user_id = ? AND ad_id != ''"
+        params = [act_id, uid]
+        if since_date:
+            sql += " AND date >= ?"
+            params.append(since_date)
+        rows = conn.execute(sql, params).fetchall()
+        return [r["ad_id"] for r in rows]
 
 def get_meta_sync_state(act_id: str, user_id: int = None) -> Optional[str]:
     """获取 Meta 账户上次同步日期"""

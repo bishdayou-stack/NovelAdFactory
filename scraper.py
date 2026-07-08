@@ -1110,38 +1110,99 @@ def _load_default_token() -> Optional[str]:
 def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
                                      from_date: str, to_date: str,
                                      user_id: int) -> int:
-    """同步单个账户的「广告组级」Insights（含所属系列信息），按 日期+广告组 聚合入库。
-    系列级数据由查询时对广告组做 GROUP BY 得出，无需单独拉取。返回写入行数。"""
-    rows, err = meta_api.get_insights(act_id, access_token, from_date, to_date, level="adset")
+    """同步单个账户的「广告级」Insights（含所属系列/广告组信息），一次拉取 level=ad，
+    同时聚合出 广告级(meta_ad_stats) 与 广告组级(meta_adset_stats)。
+    系列级由查询时对广告组 GROUP BY 得出。返回广告级写入行数。"""
+    rows, err = meta_api.get_insights(act_id, access_token, from_date, to_date, level="ad")
     if err or not rows:
         return 0
     from collections import defaultdict
-    agg = defaultdict(lambda: {
-        "spend": 0.0, "impressions": 0, "clicks": 0,
-        "purchases": 0, "purchase_value": 0.0,
-    })
-    for r in rows:
-        d = r.get("date_start", "")
-        adset_id = r.get("adset_id", "")
-        if not d or not adset_id:
-            continue
-        key = (d, adset_id)
-        a = agg[key]
-        a["date_start"] = d
-        a["adset_id"] = adset_id
-        a["adset_name"] = r.get("adset_name", "")
-        a["campaign_id"] = r.get("campaign_id", "")
-        a["campaign_name"] = r.get("campaign_name", "")
-        a["spend"] += float(r.get("spend", 0) or 0)
-        a["impressions"] += int(float(r.get("impressions", 0) or 0))
-        a["clicks"] += int(float(r.get("clicks", 0) or 0))
+
+    def _purchases(r):
+        p = 0
         for action in (r.get("actions") or []):
             if action.get("action_type") == "purchase":
-                a["purchases"] += int(float(action.get("value", 0) or 0))
+                p += int(float(action.get("value", 0) or 0))
+        return p
+
+    def _purchase_value(r):
+        v = 0.0
         for av in (r.get("action_values") or []):
             if av.get("action_type") == "purchase":
-                a["purchase_value"] += float(av.get("value", 0) or 0)
-    return database.upsert_meta_adset_stats(act_id, [dict(v) for v in agg.values()], user_id)
+                v += float(av.get("value", 0) or 0)
+        return v
+
+    adset_agg = defaultdict(lambda: {"spend": 0.0, "impressions": 0, "clicks": 0, "purchases": 0, "purchase_value": 0.0})
+    ad_agg = defaultdict(lambda: {"spend": 0.0, "impressions": 0, "clicks": 0, "purchases": 0, "purchase_value": 0.0})
+    for r in rows:
+        d = r.get("date_start", "")
+        if not d:
+            continue
+        spend = float(r.get("spend", 0) or 0)
+        impr = int(float(r.get("impressions", 0) or 0))
+        clk = int(float(r.get("clicks", 0) or 0))
+        pur = _purchases(r)
+        pv = _purchase_value(r)
+        adset_id = r.get("adset_id", "")
+        if adset_id:
+            a = adset_agg[(d, adset_id)]
+            a["date_start"] = d; a["adset_id"] = adset_id
+            a["adset_name"] = r.get("adset_name", "")
+            a["campaign_id"] = r.get("campaign_id", ""); a["campaign_name"] = r.get("campaign_name", "")
+            a["spend"] += spend; a["impressions"] += impr; a["clicks"] += clk
+            a["purchases"] += pur; a["purchase_value"] += pv
+        ad_id = r.get("ad_id", "")
+        if ad_id:
+            b = ad_agg[(d, ad_id)]
+            b["date_start"] = d; b["ad_id"] = ad_id; b["ad_name"] = r.get("ad_name", "")
+            b["adset_id"] = adset_id; b["adset_name"] = r.get("adset_name", "")
+            b["campaign_id"] = r.get("campaign_id", ""); b["campaign_name"] = r.get("campaign_name", "")
+            b["spend"] += spend; b["impressions"] += impr; b["clicks"] += clk
+            b["purchases"] += pur; b["purchase_value"] += pv
+
+    database.upsert_meta_adset_stats(act_id, [dict(v) for v in adset_agg.values()], user_id)
+    return database.upsert_meta_ad_stats(act_id, [dict(v) for v in ad_agg.values()], user_id)
+
+
+def _sync_meta_creatives(act_id: str, access_token: str, from_date: str, user_id: int) -> int:
+    """拉取账户广告素材，仅对近期有投放数据的广告下载缩略图到本地缓存。返回缓存数量。"""
+    ad_ids = set(database.get_meta_ad_ids_with_stats(act_id, user_id, since_date=from_date))
+    if not ad_ids:
+        return 0
+    ads, err = meta_api.get_ads_with_creative(act_id, access_token)
+    if err or not ads:
+        return 0
+    cache_dir = Path(__file__).parent / "static" / "meta_creatives"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cached = 0
+    for ad in ads:
+        ad_id = ad.get("id", "")
+        if not ad_id or ad_id not in ad_ids:
+            continue
+        creative = ad.get("creative") or {}
+        thumb = creative.get("thumbnail_url") or ""
+        image_url = creative.get("image_url") or ""
+        video_id = creative.get("video_id") or ""
+        # 优先下载高清原图，缺失（如视频广告）则退回放大后的缩略图
+        download_url = image_url or thumb
+        local_rel = ""
+        if download_url:
+            fname = f"{ad_id}.jpg"
+            dest = cache_dir / fname
+            if dest.exists() and dest.stat().st_size > 0:
+                local_rel = f"meta_creatives/{fname}"
+            else:
+                ok, _e = meta_api.download_file(download_url, str(dest))
+                if ok:
+                    local_rel = f"meta_creatives/{fname}"
+                    cached += 1
+        database.upsert_meta_ad_creative({
+            "ad_id": ad_id, "ad_account": act_id, "ad_name": ad.get("name", ""),
+            "adset_id": ad.get("adset_id", ""), "campaign_id": ad.get("campaign_id", ""),
+            "thumbnail_url": thumb, "image_url": image_url, "video_id": video_id,
+            "local_path": local_rel,
+        }, user_id)
+    return cached
 
 
 def _sync_one_meta_account(act_id: str, access_token: str,
@@ -1252,11 +1313,16 @@ def _sync_one_meta_account(act_id: str, access_token: str,
 
     count = database.upsert_meta_insights(act_id, agg_rows, user_id)
     database.set_meta_sync_state(act_id, today, user_id)
-    # 追加同步「系列/广告组」级明细（失败不影响账户级同步）
+    # 追加同步「系列/广告组/广告」级明细（失败不影响账户级同步）
     try:
         _sync_one_meta_account_breakdown(act_id, access_token, from_date, today, user_id)
     except Exception as _e:
         print(f"[meta breakdown] {act_id} 明细同步失败: {_e}")
+    # 追加同步广告素材缩略图到本地缓存（失败不影响主同步）
+    try:
+        _sync_meta_creatives(act_id, access_token, from_date, user_id)
+    except Exception as _e:
+        print(f"[meta creative] {act_id} 素材同步失败: {_e}")
     return act_id, count, ""
 
 

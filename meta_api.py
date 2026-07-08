@@ -175,6 +175,49 @@ def get_adsets(act_id: str, access_token: str,
         return None, err
     return data.get("data", []), None
 
+def get_ads_with_creative(act_id: str, access_token: str,
+                          limit: int = 200) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    """获取账户下所有广告及其素材（缩略图/图片/视频）。返回广告列表。"""
+    _check_rate(act_id)
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/ads"
+    data, err = _http_request("GET", url, params={
+        "access_token": access_token,
+        "fields": "id,name,adset_id,campaign_id,"
+                  "creative{id,thumbnail_url.width(600).height(600),image_url,video_id}",
+        "limit": str(limit),
+    })
+    if err:
+        return None, err
+    all_data = list(data.get("data", []))
+    next_url = data.get("paging", {}).get("next")
+    while next_url:
+        _check_rate(act_id)
+        d, e = _http_request("GET", next_url)
+        if e:
+            break
+        all_data.extend(d.get("data", []))
+        next_url = d.get("paging", {}).get("next")
+    return all_data, None
+
+def download_file(url: str, dest_path: str, timeout: int = 30) -> Tuple[bool, Optional[str]]:
+    """用 curl 下载文件到本地（代理感知）。返回 (成功, 错误)。"""
+    if not url:
+        return False, "空 URL"
+    cmd = ["curl", "-s", "-L", "--connect-timeout", str(timeout)]
+    proxy = _get_proxy()
+    if proxy:
+        cmd.extend(["-x", proxy])
+    cmd.extend(["-o", dest_path, url])
+    try:
+        subprocess.run(cmd, capture_output=True, timeout=timeout + 10)
+        if os.path.exists(dest_path) and os.path.getsize(dest_path) > 0:
+            return True, None
+        return False, "下载后文件为空"
+    except subprocess.TimeoutExpired:
+        return False, "下载超时"
+    except Exception as e:
+        return False, f"下载失败: {e}"
+
 def upload_ad_image(act_id: str, access_token: str,
                     image_path: str) -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
@@ -326,11 +369,13 @@ def get_insights(act_id: str, access_token: str,
         "cost_per_inline_link_click,actions,cost_per_action_type,action_values,"
         "date_start"
     )
-    # 系列/广告组级需要额外的标识字段用于分组
+    # 系列/广告组/广告级需要额外的标识字段用于分组
     if level == "adset":
         fields += ",campaign_id,campaign_name,adset_id,adset_name"
     elif level == "campaign":
         fields += ",campaign_id,campaign_name"
+    elif level == "ad":
+        fields += ",campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name"
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/insights"
     params = {
         "access_token": access_token,

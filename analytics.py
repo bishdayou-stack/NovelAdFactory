@@ -751,3 +751,101 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
             m["campaign_name"] = r["campaign_name"] or ""
             out.append(m)
         return out
+
+
+def meta_ads(account: str, adset_id: str = None, start_date: str = None,
+             end_date: str = None, user_id: int = None) -> List[Dict[str, Any]]:
+    """某账户（可指定广告组）下按「广告」聚合的表现，附带素材缩略图。"""
+    with database.get_conn() as conn:
+        where = ["s.ad_account = ?"]
+        params: List = [account]
+        if adset_id:
+            where.append("s.adset_id = ?"); params.append(adset_id)
+        if start_date:
+            where.append("s.date >= ?"); params.append(start_date)
+        if end_date:
+            where.append("s.date <= ?"); params.append(end_date)
+        if user_id is not None:
+            where.append("s.user_id = ?"); params.append(user_id)
+        sql = f"""
+            SELECT s.ad_id, MAX(s.ad_name) AS ad_name,
+                s.adset_id, MAX(s.adset_name) AS adset_name,
+                s.campaign_id, MAX(s.campaign_name) AS campaign_name,
+                COALESCE(SUM(s.spend),0) AS spend,
+                COALESCE(SUM(s.impressions),0) AS impressions,
+                COALESCE(SUM(s.clicks),0) AS clicks,
+                COALESCE(SUM(s.purchases),0) AS purchases,
+                COALESCE(SUM(s.purchase_value),0) AS purchase_value,
+                MAX(c.local_path) AS local_path,
+                MAX(c.thumbnail_url) AS thumbnail_url,
+                MAX(c.video_id) AS video_id
+            FROM meta_ad_stats s
+            LEFT JOIN meta_ad_creatives c ON c.ad_id = s.ad_id AND c.user_id = s.user_id
+            WHERE {' AND '.join(where)}
+            GROUP BY s.ad_id
+            ORDER BY spend DESC
+        """
+        rows = conn.execute(sql, params).fetchall()
+        out = []
+        for r in rows:
+            m = _row_metrics(r["spend"], r["impressions"], r["clicks"],
+                             r["purchases"], r["purchase_value"])
+            m["ad_id"] = r["ad_id"]
+            m["ad_name"] = r["ad_name"] or r["ad_id"] or "(未命名广告)"
+            m["adset_id"] = r["adset_id"]
+            m["campaign_name"] = r["campaign_name"] or ""
+            m["thumb"] = ("/static/" + r["local_path"]) if r["local_path"] else (r["thumbnail_url"] or "")
+            m["video_id"] = r["video_id"] or ""
+            out.append(m)
+        return out
+
+
+def meta_creative_gallery(account: str = None, start_date: str = None, end_date: str = None,
+                          sort: str = "spend", page: int = 1, page_size: int = 40,
+                          user_id: int = None) -> Dict[str, Any]:
+    """素材画廊：按广告聚合，附缩略图，按 消耗/ROI/转化 排序，分页。"""
+    sort_col = {"spend": "spend", "roi": "roi", "purchases": "purchases",
+                "purchase_value": "purchase_value"}.get(sort, "spend")
+    with database.get_conn() as conn:
+        where = ["s.spend > 0"]
+        params: List = []
+        if account:
+            where.append("s.ad_account = ?"); params.append(account)
+        if start_date:
+            where.append("s.date >= ?"); params.append(start_date)
+        if end_date:
+            where.append("s.date <= ?"); params.append(end_date)
+        if user_id is not None:
+            where.append("s.user_id = ?"); params.append(user_id)
+        base = f"""
+            FROM meta_ad_stats s
+            LEFT JOIN meta_ad_creatives c ON c.ad_id = s.ad_id AND c.user_id = s.user_id
+            WHERE {' AND '.join(where)}
+            GROUP BY s.ad_id
+        """
+        total = conn.execute(f"SELECT COUNT(*) AS n FROM (SELECT s.ad_id {base})", params).fetchone()["n"]
+        rows = conn.execute(f"""
+            SELECT s.ad_id, MAX(s.ad_name) AS ad_name, s.ad_account,
+                s.campaign_id, MAX(s.campaign_name) AS campaign_name,
+                COALESCE(SUM(s.spend),0) AS spend,
+                COALESCE(SUM(s.impressions),0) AS impressions,
+                COALESCE(SUM(s.clicks),0) AS clicks,
+                COALESCE(SUM(s.purchases),0) AS purchases,
+                COALESCE(SUM(s.purchase_value),0) AS purchase_value,
+                MAX(c.local_path) AS local_path, MAX(c.thumbnail_url) AS thumbnail_url,
+                MAX(c.video_id) AS video_id
+            {base}
+            ORDER BY {sort_col} DESC
+            LIMIT ? OFFSET ?
+        """, params + [page_size, (page - 1) * page_size]).fetchall()
+        items = []
+        for r in rows:
+            m = _row_metrics(r["spend"], r["impressions"], r["clicks"],
+                             r["purchases"], r["purchase_value"])
+            m["ad_id"] = r["ad_id"]
+            m["ad_name"] = r["ad_name"] or r["ad_id"] or "(未命名广告)"
+            m["campaign_name"] = r["campaign_name"] or ""
+            m["thumb"] = ("/static/" + r["local_path"]) if r["local_path"] else (r["thumbnail_url"] or "")
+            m["video_id"] = r["video_id"] or ""
+            items.append(m)
+        return {"data": items, "total": total, "page": page, "page_size": page_size}

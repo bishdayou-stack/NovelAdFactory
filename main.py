@@ -4777,6 +4777,28 @@ def _meta_adsets(account: str = Query(...), campaign_id: str = Query(default=Non
     return {"data": analytics.meta_adsets(account=account, campaign_id=campaign_id, start_date=start, end_date=end, user_id=uid)}
 
 
+@app.get("/api/meta/ads")
+def _meta_ads(account: str = Query(...), adset_id: str = Query(default=None),
+              start: str = Query(default=None), end: str = Query(default=None),
+              user_id: int = Query(default=None),
+              user: dict = Depends(get_current_user)):
+    """某广告组下按广告聚合的表现（含素材缩略图）"""
+    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
+    return {"data": analytics.meta_ads(account=account, adset_id=adset_id, start_date=start, end_date=end, user_id=uid)}
+
+
+@app.get("/api/meta/gallery")
+def _meta_gallery(account: str = Query(default=None), start: str = Query(default=None),
+                  end: str = Query(default=None), sort: str = Query(default="spend"),
+                  page: int = Query(default=1), page_size: int = Query(default=40),
+                  user_id: int = Query(default=None),
+                  user: dict = Depends(get_current_user)):
+    """素材画廊：按广告聚合、附缩略图、按表现排序、分页"""
+    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
+    return analytics.meta_creative_gallery(account=account, start_date=start, end_date=end,
+                                           sort=sort, page=page, page_size=page_size, user_id=uid)
+
+
 @app.get("/api/meta/bm-summary")
 def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=None),
                       user_id: int = Query(default=None),
