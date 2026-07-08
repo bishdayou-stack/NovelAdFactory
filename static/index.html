@@ -881,6 +881,9 @@
           <option value="roi">按 ROI</option>
           <option value="purchases">按转化数</option>
         </select>
+        <select id="galUser" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none" hidden>
+          <option value="">全部用户</option>
+        </select>
         <span id="galCount" class="text-[11px] text-slate-500 ml-auto"></span>
       </div>
       <div class="flex-1 overflow-y-auto px-5 py-4">
@@ -5071,6 +5074,23 @@
         sel.innerHTML = opts;
         if (cur) sel.value = cur;
       });
+      // 仅管理员：填充「按用户筛选」下拉
+      var galUser = document.getElementById('galUser');
+      if (currentUser && currentUser.role === 'admin') {
+        galUser.hidden = false;
+        fetch('/api/users').then(function(r) { return r.json(); }).then(function(users) {
+          var list = users || [];
+          var cur = galUser.value;
+          var opts = '<option value="">全部用户</option>';
+          list.forEach(function(u) {
+            opts += '<option value="' + u.id + '">' + escapeHtml(u.display_name || u.username) + '</option>';
+          });
+          galUser.innerHTML = opts;
+          if (cur) galUser.value = cur;
+        });
+      } else {
+        galUser.hidden = true;
+      }
       _galPage = 1;
       galleryLoad();
     }
@@ -5090,11 +5110,14 @@
       var account = document.getElementById('galAccount').value;
       var sort = document.getElementById('galSort').value;
       var range = getGalDateRange();
+      var isAdmin = currentUser && currentUser.role === 'admin';
+      var filterUser = isAdmin ? document.getElementById('galUser').value : '';
       var grid = document.getElementById('galGrid');
       grid.innerHTML = '<div class="col-span-full text-slate-500 text-center py-10">加载中...</div>';
       var qp = '?start=' + range.start + '&end=' + range.end + '&sort=' + sort +
                '&page=' + _galPage + '&page_size=42';
       if (account) qp += '&account=' + encodeURIComponent(account);
+      if (filterUser) qp += '&user_id=' + encodeURIComponent(filterUser);
       fetch('/api/meta/gallery' + qp).then(function(r) { return r.json(); }).then(function(res) {
         var items = res.data || [];
         document.getElementById('galCount').textContent = '共 ' + (res.total || 0) + ' 条素材';
@@ -5109,9 +5132,17 @@
           var img = a.thumb
             ? '<img src="' + a.thumb + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'<div class=&quot;flex items-center justify-center h-full text-slate-600 text-xs&quot;>无图</div>\'">'
             : '<div class="flex items-center justify-center h-full text-slate-600 text-xs">' + (a.video_id ? '🎬 视频' : '无图') + '</div>';
+          var ownerTag = (isAdmin && a.user_name)
+            ? '<div class="text-[10px] text-indigo-300 truncate mb-0.5">👤 ' + escapeHtml(a.user_name) + '</div>'
+            : '';
+          var acctTag = a.account_name
+            ? '<div class="text-[10px] text-sky-300 truncate mb-0.5" title="' + escapeHtml(a.account_name) + '">🏢 ' + escapeHtml(a.account_name) + '</div>'
+            : '';
           html += '<div class="bg-slate-800 rounded-lg overflow-hidden border border-slate-700 hover:border-indigo-500 transition-all">' +
             '<div class="aspect-square bg-slate-900">' + img + '</div>' +
             '<div class="p-2">' +
+              ownerTag +
+              acctTag +
               '<div class="text-[11px] text-slate-300 truncate" title="' + escapeHtml(a.ad_name || '') + '">' + escapeHtml(a.ad_name || '(未命名)') + '</div>' +
               '<div class="text-[10px] text-slate-500 truncate mb-1">' + escapeHtml(a.campaign_name || '') + '</div>' +
               '<div class="flex items-center justify-between text-[10px]">' +
@@ -5139,6 +5170,7 @@
 
     document.getElementById('galAccount').addEventListener('change', function() { _galPage = 1; galleryLoad(); });
     document.getElementById('galSort').addEventListener('change', function() { _galPage = 1; galleryLoad(); });
+    document.getElementById('galUser').addEventListener('change', function() { _galPage = 1; galleryLoad(); });
     document.getElementById('galDatePills').addEventListener('click', function(e) {
       var btn = e.target.closest('button'); if (!btn) return;
       this.querySelectorAll('button').forEach(function(b) {

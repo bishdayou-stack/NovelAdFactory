@@ -820,6 +820,8 @@ def meta_creative_gallery(account: str = None, start_date: str = None, end_date:
         base = f"""
             FROM meta_ad_stats s
             LEFT JOIN meta_ad_creatives c ON c.ad_id = s.ad_id AND c.user_id = s.user_id
+            LEFT JOIN users u ON u.id = s.user_id
+            LEFT JOIN meta_accounts ma ON ma.act_id = s.ad_account AND ma.user_id = s.user_id
             WHERE {' AND '.join(where)}
             GROUP BY s.ad_id
         """
@@ -827,6 +829,9 @@ def meta_creative_gallery(account: str = None, start_date: str = None, end_date:
         rows = conn.execute(f"""
             SELECT s.ad_id, MAX(s.ad_name) AS ad_name, s.ad_account,
                 s.campaign_id, MAX(s.campaign_name) AS campaign_name,
+                s.user_id AS user_id,
+                MAX(COALESCE(NULLIF(u.display_name, ''), u.username)) AS user_name,
+                MAX(ma.act_name) AS account_name,
                 COALESCE(SUM(s.spend),0) AS spend,
                 COALESCE(SUM(s.impressions),0) AS impressions,
                 COALESCE(SUM(s.clicks),0) AS clicks,
@@ -845,6 +850,10 @@ def meta_creative_gallery(account: str = None, start_date: str = None, end_date:
             m["ad_id"] = r["ad_id"]
             m["ad_name"] = r["ad_name"] or r["ad_id"] or "(未命名广告)"
             m["campaign_name"] = r["campaign_name"] or ""
+            m["user_id"] = r["user_id"]
+            m["user_name"] = r["user_name"] or ""
+            m["account_id"] = r["ad_account"]
+            m["account_name"] = r["account_name"] or r["ad_account"] or ""
             m["thumb"] = ("/static/" + r["local_path"]) if r["local_path"] else (r["thumbnail_url"] or "")
             m["video_id"] = r["video_id"] or ""
             items.append(m)
