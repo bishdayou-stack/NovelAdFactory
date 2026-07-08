@@ -5154,7 +5154,7 @@
               '<div class="flex items-center justify-between text-[10px] text-slate-500 mt-0.5">' +
                 '<span>转化 ' + (a.purchases||0) + '</span><span>$' + ((a.purchase_value||0).toLocaleString()) + '</span>' +
               '</div>' +
-              '<button class="mt-1.5 w-full text-[10px] py-1 rounded bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-0 cursor-pointer transition-all" onclick="pushGalleryHit(this.getAttribute(\'data-ad\'), this)" data-ad="' + escapeHtml(a.ad_id || '') + '">⭐ 推爆款</button>' +
+              '<button class="mt-1.5 w-full text-[10px] py-1 rounded bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-0 cursor-pointer transition-all" onclick="galleryHitToggle(this.getAttribute(\'data-ad\'), this)" data-ad="' + escapeHtml(a.ad_id || '') + '">⭐ 推爆款</button>' +
             '</div></div>';
         });
         grid.innerHTML = html;
@@ -5171,20 +5171,52 @@
       }).catch(function() { grid.innerHTML = '<div class="col-span-full text-red-400 text-center py-10">加载失败</div>'; });
     }
 
-    // 素材画廊 → 一键推送到全员共享的爆款库
-    function pushGalleryHit(adId, btn) {
+    // 素材画廊 → 一键推送/取消（全员共享爆款库）
+    function _galBtnState(btn, state, hitId) {
+      btn.dataset.state = state;
+      if (hitId !== undefined && hitId !== null) btn.dataset.hitId = hitId;
+      btn.disabled = false;
+      var base = 'mt-1.5 w-full text-[10px] py-1 rounded border-0 cursor-pointer transition-all ';
+      if (state === 'pushed') {
+        btn.className = base + 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25';
+        btn.textContent = '✓ 已推送（取消）';
+      } else if (state === 'locked') {
+        btn.className = base + 'bg-slate-700 text-slate-500';
+        btn.disabled = true;
+        btn.textContent = '✓ 已在爆款库';
+      } else {
+        btn.className = base + 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25';
+        btn.textContent = '⭐ 推爆款';
+      }
+    }
+
+    function galleryHitToggle(adId, btn) {
       var a = _galItems[adId];
       if (!a) return;
+      var state = btn.dataset.state || '';
+      // 已推送 → 取消推送（删除爆款库记录）
+      if (state === 'pushed') {
+        var hitId = btn.dataset.hitId;
+        if (!hitId) return;
+        btn.disabled = true; btn.textContent = '取消中...';
+        fetch('/api/hit-materials/' + hitId, { method: 'DELETE' })
+          .then(function(r) { return r.json(); })
+          .then(function() { _galBtnState(btn, ''); })
+          .catch(function() { _galBtnState(btn, 'pushed', hitId); alert('取消失败，请重试'); });
+        return;
+      }
+      // 未推送 → 推送（先防重）
       var imageUrl = a.thumb || '';
-      btn.disabled = true;
-      btn.textContent = '推送中...';
-      // 先按缩略图 URL 防重（全员范围）
+      var isAdmin = currentUser && currentUser.role === 'admin';
+      btn.disabled = true; btn.textContent = '推送中...';
       fetch('/api/hit-materials/lookup?image_url=' + encodeURIComponent(imageUrl))
         .then(function(r) { return r.json(); })
         .then(function(d) {
           if (d.found) {
-            btn.textContent = '✓ 已在爆款库';
-            btn.classList.add('opacity-60');
+            var owner = d.data && d.data.user_id;
+            var canCancel = isAdmin || (currentUser && owner == currentUser.id);
+            if (canCancel) { _galBtnState(btn, 'pushed', d.data.id); }
+            else { _galBtnState(btn, 'locked'); }
             return null;
           }
           return fetch('/api/hit-materials', {
@@ -5192,6 +5224,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               image_url: imageUrl,
+              ad_id: a.ad_id || '',
               label: a.ad_name || '',
               ad_account: a.account_name || '',
               campaign_name: a.campaign_name || '',
@@ -5203,14 +5236,12 @@
               clicks: a.clicks || 0,
               ctr: a.ctr || 0
             })
-          }).then(function(r) { return r.json(); }).then(function() {
-            btn.textContent = '✓ 已推送';
-            btn.classList.add('opacity-60');
+          }).then(function(r) { return r.json(); }).then(function(res) {
+            _galBtnState(btn, 'pushed', res.id);
           });
         })
         .catch(function() {
-          btn.disabled = false;
-          btn.textContent = '⭐ 推爆款';
+          _galBtnState(btn, '');
           alert('推送失败，请重试');
         });
     }

@@ -3668,6 +3668,7 @@ class HitMaterialBody(BaseModel):
     novel_id: str = ""
     novel_name: str = ""
     ad_account: str = ""
+    ad_id: str = ""
     campaign_name: str = ""
     spend: float = 0.0
     order_count: int = 0

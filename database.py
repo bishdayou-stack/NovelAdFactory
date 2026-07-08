@@ -709,6 +709,14 @@ def init_db() -> None:
             );
         """)
 
+        # 迁移：hit_materials 增加 ad_id（用于爆款库按广告实时汇总 Meta 数据）
+        existing_hit = {r["name"] for r in conn.execute("PRAGMA table_info('hit_materials')").fetchall()}
+        if "ad_id" not in existing_hit:
+            try:
+                conn.execute("ALTER TABLE hit_materials ADD COLUMN ad_id TEXT DEFAULT ''")
+            except Exception:
+                pass
+
 # ====== 用户管理 CRUD ======
 
 def create_user(username: str, password: str, role: str = "user",
@@ -1913,15 +1921,15 @@ def add_hit_material(data: Dict[str, Any], user_id: int = None) -> int:
         cur = conn.execute("""
             INSERT INTO hit_materials (batch_id, image_url, video_url, prompt, label,
                 novel_id, novel_name, ad_account, campaign_name, spend, order_count, revenue, roi,
-                impressions, clicks, ctr, score, notes, tags, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                impressions, clicks, ctr, score, notes, tags, ad_id, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             data.get("batch_id"), data.get("image_url"), data.get("video_url"),
             data.get("prompt"), data.get("label"), data.get("novel_id"),
             data.get("novel_name"), data.get("ad_account"), data.get("campaign_name"),
             data.get("spend", 0), data.get("order_count", 0), data.get("revenue", 0), data.get("roi", 0),
             data.get("impressions", 0), data.get("clicks", 0), data.get("ctr", 0),
-            data.get("score", 0), data.get("notes"), data.get("tags"), uid
+            data.get("score", 0), data.get("notes"), data.get("tags"), data.get("ad_id", ""), uid
         ))
         return cur.lastrowid
 
@@ -1959,18 +1967,43 @@ def get_hit_materials(page: int = 1, page_size: int = 20, keyword: str = None,
             where.append("h.user_id = ?")
             params.append(user_id)
         where_clause = (" WHERE " + " AND ".join(where)) if where else ""
-        valid_sorts = {"registered_at", "spend", "revenue", "roi", "score", "ctr"}
-        sort_col = "h." + (sort_by if sort_by in valid_sorts else "registered_at")
+        # 排序列：消耗/收入/ROI/CTR 用实时聚合别名，保证排序与显示一致
+        sort_map = {
+            "registered_at": "h.registered_at", "score": "h.score",
+            "spend": "spend", "revenue": "revenue", "roi": "roi", "ctr": "ctr",
+        }
+        sort_col = sort_map.get(sort_by, "h.registered_at")
         sort_dir = "DESC" if sort_order.upper() == "DESC" else "ASC"
         total = conn.execute(
             f"SELECT COUNT(*) AS cnt FROM hit_materials h{where_clause}", params
         ).fetchone()["cnt"]
         offset = (page - 1) * page_size
+        # 对有 ad_id 的爆款，按 ad_id 实时汇总 meta_ad_stats（全部历史累计），实时优先、回退快照
         rows = conn.execute(
-            f"""SELECT h.*, CASE WHEN u.display_name IS NOT NULL AND u.display_name != ''
-                THEN u.display_name ELSE COALESCE(u.username, '') END AS user_name
+            f"""SELECT h.id, h.batch_id, h.image_url, h.video_url, h.prompt, h.label,
+                    h.novel_id, h.novel_name, h.ad_account, h.campaign_name,
+                    h.score, h.notes, h.tags, h.ad_id, h.registered_at, h.user_id,
+                    COALESCE(ms.m_spend, h.spend) AS spend,
+                    COALESCE(ms.m_revenue, h.revenue) AS revenue,
+                    COALESCE(ms.m_orders, h.order_count) AS order_count,
+                    COALESCE(ms.m_impr, h.impressions) AS impressions,
+                    COALESCE(ms.m_clicks, h.clicks) AS clicks,
+                    CASE WHEN ms.m_spend IS NOT NULL AND ms.m_spend > 0
+                         THEN ms.m_revenue / ms.m_spend ELSE h.roi END AS roi,
+                    CASE WHEN ms.m_impr IS NOT NULL AND ms.m_impr > 0
+                         THEN ms.m_clicks * 100.0 / ms.m_impr ELSE h.ctr END AS ctr,
+                    CASE WHEN u.display_name IS NOT NULL AND u.display_name != ''
+                         THEN u.display_name ELSE COALESCE(u.username, '') END AS user_name,
+                    CASE WHEN ms.m_spend IS NOT NULL THEN 1 ELSE 0 END AS is_live
                 FROM hit_materials h
                 LEFT JOIN users u ON h.user_id = u.id
+                LEFT JOIN (
+                    SELECT ad_id, user_id,
+                        SUM(spend) AS m_spend, SUM(impressions) AS m_impr,
+                        SUM(clicks) AS m_clicks, SUM(purchases) AS m_orders,
+                        SUM(purchase_value) AS m_revenue
+                    FROM meta_ad_stats WHERE ad_id != '' GROUP BY ad_id, user_id
+                ) ms ON ms.ad_id = h.ad_id AND ms.user_id = h.user_id
                 {where_clause} ORDER BY {sort_col} {sort_dir} LIMIT ? OFFSET ?""",
             params + [page_size, offset]
         ).fetchall()
