@@ -138,6 +138,10 @@
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16l4-4 4 4 4-6"/></svg>
         <span class="truncate">Meta 管理</span>
       </button>
+      <button type="button" id="nav-meta-campaign" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
+        <span class="truncate">广告系列</span>
+      </button>
       <button type="button" id="nav-meta-assign" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer" style="display:none">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
         <span class="truncate">账户分配</span>
@@ -812,14 +816,32 @@
         </div>
         <div class="card-dark p-4 mb-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">账户排行</h3><div id="metaAccountRank" class="text-[11px]"></div></div>
         <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">日报明细</h3><div id="metaDailyTable" class="text-[11px]"></div><div id="metaDailyPager" class="mt-2"></div></div>
-        <div id="metaCampaignCard" class="card-dark p-4 mt-4" hidden>
-          <h3 class="text-xs font-semibold text-slate-300 mb-2">广告系列明细 <span class="text-slate-500 font-normal">（点击系列展开广告组）</span></h3>
-          <div id="metaCampaignTable" class="text-[11px]"></div>
-        </div>
       </div>
     </div>
 
-    
+
+    <!-- ====== Tab: 广告系列 ====== -->
+    <div id="tab-meta-campaign" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <div class="flex items-center justify-between mb-4 mt-2">
+        <h2 class="text-lg font-bold text-slate-800">广告系列 / 广告组明细</h2>
+        <span class="text-xs text-slate-400">选择账户查看其系列表现，点系列行展开广告组</span>
+      </div>
+      <div class="card p-4 mb-4">
+        <div class="flex items-center gap-3 flex-wrap">
+          <select id="campPageAccount" class="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white min-w-[240px]">
+            <option value="">选择账户...</option>
+          </select>
+          <input id="campPageFrom" type="date" class="rounded-lg border border-slate-200 px-2 py-2 text-sm">
+          <span class="text-slate-400">→</span>
+          <input id="campPageTo" type="date" class="rounded-lg border border-slate-200 px-2 py-2 text-sm">
+          <button onclick="campPageLoad()" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 cursor-pointer">查询</button>
+        </div>
+      </div>
+      <div class="card p-4">
+        <div id="campPageTable" class="text-xs"><div class="text-slate-400 text-center py-8">请选择账户并点击查询</div></div>
+      </div>
+    </div>
+
     <!-- ====== Tab: 账户分配 ====== -->
     <div id="tab-meta-assign" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
       <div class="flex items-center justify-between mb-4 mt-2">
@@ -1671,7 +1693,7 @@
       // 隐藏所有 tab
       var allTabs = ['generate', 'history', 'assets', 'video-style', 'prompt-generate',
                      'novel-analyze', 'dashboard', 'novel-mgr', 'hit-gallery', 'config',
-                     'meta', 'meta-assign', 'users'];
+                     'meta', 'meta-campaign', 'meta-assign', 'users'];
       for (var i = 0; i < allTabs.length; i++) {
         var el = document.getElementById('tab-' + allTabs[i]);
         if (el) el.hidden = true;
@@ -1695,7 +1717,7 @@
       }
 
       // 更新面包屑
-      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'meta': 'Meta 管理', 'meta-assign': '账户分配', 'users': '用户管理' };
+      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'meta': 'Meta 管理', 'meta-campaign': '广告系列', 'meta-assign': '账户分配', 'users': '用户管理' };
       document.getElementById('breadcrumb').textContent = titles[tab] || tab;
       document.getElementById('pageTitle').textContent = titles[tab] || tab;
 
@@ -1715,6 +1737,7 @@
       if (tab === 'novel-mgr') { if (novelMgrPages.books === 1) loadNovelBooks(1); else loadNovelBooks(novelMgrPages.books); }
       if (tab === 'hit-gallery') loadHitGallery();
       if (tab === 'meta') { loadMetaAccountTree(); refreshMetaDashboard(); }
+      if (tab === 'meta-campaign') { loadCampPage(); }
       if (tab === 'meta-assign') { loadAssignPage(); }
       if (tab === 'users') loadUserList();
     }
@@ -3320,6 +3343,7 @@
     document.getElementById('nav-hit-gallery').addEventListener('click', function() { switchTab('hit-gallery'); });
     document.getElementById('nav-config').addEventListener('click', function() { switchTab('config'); });
     document.getElementById('nav-meta').addEventListener('click', function() { switchTab('meta'); });
+    document.getElementById('nav-meta-campaign').addEventListener('click', function() { switchTab('meta-campaign'); });
     document.getElementById('nav-meta-assign').addEventListener('click', function() { switchTab('meta-assign'); });
 
     document.getElementById('btnAddStyle').addEventListener('click', function() { createNewStyle(); });
@@ -4774,22 +4798,14 @@
         renderMetaDaily(dailyRes);
       } catch(e) { console.error('Meta dashboard error:', e); }
       loadMetaLastSync();
-      // 选中单个账户时显示广告系列明细
-      var card = document.getElementById('metaCampaignCard');
-      if (_metaSelectedAccount && _metaSelectedAccount.indexOf('act_') === 0) {
-        card.hidden = false;
-        loadMetaCampaigns(_metaSelectedAccount);
-      } else {
-        card.hidden = true;
-      }
     }
 
-    // ---- 广告系列 / 广告组 明细（下钻）----
+    // ---- 广告系列 / 广告组 指标单元格（系列页复用）----
     function metaMetricCells(d) {
       return '<td class="text-right">$' + ((d.spend || 0).toLocaleString()) + '</td>' +
         '<td class="text-right">' + (d.purchases || 0) + '</td>' +
         '<td class="text-right">$' + ((d.purchase_value || 0).toLocaleString()) + '</td>' +
-        '<td class="text-right ' + ((d.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((d.roi || 0).toFixed(2)) + 'x</td>' +
+        '<td class="text-right font-medium ' + ((d.roi || 0) >= 1 ? 'text-emerald-600' : 'text-red-600') + '">' + ((d.roi || 0).toFixed(2)) + 'x</td>' +
         '<td class="text-right">$' + ((d.cpa || 0).toFixed(2)) + '</td>' +
         '<td class="text-right">$' + ((d.cpm || 0).toFixed(2)) + '</td>' +
         '<td class="text-right">' + ((d.ctr || 0).toFixed(2)) + '%</td>' +
@@ -4797,33 +4813,62 @@
         '<td class="text-right">' + ((d.clicks || 0).toLocaleString()) + '</td>';
     }
 
-    function loadMetaCampaigns(account) {
-      var range = getMetaDateRange();
-      var el = document.getElementById('metaCampaignTable');
-      el.innerHTML = '<div class="text-slate-500 py-3 text-center">加载中...</div>';
-      var qp = '?account=' + encodeURIComponent(account) + '&start=' + range.start + '&end=' + range.end;
-      fetch('/api/meta/campaigns' + qp).then(function(r){return r.json();}).then(function(res){
+    // ====== 广告系列 独立页面 ======
+    var _campPageAccount = '', _campPageStart = '', _campPageEnd = '';
+
+    function loadCampPage() {
+      // 默认近 7 天
+      var f = document.getElementById('campPageFrom'), t = document.getElementById('campPageTo');
+      if (!t.value || !f.value) {
+        var to = new Date(), from = new Date(); from.setDate(from.getDate() - 6);
+        f.value = from.toISOString().slice(0, 10);
+        t.value = to.toISOString().slice(0, 10);
+      }
+      // 填充账户下拉（保留当前选择）
+      fetch('/api/meta/accounts').then(function(r) { return r.json(); }).then(function(accounts) {
+        var sel = document.getElementById('campPageAccount');
+        var cur = sel.value;
+        var opts = '<option value="">选择账户...</option>';
+        (accounts || []).forEach(function(a) {
+          var bm = a.pingykj_account ? ' · ' + escapeHtml(a.pingykj_account) : '';
+          opts += '<option value="' + escapeHtml(a.act_id) + '">' + escapeHtml(a.act_name || a.act_id) + bm + '</option>';
+        });
+        sel.innerHTML = opts;
+        if (cur) sel.value = cur;
+      });
+    }
+
+    function campPageLoad() {
+      var account = document.getElementById('campPageAccount').value;
+      if (!account) { alert('请先选择账户'); return; }
+      _campPageAccount = account;
+      _campPageStart = document.getElementById('campPageFrom').value;
+      _campPageEnd = document.getElementById('campPageTo').value;
+      var el = document.getElementById('campPageTable');
+      el.innerHTML = '<div class="text-slate-400 text-center py-8">加载中...</div>';
+      var qp = '?account=' + encodeURIComponent(account) + '&start=' + _campPageStart + '&end=' + _campPageEnd;
+      fetch('/api/meta/campaigns' + qp).then(function(r) { return r.json(); }).then(function(res) {
         var rows = res.data || [];
-        var html = '<table class="w-full"><thead><tr>' +
-          '<th class="text-left">广告系列</th><th class="text-right">消耗</th><th class="text-right">转化</th>' +
+        var html = '<table class="w-full"><thead><tr class="text-slate-500 border-b border-slate-200">' +
+          '<th class="text-left py-2">广告系列</th><th class="text-right">消耗</th><th class="text-right">转化</th>' +
           '<th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th>' +
           '<th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th>' +
           '</tr></thead><tbody>';
-        rows.forEach(function(c){
+        rows.forEach(function(c) {
           var cid = c.campaign_id || '';
-          html += '<tr class="cursor-pointer hover:bg-white/5" onclick="toggleCampaignAdsets(this,\'' + encodeURIComponent(cid) + '\')">' +
-            '<td class="text-left"><span class="camp-arrow inline-block w-3 text-slate-500">▶</span> ' + escapeHtml(c.campaign_name || '(未命名)') + '</td>' +
+          html += '<tr class="cursor-pointer hover:bg-slate-50 border-b border-slate-100" onclick="campPageToggle(this,\'' + encodeURIComponent(cid) + '\')">' +
+            '<td class="text-left py-2"><span class="camp-arrow inline-block w-3 text-slate-400">▶</span> ' + escapeHtml(c.campaign_name || '(未命名)') + '</td>' +
             metaMetricCells(c) + '</tr>';
-          html += '<tr class="camp-adsets" data-cid="' + escapeHtml(cid) + '" hidden><td colspan="10" class="p-0"><div class="adset-slot pl-4"></div></td></tr>';
+          html += '<tr class="camp-adsets" hidden><td colspan="10" class="p-0 bg-slate-50"><div class="adset-slot pl-4"></div></td></tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-4">该账户暂无系列数据（需同步后生成）</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="10" class="text-center text-slate-400 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
         html += '</tbody></table>';
         el.innerHTML = html;
-      }).catch(function(){ el.innerHTML = '<div class="text-red-400 py-3 text-center">加载失败</div>'; });
+      }).catch(function() { el.innerHTML = '<div class="text-red-500 text-center py-6">加载失败</div>'; });
     }
 
-    function toggleCampaignAdsets(rowEl, cidEnc) {
-      var next = rowEl.nextElementSibling;  // .camp-adsets 行
+    function campPageToggle(rowEl, cidEnc) {
+      var next = rowEl.nextElementSibling;
       var arrow = rowEl.querySelector('.camp-arrow');
       if (!next) return;
       if (!next.hidden) { next.hidden = true; if (arrow) arrow.textContent = '▶'; return; }
@@ -4831,23 +4876,22 @@
       if (arrow) arrow.textContent = '▼';
       var slot = next.querySelector('.adset-slot');
       if (slot.getAttribute('data-loaded') === '1') return;
-      slot.innerHTML = '<div class="text-slate-500 py-2 text-center text-[10px]">加载广告组...</div>';
-      var range = getMetaDateRange();
-      var qp = '?account=' + encodeURIComponent(_metaSelectedAccount) + '&campaign_id=' + cidEnc +
-               '&start=' + range.start + '&end=' + range.end;
-      fetch('/api/meta/adsets' + qp).then(function(r){return r.json();}).then(function(res){
+      slot.innerHTML = '<div class="text-slate-400 text-center py-2 text-[10px]">加载广告组...</div>';
+      var qp = '?account=' + encodeURIComponent(_campPageAccount) + '&campaign_id=' + cidEnc +
+               '&start=' + _campPageStart + '&end=' + _campPageEnd;
+      fetch('/api/meta/adsets' + qp).then(function(r) { return r.json(); }).then(function(res) {
         var rows = res.data || [];
         var html = '<table class="w-full"><tbody>';
-        rows.forEach(function(a){
-          html += '<tr class="text-slate-400">' +
-            '<td class="text-left pl-6">↳ ' + escapeHtml(a.adset_name || '(未命名组)') + '</td>' +
+        rows.forEach(function(a) {
+          html += '<tr class="text-slate-500 border-b border-slate-100">' +
+            '<td class="text-left pl-6 py-1.5">↳ ' + escapeHtml(a.adset_name || '(未命名组)') + '</td>' +
             metaMetricCells(a) + '</tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-2 text-[10px]">无广告组数据</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="10" class="text-center text-slate-400 py-2 text-[10px]">无广告组数据</td></tr>';
         html += '</tbody></table>';
         slot.innerHTML = html;
         slot.setAttribute('data-loaded', '1');
-      }).catch(function(){ slot.innerHTML = '<div class="text-red-400 py-2 text-center text-[10px]">加载失败</div>'; });
+      }).catch(function() { slot.innerHTML = '<div class="text-red-500 text-center py-2 text-[10px]">加载失败</div>'; });
     }
 
 
