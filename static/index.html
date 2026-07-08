@@ -5059,7 +5059,7 @@
     }
 
     // ====== 素材画廊 ======
-    var _galPage = 1, _galCustomDate = false;
+    var _galPage = 1, _galCustomDate = false, _galItems = {};
 
     function loadGalleryPage() {
       fetch('/api/meta/accounts').then(function(r) { return r.json(); }).then(function(data) {
@@ -5127,7 +5127,9 @@
           return;
         }
         var html = '';
+        _galItems = {};
         items.forEach(function(a) {
+          _galItems[a.ad_id] = a;
           var roiColor = (a.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400';
           var img = a.thumb
             ? '<img src="' + a.thumb + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'<div class=&quot;flex items-center justify-center h-full text-slate-600 text-xs&quot;>无图</div>\'">'
@@ -5152,6 +5154,7 @@
               '<div class="flex items-center justify-between text-[10px] text-slate-500 mt-0.5">' +
                 '<span>转化 ' + (a.purchases||0) + '</span><span>$' + ((a.purchase_value||0).toLocaleString()) + '</span>' +
               '</div>' +
+              '<button class="mt-1.5 w-full text-[10px] py-1 rounded bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-0 cursor-pointer transition-all" onclick="pushGalleryHit(this.getAttribute(\'data-ad\'), this)" data-ad="' + escapeHtml(a.ad_id || '') + '">⭐ 推爆款</button>' +
             '</div></div>';
         });
         grid.innerHTML = html;
@@ -5166,6 +5169,50 @@
         }
         document.getElementById('galPager').innerHTML = pager;
       }).catch(function() { grid.innerHTML = '<div class="col-span-full text-red-400 text-center py-10">加载失败</div>'; });
+    }
+
+    // 素材画廊 → 一键推送到全员共享的爆款库
+    function pushGalleryHit(adId, btn) {
+      var a = _galItems[adId];
+      if (!a) return;
+      var imageUrl = a.thumb || '';
+      btn.disabled = true;
+      btn.textContent = '推送中...';
+      // 先按缩略图 URL 防重（全员范围）
+      fetch('/api/hit-materials/lookup?image_url=' + encodeURIComponent(imageUrl))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.found) {
+            btn.textContent = '✓ 已在爆款库';
+            btn.classList.add('opacity-60');
+            return null;
+          }
+          return fetch('/api/hit-materials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              image_url: imageUrl,
+              label: a.ad_name || '',
+              ad_account: a.account_name || '',
+              campaign_name: a.campaign_name || '',
+              spend: a.spend || 0,
+              revenue: a.purchase_value || 0,
+              roi: a.roi || 0,
+              order_count: a.purchases || 0,
+              impressions: a.impressions || 0,
+              clicks: a.clicks || 0,
+              ctr: a.ctr || 0
+            })
+          }).then(function(r) { return r.json(); }).then(function() {
+            btn.textContent = '✓ 已推送';
+            btn.classList.add('opacity-60');
+          });
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = '⭐ 推爆款';
+          alert('推送失败，请重试');
+        });
     }
 
     document.getElementById('galAccount').addEventListener('change', function() { _galPage = 1; galleryLoad(); });
