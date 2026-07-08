@@ -661,3 +661,93 @@ def get_user_ranking(start_date: str = None, end_date: str = None) -> List[Dict[
 
         results.sort(key=lambda x: x["total_spend"], reverse=True)
         return results
+
+
+# ====== Meta 广告系列 / 广告组 明细 ======
+
+def _row_metrics(spend, impressions, clicks, purchases, purchase_value):
+    """由基础指标派生 roi/cpa/cpm/ctr"""
+    return {
+        "spend": round(spend, 2),
+        "impressions": int(impressions),
+        "clicks": int(clicks),
+        "purchases": int(purchases),
+        "purchase_value": round(purchase_value, 2),
+        "roi": round(purchase_value / spend, 2) if spend > 0 else 0,
+        "cpa": round(spend / purchases, 2) if purchases > 0 else 0,
+        "cpm": round(spend / impressions * 1000, 2) if impressions > 0 else 0,
+        "ctr": round(clicks / impressions * 100, 2) if impressions > 0 else 0,
+    }
+
+
+def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
+                   user_id: int = None) -> List[Dict[str, Any]]:
+    """某账户下按「广告系列」聚合的表现（由广告组数据 GROUP BY 系列得出）"""
+    with database.get_conn() as conn:
+        where = ["ad_account = ?"]
+        params: List = [account]
+        if start_date:
+            where.append("date >= ?"); params.append(start_date)
+        if end_date:
+            where.append("date <= ?"); params.append(end_date)
+        _add_user_filter(where, params, user_id)
+        sql = f"""
+            SELECT campaign_id, MAX(campaign_name) AS campaign_name,
+                COALESCE(SUM(spend),0) AS spend,
+                COALESCE(SUM(impressions),0) AS impressions,
+                COALESCE(SUM(clicks),0) AS clicks,
+                COALESCE(SUM(purchases),0) AS purchases,
+                COALESCE(SUM(purchase_value),0) AS purchase_value
+            FROM meta_adset_stats
+            WHERE {' AND '.join(where)}
+            GROUP BY campaign_id
+            ORDER BY spend DESC
+        """
+        rows = conn.execute(sql, params).fetchall()
+        out = []
+        for r in rows:
+            m = _row_metrics(r["spend"], r["impressions"], r["clicks"],
+                             r["purchases"], r["purchase_value"])
+            m["campaign_id"] = r["campaign_id"]
+            m["campaign_name"] = r["campaign_name"] or r["campaign_id"] or "(未命名系列)"
+            out.append(m)
+        return out
+
+
+def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
+                end_date: str = None, user_id: int = None) -> List[Dict[str, Any]]:
+    """某账户（可指定系列）下按「广告组」聚合的表现"""
+    with database.get_conn() as conn:
+        where = ["ad_account = ?"]
+        params: List = [account]
+        if campaign_id:
+            where.append("campaign_id = ?"); params.append(campaign_id)
+        if start_date:
+            where.append("date >= ?"); params.append(start_date)
+        if end_date:
+            where.append("date <= ?"); params.append(end_date)
+        _add_user_filter(where, params, user_id)
+        sql = f"""
+            SELECT adset_id, MAX(adset_name) AS adset_name,
+                campaign_id, MAX(campaign_name) AS campaign_name,
+                COALESCE(SUM(spend),0) AS spend,
+                COALESCE(SUM(impressions),0) AS impressions,
+                COALESCE(SUM(clicks),0) AS clicks,
+                COALESCE(SUM(purchases),0) AS purchases,
+                COALESCE(SUM(purchase_value),0) AS purchase_value
+            FROM meta_adset_stats
+            WHERE {' AND '.join(where)}
+            GROUP BY adset_id
+            ORDER BY spend DESC
+        """
+        rows = conn.execute(sql, params).fetchall()
+        out = []
+        for r in rows:
+            m = _row_metrics(r["spend"], r["impressions"], r["clicks"],
+                             r["purchases"], r["purchase_value"])
+            m["adset_id"] = r["adset_id"]
+            m["adset_name"] = r["adset_name"] or r["adset_id"] or "(未命名广告组)"
+            m["campaign_id"] = r["campaign_id"]
+            m["campaign_name"] = r["campaign_name"] or ""
+            out.append(m)
+        return out

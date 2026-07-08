@@ -4339,22 +4339,24 @@ class AssignAccountsBody(BaseModel):
 @app.post("/api/meta/assign")
 def _assign_meta_accounts(body: AssignAccountsBody,
                            user: dict = Depends(get_current_admin)):
-    """管理员将 Meta 账户分配给指定用户"""
+    """管理员将 Meta 账户分配给指定用户；user_id<=0 表示收回（不分配）"""
+    new_uid = body.user_id if body.user_id and body.user_id > 0 else None
     count = 0
     for act_id in body.act_ids:
         # 更新该账户的 user_id
         with database.get_conn() as conn:
             conn.execute(
                 "UPDATE meta_accounts SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE act_id = ?",
-                (body.user_id, act_id)
+                (new_uid, act_id)
             )
             # 同步更新已有 Meta 数据的 user_id
             conn.execute(
                 "UPDATE ad_daily_stats SET user_id = ? WHERE ad_account = ? AND source = 'meta'",
-                (body.user_id, act_id)
+                (new_uid, act_id)
             )
             count += 1
-    return {"success": True, "count": count, "message": f"已分配 {count} 个账户"}
+    verb = "分配" if new_uid else "收回"
+    return {"success": True, "count": count, "message": f"已{verb} {count} 个账户"}
 
 
 class TokenRefreshBody(BaseModel):
@@ -4483,6 +4485,20 @@ def _meta_sync_status(user: dict = Depends(get_current_user)):
             for a in active
         ]
     }
+
+@app.get("/api/meta/last-sync")
+def _meta_last_sync(user: dict = Depends(get_current_user)):
+    """返回该用户 Meta 数据最近一次同步时间（含手动与自动同步），已转北京时间"""
+    uid = _opt_user_id(user)
+    ts = database.get_meta_last_sync_at(uid)
+    if not ts:
+        return {"last_sync": None}
+    try:
+        dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S") + timedelta(hours=8)
+        return {"last_sync": dt.strftime("%Y-%m-%d %H:%M:%S")}
+    except Exception:
+        return {"last_sync": ts}
+
 
 @app.get("/api/meta/sync-interval")
 def _get_meta_sync_interval(user: dict = Depends(get_current_user)):
@@ -4740,6 +4756,25 @@ def _meta_account_ranking(start: str = Query(default=None), end: str = Query(def
                           user: dict = Depends(get_current_user)):
     uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
     return analytics.meta_account_ranking(start_date=start, end_date=end, page=page, page_size=page_size, user_id=uid)
+
+
+@app.get("/api/meta/campaigns")
+def _meta_campaigns(account: str = Query(...), start: str = Query(default=None),
+                    end: str = Query(default=None), user_id: int = Query(default=None),
+                    user: dict = Depends(get_current_user)):
+    """某账户下按广告系列聚合的表现"""
+    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
+    return {"data": analytics.meta_campaigns(account=account, start_date=start, end_date=end, user_id=uid)}
+
+
+@app.get("/api/meta/adsets")
+def _meta_adsets(account: str = Query(...), campaign_id: str = Query(default=None),
+                 start: str = Query(default=None), end: str = Query(default=None),
+                 user_id: int = Query(default=None),
+                 user: dict = Depends(get_current_user)):
+    """某账户（可指定系列）下按广告组聚合的表现"""
+    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
+    return {"data": analytics.meta_adsets(account=account, campaign_id=campaign_id, start_date=start, end_date=end, user_id=uid)}
 
 
 @app.get("/api/meta/bm-summary")

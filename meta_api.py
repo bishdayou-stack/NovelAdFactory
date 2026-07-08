@@ -326,6 +326,11 @@ def get_insights(act_id: str, access_token: str,
         "cost_per_inline_link_click,actions,cost_per_action_type,action_values,"
         "date_start"
     )
+    # 系列/广告组级需要额外的标识字段用于分组
+    if level == "adset":
+        fields += ",campaign_id,campaign_name,adset_id,adset_name"
+    elif level == "campaign":
+        fields += ",campaign_id,campaign_name"
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/insights"
     params = {
         "access_token": access_token,

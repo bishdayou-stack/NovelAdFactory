@@ -471,6 +471,24 @@ def init_db() -> None:
                 UNIQUE(date, ad_account, source, user_id)
             );
 
+            CREATE TABLE IF NOT EXISTS meta_adset_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date DATE NOT NULL,
+                ad_account TEXT NOT NULL,
+                campaign_id TEXT,
+                campaign_name TEXT,
+                adset_id TEXT,
+                adset_name TEXT,
+                spend REAL DEFAULT 0,
+                impressions INTEGER DEFAULT 0,
+                clicks INTEGER DEFAULT 0,
+                purchases INTEGER DEFAULT 0,
+                purchase_value REAL DEFAULT 0,
+                user_id INTEGER DEFAULT 1,
+                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(date, ad_account, adset_id, user_id)
+            );
+
             CREATE TABLE IF NOT EXISTS orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 order_id TEXT UNIQUE NOT NULL,
@@ -1699,6 +1717,45 @@ def upsert_meta_insights(act_id: str, insights_rows: List[Dict[str, Any]],
             count += 1
         return count
 
+def upsert_meta_adset_stats(act_id: str, rows: List[Dict[str, Any]],
+                            user_id: int = None) -> int:
+    """批量写入 Meta 广告组级 Insights（已按 日期+广告组 聚合），返回写入行数。
+    每行需含：date_start, campaign_id, campaign_name, adset_id, adset_name,
+    spend, impressions, clicks, purchases, purchase_value"""
+    if not rows:
+        return 0
+    uid = user_id or 1
+    with get_conn() as conn:
+        count = 0
+        for r in rows:
+            date = r.get("date_start", "")
+            adset_id = r.get("adset_id", "")
+            if not date or not adset_id:
+                continue
+            conn.execute("""
+                INSERT INTO meta_adset_stats (date, ad_account, campaign_id, campaign_name,
+                    adset_id, adset_name, spend, impressions, clicks, purchases, purchase_value, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(date, ad_account, adset_id, user_id) DO UPDATE SET
+                    campaign_id=excluded.campaign_id,
+                    campaign_name=excluded.campaign_name,
+                    adset_name=excluded.adset_name,
+                    spend=excluded.spend,
+                    impressions=excluded.impressions,
+                    clicks=excluded.clicks,
+                    purchases=excluded.purchases,
+                    purchase_value=excluded.purchase_value,
+                    synced_at=CURRENT_TIMESTAMP
+            """, (
+                date, act_id, r.get("campaign_id", ""), r.get("campaign_name", ""),
+                adset_id, r.get("adset_name", ""),
+                _safe_float(r.get("spend")), _safe_int(r.get("impressions")),
+                _safe_int(r.get("clicks")), _safe_int(r.get("purchases")),
+                _safe_float(r.get("purchase_value")), uid,
+            ))
+            count += 1
+        return count
+
 def get_meta_sync_state(act_id: str, user_id: int = None) -> Optional[str]:
     """获取 Meta 账户上次同步日期"""
     uid = user_id or 1
@@ -1718,6 +1775,24 @@ def set_meta_sync_state(act_id: str, date_str: str, user_id: int = None) -> None
             ON CONFLICT(sync_type, user_id) DO UPDATE SET
                 last_sync_date=excluded.last_sync_date, last_sync_at=CURRENT_TIMESTAMP
         """, (f"meta_{act_id}", uid, date_str))
+
+
+def get_meta_last_sync_at(user_id: int = None) -> Optional[str]:
+    """返回该用户所有 Meta 账户中最近一次同步的时间（UTC 字符串）。
+    user_id 为 None 时（管理员）返回全局最近时间。"""
+    with get_conn() as conn:
+        if user_id:
+            row = conn.execute(
+                "SELECT MAX(last_sync_at) AS t FROM sync_state "
+                "WHERE sync_type LIKE 'meta_%' AND user_id = ?",
+                (user_id,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT MAX(last_sync_at) AS t FROM sync_state "
+                "WHERE sync_type LIKE 'meta_%'"
+            ).fetchone()
+        return row["t"] if row and row["t"] else None
 
 
 # ====== 爆款素材登记 CRUD ======

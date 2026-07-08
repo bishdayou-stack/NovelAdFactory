@@ -1107,6 +1107,43 @@ def _load_default_token() -> Optional[str]:
         return ""
 
 
+def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
+                                     from_date: str, to_date: str,
+                                     user_id: int) -> int:
+    """同步单个账户的「广告组级」Insights（含所属系列信息），按 日期+广告组 聚合入库。
+    系列级数据由查询时对广告组做 GROUP BY 得出，无需单独拉取。返回写入行数。"""
+    rows, err = meta_api.get_insights(act_id, access_token, from_date, to_date, level="adset")
+    if err or not rows:
+        return 0
+    from collections import defaultdict
+    agg = defaultdict(lambda: {
+        "spend": 0.0, "impressions": 0, "clicks": 0,
+        "purchases": 0, "purchase_value": 0.0,
+    })
+    for r in rows:
+        d = r.get("date_start", "")
+        adset_id = r.get("adset_id", "")
+        if not d or not adset_id:
+            continue
+        key = (d, adset_id)
+        a = agg[key]
+        a["date_start"] = d
+        a["adset_id"] = adset_id
+        a["adset_name"] = r.get("adset_name", "")
+        a["campaign_id"] = r.get("campaign_id", "")
+        a["campaign_name"] = r.get("campaign_name", "")
+        a["spend"] += float(r.get("spend", 0) or 0)
+        a["impressions"] += int(float(r.get("impressions", 0) or 0))
+        a["clicks"] += int(float(r.get("clicks", 0) or 0))
+        for action in (r.get("actions") or []):
+            if action.get("action_type") == "purchase":
+                a["purchases"] += int(float(action.get("value", 0) or 0))
+        for av in (r.get("action_values") or []):
+            if av.get("action_type") == "purchase":
+                a["purchase_value"] += float(av.get("value", 0) or 0)
+    return database.upsert_meta_adset_stats(act_id, [dict(v) for v in agg.values()], user_id)
+
+
 def _sync_one_meta_account(act_id: str, access_token: str,
                            user_id: int) -> Tuple[str, int, str]:
     """同步单个 Meta 账户的 Insights 数据，返回 (act_id, count, error)"""
@@ -1215,6 +1252,11 @@ def _sync_one_meta_account(act_id: str, access_token: str,
 
     count = database.upsert_meta_insights(act_id, agg_rows, user_id)
     database.set_meta_sync_state(act_id, today, user_id)
+    # 追加同步「系列/广告组」级明细（失败不影响账户级同步）
+    try:
+        _sync_one_meta_account_breakdown(act_id, access_token, from_date, today, user_id)
+    except Exception as _e:
+        print(f"[meta breakdown] {act_id} 明细同步失败: {_e}")
     return act_id, count, ""
 
 

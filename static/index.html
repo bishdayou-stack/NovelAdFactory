@@ -802,6 +802,7 @@
           <div class="flex items-center gap-3">
             <button id="btnMetaSync" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer">手动同步</button>
             <span id="metaSyncStatus" class="text-[11px] text-slate-500"></span>
+            <span id="metaLastSync" class="text-[11px] text-slate-400"></span>
           </div>
         </div>
         <div class="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 mb-4" id="metaKpiRow"></div>
@@ -811,6 +812,10 @@
         </div>
         <div class="card-dark p-4 mb-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">账户排行</h3><div id="metaAccountRank" class="text-[11px]"></div></div>
         <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">日报明细</h3><div id="metaDailyTable" class="text-[11px]"></div><div id="metaDailyPager" class="mt-2"></div></div>
+        <div id="metaCampaignCard" class="card-dark p-4 mt-4" hidden>
+          <h3 class="text-xs font-semibold text-slate-300 mb-2">广告系列明细 <span class="text-slate-500 font-normal">（点击系列展开广告组）</span></h3>
+          <div id="metaCampaignTable" class="text-[11px]"></div>
+        </div>
       </div>
     </div>
 
@@ -4600,9 +4605,9 @@
         { id: 'purchases', label: '转化', value: summary.purchases || 0, prev: 0, format: '', digits: 0 },
         { id: 'revenue', label: '转化金额', value: summary.total_revenue || 0, prev: 0, format: '$', digits: 2 },
         { id: 'roi', label: 'ROI', value: summary.roi || 0, prev: 0, format: '', digits: 2, suffix: 'x', positive: true },
-        { id: 'cpa', label: 'CPA', value: summary.cpa || 0, prev: 0, format: '$', digits: 2, inverse: true },
-        { id: 'cpm', label: 'CPM', value: summary.cpm || 0, prev: 0, format: '$', digits: 2 },
-        { id: 'ctr', label: 'CTR', value: summary.ctr || 0, prev: 0, format: '', digits: 2, suffix: '%' },
+        { id: 'cpa', label: '转化成本', value: summary.cpa || 0, prev: 0, format: '$', digits: 2, inverse: true },
+        { id: 'cpm', label: '千展成本', value: summary.cpm || 0, prev: 0, format: '$', digits: 2 },
+        { id: 'ctr', label: '点击率', value: summary.ctr || 0, prev: 0, format: '', digits: 2, suffix: '%' },
         { id: 'impressions', label: '展示', value: summary.impressions || 0, prev: 0, format: '', digits: 0, compact: true },
         { id: 'clicks', label: '点击', value: summary.clicks || 0, prev: 0, format: '', digits: 0, compact: true },
       ];
@@ -4628,7 +4633,7 @@
 
     // ---- 用户汇总 ----
     function renderUserSummary(data) {
-      var html = '<table class="w-full"><thead><tr><th>用户</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">CPA</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th>用户</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th></tr></thead><tbody>';
       data.forEach(function(u) {
         html += '<tr>' +
           '<td class="text-indigo-400">' + escapeHtml(u.user_name || '未知') + '</td>' +
@@ -4647,7 +4652,7 @@
 
     // ---- BM 汇总 ----
     function renderBmTable(bmData) {
-      var html = '<table class="w-full"><thead><tr><th class="text-left">BM</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th><th class="text-right">CTR</th><th class="text-right">转化金额</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th class="text-left">BM</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">转化金额</th></tr></thead><tbody>';
       bmData.forEach(function(bm) {
         html += '<tr>' +
           '<td class="text-left text-indigo-400">' + escapeHtml(bm.bm_name || '未归类') + '</td>' +
@@ -4671,7 +4676,7 @@
       var total = data.total || items.length;
       var page = data.page || 1;
       var pageSize = data.page_size || 20;
-      var html = '<table class="w-full"><thead><tr><th class="text-left">#</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th><th class="text-right">CTR</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th class="text-left">#</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th></tr></thead><tbody>';
       items.forEach(function(a, i) {
         var actName = a.act_name || a.ad_account || '-';
         html += '<tr>' +
@@ -4699,7 +4704,7 @@
       var total = data.total || items.length;
       var page = data.page || 1;
       var pageSize = data.page_size || 15;
-      var html = '<table class="w-full"><thead><tr><th class="text-left">日期</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">CPA</th><th class="text-right">CPM</th><th class="text-right">CTR</th><th class="text-right">展示</th><th class="text-right">点击</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th class="text-left">日期</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th></tr></thead><tbody>';
       items.forEach(function(d) {
         html += '<tr>' +
           '<td class="text-left">' + (d.date || '-') + '</td>' +
@@ -4768,6 +4773,91 @@
         renderAccountRank(rankRes);
         renderMetaDaily(dailyRes);
       } catch(e) { console.error('Meta dashboard error:', e); }
+      loadMetaLastSync();
+      // 选中单个账户时显示广告系列明细
+      var card = document.getElementById('metaCampaignCard');
+      if (_metaSelectedAccount && _metaSelectedAccount.indexOf('act_') === 0) {
+        card.hidden = false;
+        loadMetaCampaigns(_metaSelectedAccount);
+      } else {
+        card.hidden = true;
+      }
+    }
+
+    // ---- 广告系列 / 广告组 明细（下钻）----
+    function metaMetricCells(d) {
+      return '<td class="text-right">$' + ((d.spend || 0).toLocaleString()) + '</td>' +
+        '<td class="text-right">' + (d.purchases || 0) + '</td>' +
+        '<td class="text-right">$' + ((d.purchase_value || 0).toLocaleString()) + '</td>' +
+        '<td class="text-right ' + ((d.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((d.roi || 0).toFixed(2)) + 'x</td>' +
+        '<td class="text-right">$' + ((d.cpa || 0).toFixed(2)) + '</td>' +
+        '<td class="text-right">$' + ((d.cpm || 0).toFixed(2)) + '</td>' +
+        '<td class="text-right">' + ((d.ctr || 0).toFixed(2)) + '%</td>' +
+        '<td class="text-right">' + ((d.impressions || 0).toLocaleString()) + '</td>' +
+        '<td class="text-right">' + ((d.clicks || 0).toLocaleString()) + '</td>';
+    }
+
+    function loadMetaCampaigns(account) {
+      var range = getMetaDateRange();
+      var el = document.getElementById('metaCampaignTable');
+      el.innerHTML = '<div class="text-slate-500 py-3 text-center">加载中...</div>';
+      var qp = '?account=' + encodeURIComponent(account) + '&start=' + range.start + '&end=' + range.end;
+      fetch('/api/meta/campaigns' + qp).then(function(r){return r.json();}).then(function(res){
+        var rows = res.data || [];
+        var html = '<table class="w-full"><thead><tr>' +
+          '<th class="text-left">广告系列</th><th class="text-right">消耗</th><th class="text-right">转化</th>' +
+          '<th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th>' +
+          '<th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th>' +
+          '</tr></thead><tbody>';
+        rows.forEach(function(c){
+          var cid = c.campaign_id || '';
+          html += '<tr class="cursor-pointer hover:bg-white/5" onclick="toggleCampaignAdsets(this,\'' + encodeURIComponent(cid) + '\')">' +
+            '<td class="text-left"><span class="camp-arrow inline-block w-3 text-slate-500">▶</span> ' + escapeHtml(c.campaign_name || '(未命名)') + '</td>' +
+            metaMetricCells(c) + '</tr>';
+          html += '<tr class="camp-adsets" data-cid="' + escapeHtml(cid) + '" hidden><td colspan="10" class="p-0"><div class="adset-slot pl-4"></div></td></tr>';
+        });
+        if (!rows.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-4">该账户暂无系列数据（需同步后生成）</td></tr>';
+        html += '</tbody></table>';
+        el.innerHTML = html;
+      }).catch(function(){ el.innerHTML = '<div class="text-red-400 py-3 text-center">加载失败</div>'; });
+    }
+
+    function toggleCampaignAdsets(rowEl, cidEnc) {
+      var next = rowEl.nextElementSibling;  // .camp-adsets 行
+      var arrow = rowEl.querySelector('.camp-arrow');
+      if (!next) return;
+      if (!next.hidden) { next.hidden = true; if (arrow) arrow.textContent = '▶'; return; }
+      next.hidden = false;
+      if (arrow) arrow.textContent = '▼';
+      var slot = next.querySelector('.adset-slot');
+      if (slot.getAttribute('data-loaded') === '1') return;
+      slot.innerHTML = '<div class="text-slate-500 py-2 text-center text-[10px]">加载广告组...</div>';
+      var range = getMetaDateRange();
+      var qp = '?account=' + encodeURIComponent(_metaSelectedAccount) + '&campaign_id=' + cidEnc +
+               '&start=' + range.start + '&end=' + range.end;
+      fetch('/api/meta/adsets' + qp).then(function(r){return r.json();}).then(function(res){
+        var rows = res.data || [];
+        var html = '<table class="w-full"><tbody>';
+        rows.forEach(function(a){
+          html += '<tr class="text-slate-400">' +
+            '<td class="text-left pl-6">↳ ' + escapeHtml(a.adset_name || '(未命名组)') + '</td>' +
+            metaMetricCells(a) + '</tr>';
+        });
+        if (!rows.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-2 text-[10px]">无广告组数据</td></tr>';
+        html += '</tbody></table>';
+        slot.innerHTML = html;
+        slot.setAttribute('data-loaded', '1');
+      }).catch(function(){ slot.innerHTML = '<div class="text-red-400 py-2 text-center text-[10px]">加载失败</div>'; });
+    }
+
+
+    // ---- 上次更新时间（手动/自动同步均反映）----
+    function loadMetaLastSync() {
+      var el = document.getElementById('metaLastSync');
+      if (!el) return;
+      fetch('/api/meta/last-sync').then(function(r) { return r.json(); }).then(function(d) {
+        el.textContent = d.last_sync ? ('上次更新: ' + d.last_sync) : '上次更新: 暂无';
+      }).catch(function() {});
     }
 
     // ---- 手动同步 ----
@@ -4804,6 +4894,7 @@
             var tc = pr.total_count || 0;
             statusEl.textContent = msg + ' (' + tc + '条)';
             refreshMetaDashboard();
+            loadMetaLastSync();
           }
           // 超时 5 分钟
           if (pollCount > 1800) { clearInterval(timer); statusEl.textContent = '同步超时(30分钟)'; }
@@ -5104,12 +5195,13 @@
       var bmTarget = document.getElementById('assignBmTarget');
       // Load user list
       fetch('/api/users').then(function(r) { return r.json(); }).then(function(users) {
-        var userOpts = '<option value="">选择目标用户...</option>';
+        var listOpts = '';
         users.forEach(function(u) {
-          userOpts += '<option value="' + u.id + '">' + escapeHtml(u.display_name || u.username) + '</option>';
+          listOpts += '<option value="' + u.id + '">' + escapeHtml(u.display_name || u.username) + '</option>';
         });
-        targetUser.innerHTML = userOpts;
-        bmTarget.innerHTML = '<option value="">分配给...</option>' + userOpts.map(function(u) { return '<option value="' + u.id + '">' + escapeHtml(u.display_name || u.username) + '</option>'; }).join('');
+        var unassignOpt = '<option value="0">➖ 不分配（收回账户）</option>';
+        targetUser.innerHTML = '<option value="">选择目标用户...</option>' + listOpts + unassignOpt;
+        bmTarget.innerHTML = '<option value="">分配给...</option>' + listOpts + unassignOpt;
       });
       // Load all meta accounts
       fetch('/api/meta/accounts').then(function(r) { return r.json(); }).then(function(accounts) {
@@ -5146,7 +5238,7 @@
         var bmAccounts = groups[bm];
         var allChecked = bmAccounts.every(function(a) { return _assignSelected[a.act_id]; });
         var someChecked = bmAccounts.some(function(a) { return _assignSelected[a.act_id]; });
-        html += '<div class="flex items-center gap-2 py-1 px-1 hover:bg-slate-50 rounded cursor-pointer" onclick="event.stopPropagation();var cb=this.querySelector('input');cb.checked=!cb.checked;assignToggleBm(\'' + bm.replace(/'/g, '\\\'') + '\',cb.checked);">';
+        html += '<div class="flex items-center gap-2 py-1 px-1 hover:bg-slate-50 rounded cursor-pointer" data-bm="' + escapeHtml(bm) + '" onclick="assignToggleBm(this.getAttribute(\'data-bm\'),' + (allChecked ? 'false' : 'true') + ')">';
         html += '<input type="checkbox" ' + (allChecked ? 'checked' : '') + ' class="w-3.5 h-3.5 accent-indigo-600 cursor-pointer">';
         html += '<span class="font-medium text-slate-600">' + escapeHtml(bm) + ' (' + bmAccounts.length + ')</span></div>';
         bmAccounts.forEach(function(a) {
@@ -5154,8 +5246,9 @@
           html += '<input type="checkbox" ' + (_assignSelected[a.act_id] ? 'checked' : '') + ' class="w-3 h-3 accent-indigo-600 cursor-pointer" onclick="event.stopPropagation();_assignSelected[\'' + a.act_id + '\']=this.checked;updateAssignInfo();renderAssignTree();">';
           html += '<span class="text-slate-500 font-mono">' + escapeHtml(a.act_id) + '</span>';
           html += '<span class="text-slate-600">' + escapeHtml(a.act_name || '') + '</span>';
-          var uname = a.user_name || ('用户' + (a.user_id || ''));
-          html += '<span class="text-slate-400 text-[10px] ml-auto">👤 ' + escapeHtml(uname) + '</span>';
+          var uname = a.user_id ? (a.user_name || ('用户' + a.user_id)) : '未分配';
+          var utag = a.user_id ? 'text-slate-400' : 'text-amber-500';
+          html += '<span class="' + utag + ' text-[10px] ml-auto">👤 ' + escapeHtml(uname) + '</span>';
           html += '</div>';
         });
       });
