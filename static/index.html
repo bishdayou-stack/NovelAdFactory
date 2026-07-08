@@ -5061,6 +5061,14 @@
     // ====== 素材画廊 ======
     var _galPage = 1, _galCustomDate = false, _galItems = {};
 
+    // 素材画廊每页显示 4 行：按响应式列数动态计算每页数量
+    function getGalCols() {
+      var w = window.innerWidth;
+      if (w >= 1024) return 6;   // lg:grid-cols-6
+      if (w >= 768) return 4;    // md:grid-cols-4
+      return 2;                  // grid-cols-2
+    }
+
     function loadGalleryPage() {
       fetch('/api/meta/accounts').then(function(r) { return r.json(); }).then(function(data) {
         var accts = data.accounts || data || [];
@@ -5114,8 +5122,9 @@
       var filterUser = isAdmin ? document.getElementById('galUser').value : '';
       var grid = document.getElementById('galGrid');
       grid.innerHTML = '<div class="col-span-full text-slate-500 text-center py-10">加载中...</div>';
+      var pageSize = getGalCols() * 4;
       var qp = '?start=' + range.start + '&end=' + range.end + '&sort=' + sort +
-               '&page=' + _galPage + '&page_size=42';
+               '&page=' + _galPage + '&page_size=' + pageSize;
       if (account) qp += '&account=' + encodeURIComponent(account);
       if (filterUser) qp += '&user_id=' + encodeURIComponent(filterUser);
       fetch('/api/meta/gallery' + qp).then(function(r) { return r.json(); }).then(function(res) {
@@ -5160,11 +5169,11 @@
               acctTag +
               '<div class="text-[11px] text-slate-300 truncate" title="' + escapeHtml(a.ad_name || '') + '">' + escapeHtml(a.ad_name || '(未命名)') + '</div>' +
               '<div class="text-[10px] text-slate-500 truncate mb-1">' + escapeHtml(a.campaign_name || '') + '</div>' +
-              '<div class="flex items-center justify-between text-[10px]">' +
-                '<span class="text-slate-400">$' + ((a.spend||0).toLocaleString()) + '</span>' +
-                '<span class="' + roiColor + ' font-medium">' + ((a.roi||0).toFixed(2)) + 'x</span>' +
+              '<div class="flex items-center justify-between text-[14px] font-bold mt-1">' +
+                '<span class="text-slate-100">$' + ((a.spend||0).toLocaleString()) + '</span>' +
+                '<span class="' + roiColor + '">' + ((a.roi||0).toFixed(2)) + 'x</span>' +
               '</div>' +
-              '<div class="flex items-center justify-between text-[10px] text-slate-500 mt-0.5">' +
+              '<div class="flex items-center justify-between text-[12px] font-medium text-slate-300 mt-1">' +
                 '<span>转化 ' + (a.purchases||0) + '</span><span>$' + ((a.purchase_value||0).toLocaleString()) + '</span>' +
               '</div>' +
               hitBtn +
@@ -5238,6 +5247,7 @@
             body: JSON.stringify({
               image_url: imageUrl,
               ad_id: a.ad_id || '',
+              owner_user_id: a.user_id || 0,
               label: a.ad_name || '',
               ad_account: a.account_name || '',
               campaign_name: a.campaign_name || '',
@@ -5262,6 +5272,13 @@
     document.getElementById('galAccount').addEventListener('change', function() { _galPage = 1; galleryLoad(); });
     document.getElementById('galSort').addEventListener('change', function() { _galPage = 1; galleryLoad(); });
     document.getElementById('galUser').addEventListener('change', function() { _galPage = 1; galleryLoad(); });
+    var _galResizeTimer = null;
+    window.addEventListener('resize', function() {
+      var tab = document.getElementById('tab-meta-gallery');
+      if (!tab || tab.hidden) return;
+      clearTimeout(_galResizeTimer);
+      _galResizeTimer = setTimeout(function() { _galPage = 1; galleryLoad(); }, 300);
+    });
     document.getElementById('galDatePills').addEventListener('click', function(e) {
       var btn = e.target.closest('button'); if (!btn) return;
       this.querySelectorAll('button').forEach(function(b) {

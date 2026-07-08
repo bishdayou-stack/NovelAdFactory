@@ -3669,6 +3669,7 @@ class HitMaterialBody(BaseModel):
     novel_name: str = ""
     ad_account: str = ""
     ad_id: str = ""
+    owner_user_id: int = 0
     campaign_name: str = ""
     spend: float = 0.0
     order_count: int = 0
@@ -3684,8 +3685,11 @@ class HitMaterialBody(BaseModel):
 
 @app.post("/api/hit-materials")
 def api_add_hit_material(body: HitMaterialBody, user: dict = Depends(get_current_user)):
-    """登记爆款素材"""
-    uid = _opt_user_id(user)
+    """登记爆款素材（归属=素材原主人：管理员可代推并保留原用户归属）"""
+    if user.get("role") == "admin" and body.owner_user_id:
+        uid = body.owner_user_id
+    else:
+        uid = user["id"]
     mid = database.add_hit_material(body.model_dump(), uid)
     return {"status": "ok", "id": mid}
 
