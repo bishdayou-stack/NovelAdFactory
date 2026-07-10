@@ -43,7 +43,8 @@
 #metaDailyTable td, #metaAccountRank td, #metaBmTable td, #metaUserSummary td, #campPageTable td { color: #cbd5e1; padding: 5px 8px; border-bottom: 1px solid rgba(51,65,85,0.2); }
 #campPageTable th, #campPageTable td { padding: 8px 10px; font-size: 13px; }
 #campPageTable table { table-layout: fixed; }
-#campPageTable th:first-child, #campPageTable td:first-child { width: 60px; }
+#campPageTable th:first-child, #campPageTable td:first-child { width: 72px; }
+#campPageTable th:nth-child(2), #campPageTable td:nth-child(2) { width: 28%; }
 
     /* 投放状态标签 */
     .status-badge { display:inline-block; padding:1px 6px; border-radius:8px;
@@ -5060,7 +5061,7 @@
       fetch('/api/meta/campaigns' + qp).then(function(r) { return r.json(); }).then(function(res) {
         var rows = res.data || [];
         var html = '<table class="w-full"><thead><tr>' +
-          '<th class="text-center" style="width:60px">投放状态</th>' +
+          '<th class="text-center" style="width:72px">投放状态</th>' +
           '<th class="text-left">广告系列</th><th class="text-right">消耗</th><th class="text-right">转化</th>' +
           '<th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th>' +
           '<th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th>' +
