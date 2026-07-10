@@ -43,7 +43,7 @@
 #metaDailyTable td, #metaAccountRank td, #metaBmTable td, #metaUserSummary td, #campPageTable td { color: #cbd5e1; padding: 5px 8px; border-bottom: 1px solid rgba(51,65,85,0.2); }
 #campPageTable th, #campPageTable td { padding: 8px 10px; font-size: 13px; }
 #campPageTable table { table-layout: fixed; }
-#campPageTable th:first-child, #campPageTable td:first-child { width: 30%; }
+#campPageTable th:first-child, #campPageTable td:first-child { width: 80px; }
 
     /* 投放状态标签 */
     .status-badge { display:inline-block; padding:2px 10px; border-radius:12px;
@@ -5101,11 +5101,12 @@
         rows.forEach(function(a) {
           var aid = a.adset_id || '';
           html += '<tr class="text-slate-300 cursor-pointer hover:bg-white/5" onclick="campAdsetToggle(this,\'' + encodeURIComponent(aid) + '\',\'' + acct + '\')">' +
+            renderStatusBadge(a.effective_status, a.status) +
             '<td class="text-left pl-6"><span class="aset-arrow inline-block w-3 text-slate-500">▶</span> ' + escapeHtml(a.adset_name || '(未命名组)') + '</td>' +
             metaMetricCells(a) + '</tr>';
-          html += '<tr class="aset-ads" hidden><td colspan="10" class="p-0"><div class="ad-slot"></div></td></tr>';
+          html += '<tr class="aset-ads" hidden><td colspan="11" class="p-0"><div class="ad-slot"></div></td></tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-2 text-[10px]">无广告组数据</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="11" class="text-center text-slate-500 py-2 text-[10px]">无广告组数据</td></tr>';
         html += '</tbody></table>';
         slot.innerHTML = html;
         slot.setAttribute('data-loaded', '1');
@@ -5130,10 +5131,11 @@
         rows.forEach(function(a) {
           var thumb = a.thumb ? '<img src="' + a.thumb + '" class="w-8 h-8 rounded object-cover inline-block mr-1.5 align-middle border border-slate-700" loading="lazy" onerror="this.style.display=\'none\'">' : '';
           html += '<tr class="text-slate-400">' +
+            renderStatusBadge(a.effective_status, a.status) +
             '<td class="text-left pl-8">' + thumb + escapeHtml(a.ad_name || '(未命名广告)') + '</td>' +
             metaMetricCells(a) + '</tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-2 text-[10px]">无广告数据</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="11" class="text-center text-slate-500 py-2 text-[10px]">无广告数据</td></tr>';
         html += '</tbody></table>';
         slot.innerHTML = html;
         slot.setAttribute('data-loaded', '1');
