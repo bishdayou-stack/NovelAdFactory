@@ -749,18 +749,26 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
             where.append("date <= ?"); params.append(end_date)
         _add_user_filter(where, params, user_id)
         sql = f"""
-            SELECT adset_id, MAX(adset_name) AS adset_name,
-                campaign_id, MAX(campaign_name) AS campaign_name,
-                COALESCE(SUM(spend),0) AS spend,
-                COALESCE(SUM(impressions),0) AS impressions,
-                COALESCE(SUM(clicks),0) AS clicks,
-                COALESCE(SUM(purchases),0) AS purchases,
-                COALESCE(SUM(purchase_value),0) AS purchase_value
-            FROM meta_adset_stats
-            WHERE {' AND '.join(where)}
-            GROUP BY adset_id
-            ORDER BY spend DESC
+            SELECT agg.*, es.effective_status, es.status
+            FROM (
+                SELECT adset_id, MAX(adset_name) AS adset_name,
+                    campaign_id, MAX(campaign_name) AS campaign_name,
+                    COALESCE(SUM(spend),0) AS spend,
+                    COALESCE(SUM(impressions),0) AS impressions,
+                    COALESCE(SUM(clicks),0) AS clicks,
+                    COALESCE(SUM(purchases),0) AS purchases,
+                    COALESCE(SUM(purchase_value),0) AS purchase_value
+                FROM meta_adset_stats
+                WHERE {' AND '.join(where)}
+                GROUP BY adset_id
+            ) agg
+            LEFT JOIN meta_entity_status es ON agg.adset_id = es.entity_id
+                AND es.level = 'adset'
         """
+        if user_id is not None:
+            sql += "\n            AND es.user_id = ?"
+            params.append(user_id)
+        sql += "\n            ORDER BY spend DESC"
         rows = conn.execute(sql, params).fetchall()
         out = []
         for r in rows:
@@ -770,6 +778,8 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
             m["adset_name"] = r["adset_name"] or r["adset_id"] or "(未命名广告组)"
             m["campaign_id"] = r["campaign_id"]
             m["campaign_name"] = r["campaign_name"] or ""
+            m["effective_status"] = r["effective_status"] if "effective_status" in r.keys() else None
+            m["status"] = r["status"] if "status" in r.keys() else None
             out.append(m)
         return out
 
