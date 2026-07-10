@@ -684,15 +684,20 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
                    user_id: int = None) -> List[Dict[str, Any]]:
     """某账户下按「广告系列」聚合的表现（由广告组数据 GROUP BY 系列得出）"""
     with database.get_conn() as conn:
-        where = ["ad_account = ?"]
-        params: List = [account]
+        accts = [a for a in (account or "").split(",") if a]
+        if len(accts) > 1:
+            where = ["ad_account IN (" + ",".join(["?"] * len(accts)) + ")"]
+            params: List = list(accts)
+        else:
+            where = ["ad_account = ?"]
+            params: List = [accts[0] if accts else account]
         if start_date:
             where.append("date >= ?"); params.append(start_date)
         if end_date:
             where.append("date <= ?"); params.append(end_date)
         _add_user_filter(where, params, user_id)
         sql = f"""
-            SELECT campaign_id, MAX(campaign_name) AS campaign_name,
+            SELECT campaign_id, MAX(campaign_name) AS campaign_name, MAX(ad_account) AS ad_account,
                 COALESCE(SUM(spend),0) AS spend,
                 COALESCE(SUM(impressions),0) AS impressions,
                 COALESCE(SUM(clicks),0) AS clicks,
@@ -710,6 +715,7 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
                              r["purchases"], r["purchase_value"])
             m["campaign_id"] = r["campaign_id"]
             m["campaign_name"] = r["campaign_name"] or r["campaign_id"] or "(未命名系列)"
+            m["ad_account"] = r["ad_account"]
             out.append(m)
         return out
 

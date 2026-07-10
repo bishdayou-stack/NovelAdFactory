@@ -4867,7 +4867,7 @@
 
     // ====== 广告系列 独立页面（左账户树 + 右数据，暗色，与 Meta 一致）======
     var _campAccounts = [];
-    var _campSelectedAccount = null, _campSelectedName = '';
+    var _campSelectedAccount = null, _campSelectedName = '', _campSelectedKey = null;
     var _campCollapsed = {};
     var _campCustomDate = false;
     var _campPageAccount = '', _campPageStart = '', _campPageEnd = '';
@@ -4892,16 +4892,18 @@
       }
       var isAdmin = currentUser && currentUser.role === 'admin';
 
-      function groupNode(key, label, icon, depth, children) {
+      function groupNode(key, label, icon, depth, children, selectJs, selected) {
         var collapsed = _campCollapsed[key] === true;
         var arrow = collapsed ? '▶' : '▼';
-        return '<div class="meta-tree-item" style="padding-left:' + (8 + depth*12) + 'px" onclick="event.stopPropagation();_campCollapsed[\'' + key + '\']=!_campCollapsed[\'' + key + '\'];renderCampTree();">' +
-          '<span class="inline-block w-4 text-center text-slate-500 mr-0.5">' + arrow + '</span>' +
-          '<span class="flex-1 truncate">' + icon + ' ' + escapeHtml(label) + '</span></div>' +
+        var labelClick = selectJs ? (' onclick="event.stopPropagation();' + selectJs + '"') : '';
+        var labelCursor = selectJs ? ' cursor-pointer' : '';
+        return '<div class="meta-tree-item' + (selected ? ' active' : '') + '" style="padding-left:' + (8 + depth*12) + 'px">' +
+          '<span class="inline-block w-4 text-center text-slate-500 mr-0.5 cursor-pointer" onclick="event.stopPropagation();_campCollapsed[\'' + key + '\']=!_campCollapsed[\'' + key + '\'];renderCampTree();">' + arrow + '</span>' +
+          '<span class="flex-1 truncate' + labelCursor + '"' + labelClick + '>' + icon + ' ' + escapeHtml(label) + '</span></div>' +
           (collapsed ? '' : children);
       }
       function acctNode(a, depth) {
-        var sel = _campSelectedAccount === a.act_id;
+        var sel = _campSelectedKey === a.act_id;
         var dot = (a.status === 'active') ? 'bg-emerald-400' : 'bg-slate-500';
         return '<div class="meta-tree-item meta-tree-account' + (sel ? ' active' : '') + '" style="padding-left:' + (8 + depth*12) + 'px" onclick="event.stopPropagation();campSelectAccount(\'' + a.act_id + '\',\'' + escapeHtml((a.act_name || a.act_id)).replace(/'/g,'') + '\')">' +
           '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + dot + '"></span>' +
@@ -4923,7 +4925,10 @@
           var bmChildren = '';
           Object.keys(bmGroups).sort().forEach(function(bm) {
             var acct = bmGroups[bm].map(function(a) { return acctNode(a, 3); }).join('');
-            bmChildren += groupNode('cuser:' + ug.id + ':' + bm, bm, '📁', 2, acct);
+            var bmKey = 'cuser:' + ug.id + ':' + bm;
+            var acctIds = bmGroups[bm].map(function(a) { return a.act_id; }).join(',');
+            var selJs = 'campSelectBm(\'' + bmKey + '\',\'' + acctIds + '\',\'' + escapeHtml(bm).replace(/'/g,'') + '\')';
+            bmChildren += groupNode(bmKey, bm, '📁', 2, acct, selJs, _campSelectedKey===bmKey);
           });
           html += groupNode('cuser:' + ug.id, uname + ' (' + ug.accounts.length + ')', '👤', 1, bmChildren);
         });
@@ -4932,7 +4937,10 @@
         accounts.forEach(function(a) { var bm = a.pingykj_account || '未归类'; (bmGroups2[bm] = bmGroups2[bm] || []).push(a); });
         Object.keys(bmGroups2).sort().forEach(function(bm) {
           var acct = bmGroups2[bm].map(function(a) { return acctNode(a, 2); }).join('');
-          html += groupNode('cbm:' + bm, bm, '📁', 1, acct);
+          var bmKey = 'cbm:' + bm;
+          var acctIds = bmGroups2[bm].map(function(a) { return a.act_id; }).join(',');
+          var selJs = 'campSelectBm(\'' + bmKey + '\',\'' + acctIds + '\',\'' + escapeHtml(bm).replace(/'/g,'') + '\')';
+          html += groupNode(bmKey, bm, '📁', 1, acct, selJs, _campSelectedKey===bmKey);
         });
       }
       tree.innerHTML = html || '<div class="p-3 text-slate-500 text-center">暂无账户</div>';
@@ -4941,7 +4949,17 @@
 
     function campSelectAccount(actId, name) {
       _campSelectedAccount = actId;
+      _campSelectedKey = actId;
       _campSelectedName = name || actId;
+      document.getElementById('campSelectedName').textContent = _campSelectedName;
+      renderCampTree();
+      campLoadTable();
+    }
+
+    function campSelectBm(key, acctCsv, label) {
+      _campSelectedAccount = acctCsv;   // 逗号分隔的多账户
+      _campSelectedKey = key;
+      _campSelectedName = label + '（整个 BM）';
       document.getElementById('campSelectedName').textContent = _campSelectedName;
       renderCampTree();
       campLoadTable();
@@ -4973,6 +4991,13 @@
       if (_campSelectedAccount) campLoadTable();
     }
 
+    function campAcctName(actId) {
+      for (var i = 0; i < _campAccounts.length; i++) {
+        if (_campAccounts[i].act_id === actId) return _campAccounts[i].act_name || actId;
+      }
+      return actId;
+    }
+
     function campLoadTable() {
       if (!_campSelectedAccount) return;
       var range = getCampDateRange();
@@ -4988,10 +5013,13 @@
           '<th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th>' +
           '<th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th>' +
           '</tr></thead><tbody>';
+        var isMulti = (_campPageAccount || '').indexOf(',') >= 0;
         rows.forEach(function(c) {
           var cid = c.campaign_id || '';
-          html += '<tr class="cursor-pointer hover:bg-white/5" onclick="campPageToggle(this,\'' + encodeURIComponent(cid) + '\')">' +
-            '<td class="text-left"><span class="camp-arrow inline-block w-3 text-slate-500">▶</span> ' + escapeHtml(c.campaign_name || '(未命名)') + '</td>' +
+          var cacct = encodeURIComponent(c.ad_account || _campPageAccount);
+          var acctBadge = (isMulti && c.ad_account) ? '<span class="inline-block px-1 rounded bg-sky-500/20 text-sky-300 text-[10px] mr-1 align-middle">🏢 ' + escapeHtml(campAcctName(c.ad_account)) + '</span>' : '';
+          html += '<tr class="cursor-pointer hover:bg-white/5" onclick="campPageToggle(this,\'' + encodeURIComponent(cid) + '\',\'' + cacct + '\')">' +
+            '<td class="text-left"><span class="camp-arrow inline-block w-3 text-slate-500">▶</span> ' + acctBadge + escapeHtml(c.campaign_name || '(未命名)') + '</td>' +
             metaMetricCells(c) + '</tr>';
           html += '<tr class="camp-adsets" hidden><td colspan="10" class="p-0"><div class="adset-slot pl-4"></div></td></tr>';
         });
@@ -5001,7 +5029,7 @@
       }).catch(function() { el.innerHTML = '<div class="text-red-400 text-center py-6">加载失败</div>'; });
     }
 
-    function campPageToggle(rowEl, cidEnc) {
+    function campPageToggle(rowEl, cidEnc, acctEnc) {
       var next = rowEl.nextElementSibling;
       var arrow = rowEl.querySelector('.camp-arrow');
       if (!next) return;
@@ -5011,14 +5039,15 @@
       var slot = next.querySelector('.adset-slot');
       if (slot.getAttribute('data-loaded') === '1') return;
       slot.innerHTML = '<div class="text-slate-500 text-center py-2 text-[10px]">加载广告组...</div>';
-      var qp = '?account=' + encodeURIComponent(_campPageAccount) + '&campaign_id=' + cidEnc +
+      var acct = acctEnc || encodeURIComponent(_campPageAccount);
+      var qp = '?account=' + acct + '&campaign_id=' + cidEnc +
                '&start=' + _campPageStart + '&end=' + _campPageEnd;
       fetch('/api/meta/adsets' + qp).then(function(r) { return r.json(); }).then(function(res) {
         var rows = res.data || [];
         var html = '<table class="w-full"><tbody>';
         rows.forEach(function(a) {
           var aid = a.adset_id || '';
-          html += '<tr class="text-slate-300 cursor-pointer hover:bg-white/5" onclick="campAdsetToggle(this,\'' + encodeURIComponent(aid) + '\')">' +
+          html += '<tr class="text-slate-300 cursor-pointer hover:bg-white/5" onclick="campAdsetToggle(this,\'' + encodeURIComponent(aid) + '\',\'' + acct + '\')">' +
             '<td class="text-left pl-6"><span class="aset-arrow inline-block w-3 text-slate-500">▶</span> ' + escapeHtml(a.adset_name || '(未命名组)') + '</td>' +
             metaMetricCells(a) + '</tr>';
           html += '<tr class="aset-ads" hidden><td colspan="10" class="p-0"><div class="ad-slot pl-4"></div></td></tr>';
@@ -5030,7 +5059,7 @@
       }).catch(function() { slot.innerHTML = '<div class="text-red-400 text-center py-2 text-[10px]">加载失败</div>'; });
     }
 
-    function campAdsetToggle(rowEl, adsetIdEnc) {
+    function campAdsetToggle(rowEl, adsetIdEnc, acctEnc) {
       var next = rowEl.nextElementSibling;
       var arrow = rowEl.querySelector('.aset-arrow');
       if (!next) return;
@@ -5040,7 +5069,7 @@
       var slot = next.querySelector('.ad-slot');
       if (slot.getAttribute('data-loaded') === '1') return;
       slot.innerHTML = '<div class="text-slate-500 text-center py-2 text-[10px]">加载广告...</div>';
-      var qp = '?account=' + encodeURIComponent(_campPageAccount) + '&adset_id=' + adsetIdEnc +
+      var qp = '?account=' + (acctEnc || encodeURIComponent(_campPageAccount)) + '&adset_id=' + adsetIdEnc +
                '&start=' + _campPageStart + '&end=' + _campPageEnd;
       fetch('/api/meta/ads' + qp).then(function(r) { return r.json(); }).then(function(res) {
         var rows = res.data || [];
