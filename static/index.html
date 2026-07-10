@@ -42,6 +42,8 @@
 #metaDailyTable th, #metaAccountRank th, #metaBmTable th, #metaUserSummary th, #campPageTable th { color: #94a3b8; padding: 6px 8px; font-weight: 500; border-bottom: 1px solid rgba(51,65,85,0.5); }
 #metaDailyTable td, #metaAccountRank td, #metaBmTable td, #metaUserSummary td, #campPageTable td { color: #cbd5e1; padding: 5px 8px; border-bottom: 1px solid rgba(51,65,85,0.2); }
 #campPageTable th, #campPageTable td { padding: 8px 10px; font-size: 13px; }
+#campPageTable table { table-layout: fixed; }
+#campPageTable th:first-child, #campPageTable td:first-child { width: 30%; }
 
   </style>
 </head>
@@ -5021,7 +5023,7 @@
           html += '<tr class="cursor-pointer hover:bg-white/5" onclick="campPageToggle(this,\'' + encodeURIComponent(cid) + '\',\'' + cacct + '\')">' +
             '<td class="text-left"><span class="camp-arrow inline-block w-3 text-slate-500">▶</span> ' + acctBadge + escapeHtml(c.campaign_name || '(未命名)') + '</td>' +
             metaMetricCells(c) + '</tr>';
-          html += '<tr class="camp-adsets" hidden><td colspan="10" class="p-0"><div class="adset-slot pl-4"></div></td></tr>';
+          html += '<tr class="camp-adsets" hidden><td colspan="10" class="p-0"><div class="adset-slot"></div></td></tr>';
         });
         if (!rows.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
         html += '</tbody></table>';
@@ -5050,7 +5052,7 @@
           html += '<tr class="text-slate-300 cursor-pointer hover:bg-white/5" onclick="campAdsetToggle(this,\'' + encodeURIComponent(aid) + '\',\'' + acct + '\')">' +
             '<td class="text-left pl-6"><span class="aset-arrow inline-block w-3 text-slate-500">▶</span> ' + escapeHtml(a.adset_name || '(未命名组)') + '</td>' +
             metaMetricCells(a) + '</tr>';
-          html += '<tr class="aset-ads" hidden><td colspan="10" class="p-0"><div class="ad-slot pl-4"></div></td></tr>';
+          html += '<tr class="aset-ads" hidden><td colspan="10" class="p-0"><div class="ad-slot"></div></td></tr>';
         });
         if (!rows.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-2 text-[10px]">无广告组数据</td></tr>';
         html += '</tbody></table>';
