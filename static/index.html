@@ -5060,6 +5060,7 @@
       fetch('/api/meta/campaigns' + qp).then(function(r) { return r.json(); }).then(function(res) {
         var rows = res.data || [];
         var html = '<table class="w-full"><thead><tr>' +
+          '<th class="text-center" style="width:80px">投放状态</th>' +
           '<th class="text-left">广告系列</th><th class="text-right">消耗</th><th class="text-right">转化</th>' +
           '<th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th>' +
           '<th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th>' +
@@ -5070,11 +5071,12 @@
           var cacct = encodeURIComponent(c.ad_account || _campPageAccount);
           var acctBadge = (isMulti && c.ad_account) ? '<span class="inline-block px-1 rounded bg-sky-500/20 text-sky-300 text-[10px] mr-1 align-middle">🏢 ' + escapeHtml(campAcctName(c.ad_account)) + '</span>' : '';
           html += '<tr class="cursor-pointer hover:bg-white/5" onclick="campPageToggle(this,\'' + encodeURIComponent(cid) + '\',\'' + cacct + '\')">' +
+            renderStatusBadge(c.effective_status, c.status) +
             '<td class="text-left"><span class="camp-arrow inline-block w-3 text-slate-500">▶</span> ' + acctBadge + escapeHtml(c.campaign_name || '(未命名)') + '</td>' +
             metaMetricCells(c) + '</tr>';
-          html += '<tr class="camp-adsets" hidden><td colspan="10" class="p-0"><div class="adset-slot"></div></td></tr>';
+          html += '<tr class="camp-adsets" hidden><td colspan="11" class="p-0"><div class="adset-slot"></div></td></tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="11" class="text-center text-slate-500 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
         html += '</tbody></table>';
         el.innerHTML = html;
       }).catch(function() { el.innerHTML = '<div class="text-red-400 text-center py-6">加载失败</div>'; });
