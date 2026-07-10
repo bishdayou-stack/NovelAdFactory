@@ -4930,6 +4930,15 @@
       fetch('/api/meta/accounts').then(function(r) { return r.json(); }).then(function(data) {
         _campAccounts = data.accounts || data || [];
         renderCampTree();
+        // 默认显示全部账户今日数据
+        var allIds = _campAccounts.map(function(a) { return a.act_id; }).join(',');
+        if (allIds && !_campSelectedAccount) {
+          _campSelectedAccount = allIds;
+          _campSelectedKey = '_all';
+          _campSelectedName = '全部账户（点击左侧筛选）';
+          document.getElementById('campSelectedName').textContent = _campSelectedName;
+          campLoadTable();
+        }
       });
     }
 
