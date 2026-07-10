@@ -799,23 +799,31 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
         if user_id is not None:
             where.append("s.user_id = ?"); params.append(user_id)
         sql = f"""
-            SELECT s.ad_id, MAX(s.ad_name) AS ad_name,
-                s.adset_id, MAX(s.adset_name) AS adset_name,
-                s.campaign_id, MAX(s.campaign_name) AS campaign_name,
-                COALESCE(SUM(s.spend),0) AS spend,
-                COALESCE(SUM(s.impressions),0) AS impressions,
-                COALESCE(SUM(s.clicks),0) AS clicks,
-                COALESCE(SUM(s.purchases),0) AS purchases,
-                COALESCE(SUM(s.purchase_value),0) AS purchase_value,
-                MAX(c.local_path) AS local_path,
-                MAX(c.thumbnail_url) AS thumbnail_url,
-                MAX(c.video_id) AS video_id
-            FROM meta_ad_stats s
-            LEFT JOIN meta_ad_creatives c ON c.ad_id = s.ad_id AND c.user_id = s.user_id
-            WHERE {' AND '.join(where)}
-            GROUP BY s.ad_id
-            ORDER BY spend DESC
+            SELECT agg.*, es.effective_status, es.status
+            FROM (
+                SELECT s.ad_id, MAX(s.ad_name) AS ad_name,
+                    s.adset_id, MAX(s.adset_name) AS adset_name,
+                    s.campaign_id, MAX(s.campaign_name) AS campaign_name,
+                    COALESCE(SUM(s.spend),0) AS spend,
+                    COALESCE(SUM(s.impressions),0) AS impressions,
+                    COALESCE(SUM(s.clicks),0) AS clicks,
+                    COALESCE(SUM(s.purchases),0) AS purchases,
+                    COALESCE(SUM(s.purchase_value),0) AS purchase_value,
+                    MAX(c.local_path) AS local_path,
+                    MAX(c.thumbnail_url) AS thumbnail_url,
+                    MAX(c.video_id) AS video_id
+                FROM meta_ad_stats s
+                LEFT JOIN meta_ad_creatives c ON c.ad_id = s.ad_id AND c.user_id = s.user_id
+                WHERE {' AND '.join(where)}
+                GROUP BY s.ad_id
+            ) agg
+            LEFT JOIN meta_entity_status es ON agg.ad_id = es.entity_id
+                AND es.level = 'ad'
         """
+        if user_id is not None:
+            sql += "\n            AND es.user_id = ?"
+            params.append(user_id)
+        sql += "\n            ORDER BY spend DESC"
         rows = conn.execute(sql, params).fetchall()
         out = []
         for r in rows:
@@ -827,6 +835,8 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
             m["campaign_name"] = r["campaign_name"] or ""
             m["thumb"] = ("/static/" + r["local_path"]) if r["local_path"] else (r["thumbnail_url"] or "")
             m["video_id"] = r["video_id"] or ""
+            m["effective_status"] = r["effective_status"] if "effective_status" in r.keys() else None
+            m["status"] = r["status"] if "status" in r.keys() else None
             out.append(m)
         return out
 
