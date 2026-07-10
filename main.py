@@ -4756,11 +4756,12 @@ def _meta_trend(days: int = Query(default=30), account: str = Query(default=None
 
 @app.get("/api/meta/account-ranking")
 def _meta_account_ranking(start: str = Query(default=None), end: str = Query(default=None),
+                          account: str = Query(default=None),
                           page: int = Query(default=1), page_size: int = Query(default=20),
                           user_id: int = Query(default=None),
                           user: dict = Depends(get_current_user)):
     uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
-    return analytics.meta_account_ranking(start_date=start, end_date=end, page=page, page_size=page_size, user_id=uid)
+    return analytics.meta_account_ranking(start_date=start, end_date=end, account=account, page=page, page_size=page_size, user_id=uid)
 
 
 @app.get("/api/meta/campaigns")

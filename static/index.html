@@ -4831,8 +4831,19 @@
           var uid = _metaSelectedAccount.slice(5);
           params += '&user_id=' + uid;
         } else if (_metaSelectedAccount.indexOf('bm:') === 0) {
-          var bmName = _metaSelectedAccount.slice(3).split(':').pop();  // "bm:uid:name" or "bm:name"
-          params += '&keyword=' + encodeURIComponent(bmName);
+          var rest = _metaSelectedAccount.slice(3);   // "uid:name"(管理员) 或 "name"(普通用户)
+          var parts = rest.split(':');
+          var bmAccts;
+          if (parts.length >= 2) {
+            var buid = parts[0], bname = parts.slice(1).join(':');
+            bmAccts = _metaAccounts.filter(function(a) {
+              return (a.pingykj_account || '未归类') === bname && String(a.user_id) === String(buid);
+            });
+          } else {
+            bmAccts = _metaAccounts.filter(function(a) { return (a.pingykj_account || '未归类') === rest; });
+          }
+          var ids = bmAccts.map(function(a) { return a.act_id; });
+          if (ids.length) params += '&account=' + encodeURIComponent(ids.join(','));
         } else if (_metaSelectedAccount.indexOf('act_') === 0) {
           params += '&account=' + _metaSelectedAccount;
         }

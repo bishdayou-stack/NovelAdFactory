@@ -479,7 +479,12 @@ def _meta_where(where, params, start_date, end_date, account, keyword):
     if end_date:
         where.append("date <= ?"); params.append(end_date)
     if account:
-        where.append("ad_account = ?"); params.append(account)
+        accts = [a for a in account.split(",") if a]
+        if len(accts) > 1:
+            where.append("ad_account IN (" + ",".join(["?"] * len(accts)) + ")")
+            params.extend(accts)
+        else:
+            where.append("ad_account = ?"); params.append(accts[0] if accts else account)
     if keyword:
         where.append("(ad_account LIKE ? OR meta_account_id LIKE ?)")
         params.extend([f"%{keyword}%", f"%{keyword}%"])
@@ -566,10 +571,10 @@ def meta_trend(days=30, account=None, user_id=None):
 
 
 def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20,
-                         user_id=None):
+                         user_id=None, account=None):
     with database.get_conn() as conn:
         where, params = [], []
-        _meta_where(where, params, start_date, end_date, None, None)
+        _meta_where(where, params, start_date, end_date, account, None)
         _add_user_filter(where, params, user_id, prefix="a.", exclude_paused_meta=True)
         total_row = conn.execute(f"""
             SELECT COUNT(DISTINCT a.ad_account) AS cnt
