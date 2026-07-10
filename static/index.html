@@ -5167,8 +5167,8 @@
             '<div class="p-2">' +
               ownerTag +
               acctTag +
-              '<div class="text-[11px] text-slate-300 truncate" title="' + escapeHtml(a.ad_name || '') + '">' + escapeHtml(a.ad_name || '(未命名)') + '</div>' +
-              '<div class="text-[10px] text-slate-500 truncate mb-1">' + escapeHtml(a.campaign_name || '') + '</div>' +
+              '<div class="text-[12px] text-slate-200 truncate mt-0.5" title="广告：' + escapeHtml(a.ad_name || '') + '"><span class="inline-block px-1 rounded bg-indigo-500/25 text-indigo-300 text-[9px] mr-1 align-middle">广告</span>' + escapeHtml(a.ad_name || '(未命名)') + '</div>' +
+              '<div class="text-[11px] text-slate-400 truncate mb-1 mt-0.5" title="系列：' + escapeHtml(a.campaign_name || '') + '"><span class="inline-block px-1 rounded bg-slate-600/60 text-slate-300 text-[9px] mr-1 align-middle">系列</span>' + escapeHtml(a.campaign_name || '(无)') + '</div>' +
               '<div class="flex items-center justify-between text-[14px] font-bold mt-1">' +
                 '<span class="text-slate-100">$' + ((a.spend||0).toLocaleString()) + '</span>' +
                 '<span class="' + roiColor + '">' + ((a.roi||0).toFixed(2)) + 'x</span>' +
