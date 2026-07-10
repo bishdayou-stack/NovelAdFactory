@@ -45,6 +45,18 @@
 #campPageTable table { table-layout: fixed; }
 #campPageTable th:first-child, #campPageTable td:first-child { width: 30%; }
 
+    /* 投放状态标签 */
+    .status-badge { display:inline-block; padding:2px 10px; border-radius:12px;
+      font-size:12px; font-weight:600; color:#fff; white-space:nowrap;
+      text-align:center; min-width:56px; }
+    .status-active { background:#22c55e; }
+    .status-paused { background:#eab308; color:#333; }
+    .status-archived { background:#6b7280; }
+    .status-deleted { background:#ef4444; }
+    .status-review { background:#3b82f6; }
+    .status-issues { background:#f97316; }
+    .status-unknown { background:#6b7280; }
+    .status-hint { font-size:10px; color:#9ca3af; display:block; line-height:1.2; }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50 flex">
@@ -4863,6 +4875,32 @@
         renderMetaDaily(dailyRes);
       } catch(e) { console.error('Meta dashboard error:', e); }
       loadMetaLastSync();
+    }
+
+    // ---- 投放状态 Badge ----
+    var STATUS_MAP = {
+      'ACTIVE':          {label:'投放中',   cls:'status-active'},
+      'PAUSED':          {label:'已暂停',   cls:'status-paused'},
+      'ARCHIVED':        {label:'已归档',   cls:'status-archived'},
+      'DELETED':         {label:'已删除',   cls:'status-deleted'},
+      'IN_REVIEW':       {label:'审核中',   cls:'status-review'},
+      'ADS_IN_REVIEW':   {label:'广告审核中', cls:'status-review'},
+      'CAMPAIGN_PAUSED': {label:'系列暂停',   cls:'status-paused'},
+      'ADSET_PAUSED':    {label:'广告组暂停', cls:'status-paused'},
+      'WITH_ISSUES':     {label:'有问题',   cls:'status-issues'},
+    };
+
+    function renderStatusBadge(effectiveStatus, status) {
+      var eff = (effectiveStatus || '').toString().toUpperCase();
+      var st  = (status || '').toString().toUpperCase();
+      var info = STATUS_MAP[eff] || {label: eff || '未知', cls:'status-unknown'};
+      var html = '<td class="text-center"><span class="status-badge ' + info.cls + '">' + info.label + '</span>';
+      if (st && eff && st !== eff) {
+        var stInfo = STATUS_MAP[st] || {label: st};
+        html += '<span class="status-hint">用户设为：' + stInfo.label + '</span>';
+      }
+      html += '</td>';
+      return html;
     }
 
     // ---- 广告系列 / 广告组 指标单元格（系列页复用）----
