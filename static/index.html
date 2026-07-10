@@ -4993,7 +4993,10 @@
             var selJs = 'campSelectBm(\'' + bmKey + '\',\'' + acctIds + '\',\'' + escapeHtml(bm).replace(/'/g,'') + '\')';
             bmChildren += groupNode(bmKey, bm, '📁', 2, acct, selJs, _campSelectedKey===bmKey);
           });
-          html += groupNode('cuser:' + ug.id, uname + ' (' + ug.accounts.length + ')', '👤', 1, bmChildren);
+          // 用户节点可点击，展示该用户下所有账户数据
+          var allUserAccts = ug.accounts.map(function(a) { return a.act_id; }).join(',');
+          var userSelJs = 'campSelectUser(\'' + ('cuser:' + ug.id) + '\',\'' + allUserAccts + '\',\'' + escapeHtml(uname).replace(/'/g,'') + '\')';
+          html += groupNode('cuser:' + ug.id, uname + ' (' + ug.accounts.length + ')', '👤', 1, bmChildren, userSelJs, _campSelectedKey===('cuser:' + ug.id));
         });
       } else {
         var bmGroups2 = {};
@@ -5023,6 +5026,15 @@
       _campSelectedAccount = acctCsv;   // 逗号分隔的多账户
       _campSelectedKey = key;
       _campSelectedName = label + '（整个 BM）';
+      document.getElementById('campSelectedName').textContent = _campSelectedName;
+      renderCampTree();
+      campLoadTable();
+    }
+
+    function campSelectUser(key, acctCsv, label) {
+      _campSelectedAccount = acctCsv;
+      _campSelectedKey = key;
+      _campSelectedName = label + '（全部账户）';
       document.getElementById('campSelectedName').textContent = _campSelectedName;
       renderCampTree();
       campLoadTable();
