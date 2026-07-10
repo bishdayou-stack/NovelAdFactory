@@ -870,6 +870,7 @@
             <input id="campDateTo" type="date" class="rounded border border-slate-600 bg-slate-700 px-1.5 py-1 text-[11px] text-white focus:border-indigo-400 focus:outline-none w-[120px]" onchange="onCampCustomDate()" title="结束日期">
           </div>
           <div id="campSelectedName" class="text-[11px] text-slate-400 truncate max-w-[220px]"></div>
+          <span id="campLastSync" class="text-[11px] text-slate-500"></span>
         </div>
         <div class="card-dark p-4">
           <h3 class="text-xs font-semibold text-slate-300 mb-2">广告系列 / 广告组明细 <span class="text-slate-500 font-normal">（点系列行展开广告组）</span></h3>
@@ -4925,6 +4926,7 @@
     var _campPageAccount = '', _campPageStart = '', _campPageEnd = '';
 
     function loadCampPage() {
+      loadCampLastSync();
       fetch('/api/meta/accounts').then(function(r) { return r.json(); }).then(function(data) {
         _campAccounts = data.accounts || data || [];
         renderCampTree();
@@ -5401,6 +5403,14 @@
       }).catch(function() {});
     }
 
+    function loadCampLastSync() {
+      var el = document.getElementById('campLastSync');
+      if (!el) return;
+      fetch('/api/meta/last-sync').then(function(r) { return r.json(); }).then(function(d) {
+        el.textContent = d.last_sync ? ('上次更新: ' + d.last_sync) : '上次更新: 暂无';
+      }).catch(function() {});
+    }
+
     // ---- 手动同步 ----
     async function triggerMetaSync() {
       var statusEl = document.getElementById('metaSyncStatus');
@@ -5436,6 +5446,7 @@
             statusEl.textContent = msg + ' (' + tc + '条)';
             refreshMetaDashboard();
             loadMetaLastSync();
+            loadCampLastSync();
           }
           // 超时 5 分钟
           if (pollCount > 1800) { clearInterval(timer); statusEl.textContent = '同步超时(30分钟)'; }
