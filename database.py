@@ -730,6 +730,10 @@ def init_db() -> None:
             c.execute("ALTER TABLE meta_entity_status ADD COLUMN parent_id TEXT")
         # 迁移：统一 ad_account 格式
         c.execute("UPDATE meta_entity_status SET ad_account = 'act_' || ad_account WHERE ad_account NOT LIKE 'act_%'")
+        # 迁移：meta_accounts 增加 meta_status 列
+        existing_meta = {r["name"] for r in conn.execute("PRAGMA table_info('meta_accounts')").fetchall()}
+        if "meta_status" not in existing_meta:
+            conn.execute("ALTER TABLE meta_accounts ADD COLUMN meta_status TEXT")
 
         # 迁移：hit_materials 增加 ad_id（用于爆款库按广告实时汇总 Meta 数据）
         existing_hit = {r["name"] for r in conn.execute("PRAGMA table_info('hit_materials')").fetchall()}
@@ -1483,6 +1487,15 @@ def update_meta_account_status(act_id: str, status: str, user_id: int = None) ->
         conn.execute(
             "UPDATE meta_accounts SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE act_id = ? AND user_id = ?",
             (status, act_id, uid)
+        )
+
+def update_meta_account_meta_status(act_id: str, meta_status: str, user_id: int = None) -> None:
+    """更新账户在 Meta 端的真实状态（活跃/已停用/待关闭/已关闭）"""
+    uid = user_id or 1
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE meta_accounts SET meta_status = ? WHERE act_id = ? AND user_id = ?",
+            (meta_status, act_id, uid)
         )
 
 def update_meta_token(act_id: str, access_token: str, user_id: int = None) -> None:

@@ -1259,6 +1259,19 @@ def _sync_one_meta_account(act_id: str, access_token: str,
         # 首次同步：广告系列侧只拉近15天
         campaign_from = (dt.utcnow() - timedelta(days=15)).strftime("%Y-%m-%d")
 
+    # 先检查账户是否已被 Meta 停用
+    info, info_err = meta_api.get_ad_account_info(act_id, access_token)
+    if info and not info_err:
+        raw_status = info.get("account_status", 0)
+        # 存储 Meta 真实状态
+        status_label = {1: "活跃", 2: "已停用", 100: "待关闭", 101: "已关闭"}.get(raw_status, str(raw_status))
+        database.update_meta_account_meta_status(act_id, status_label, user_id)
+        if raw_status in (2, 100, 101):
+            database.update_meta_account_status(act_id, "paused", user_id)
+            return act_id, 0, f"Meta端已停用(状态{raw_status})，跳过同步"
+    elif info_err and ("expired" in str(info_err).lower() or "invalid" in str(info_err).lower()):
+        pass
+
     t0 = time.time()
     rows, err = meta_api.get_insights(act_id, access_token, from_date, today)
     print(f"  [meta] {act_id} insights({from_date}~{today}): {len(rows) if rows else 0}行, {time.time()-t0:.1f}s")
