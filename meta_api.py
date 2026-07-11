@@ -36,6 +36,7 @@ def _http_request(method: str, url: str, params: dict = None, data: dict = None,
                   timeout: int = 30) -> Tuple[Optional[Dict], Optional[str]]:
     """统一的 HTTP 请求（使用 curl，可靠支持代理和远程 DNS 解析）"""
     cmd = ["curl", "-s", "-X", method, "--connect-timeout", str(timeout),
+           "--max-time", str(timeout + 15),
            "-w", "\n%{http_code}"]
 
     proxy = _get_proxy()
