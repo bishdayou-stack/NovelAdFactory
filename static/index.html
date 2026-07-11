@@ -872,6 +872,14 @@
           <div id="campSelectedName" class="text-[11px] text-slate-400 truncate max-w-[220px]"></div>
           <span id="campLastSync" class="text-[11px] text-slate-500"></span>
         </div>
+        <div class="flex items-center gap-1 mb-3" id="campStatusFilter">
+          <span class="text-[10px] text-slate-500 mr-1">状态筛选:</span>
+          <button data-status="" class="campStatusPillActive px-2.5 py-1 text-[10px] font-medium rounded-md transition-all bg-slate-700 text-white">全部</button>
+          <button data-status="ACTIVE" class="px-2.5 py-1 text-[10px] font-medium rounded-md transition-all text-slate-400 hover:text-white">投放中</button>
+          <button data-status="PAUSED" class="px-2.5 py-1 text-[10px] font-medium rounded-md transition-all text-slate-400 hover:text-white">已暂停</button>
+          <button data-status="ARCHIVED" class="px-2.5 py-1 text-[10px] font-medium rounded-md transition-all text-slate-400 hover:text-white">已归档</button>
+          <button data-status="IN_REVIEW" class="px-2.5 py-1 text-[10px] font-medium rounded-md transition-all text-slate-400 hover:text-white">审核中</button>
+        </div>
         <div class="card-dark p-4">
           <h3 class="text-xs font-semibold text-slate-300 mb-2">广告系列 / 广告组明细 <span class="text-slate-500 font-normal">（点系列行展开广告组）</span></h3>
           <div id="campPageTable" class="text-[13px]"><div class="text-slate-500 text-center py-8">请在左侧选择一个账户</div></div>
@@ -4924,9 +4932,20 @@
     var _campCollapsed = {};
     var _campCustomDate = false;
     var _campPageAccount = '', _campPageStart = '', _campPageEnd = '';
+    var _campStatusFilter = '';
 
     function loadCampPage() {
       loadCampLastSync();
+      // 绑定状态筛选按钮
+      var filterBtns = document.querySelectorAll('#campStatusFilter button');
+      filterBtns.forEach(function(btn) {
+        btn.onclick = function() {
+          filterBtns.forEach(function(b) { b.className = 'px-2.5 py-1 text-[10px] font-medium rounded-md transition-all text-slate-400 hover:text-white'; });
+          btn.className = 'campStatusPillActive px-2.5 py-1 text-[10px] font-medium rounded-md transition-all bg-slate-700 text-white';
+          _campStatusFilter = btn.dataset.status || '';
+          applyCampStatusFilter();
+        };
+      });
       fetch('/api/meta/accounts').then(function(r) { return r.json(); }).then(function(data) {
         _campAccounts = data.accounts || data || [];
         renderCampTree();
@@ -5094,7 +5113,8 @@
           var cid = c.campaign_id || '';
           var cacct = encodeURIComponent(c.ad_account || _campPageAccount);
           var acctBadge = (isMulti && c.ad_account) ? '<span class="inline-block px-1 rounded bg-sky-500/20 text-sky-300 text-[10px] mr-1 align-middle">🏢 ' + escapeHtml(campAcctName(c.ad_account)) + '</span>' : '';
-          html += '<tr class="cursor-pointer hover:bg-white/5" onclick="campPageToggle(this,\'' + encodeURIComponent(cid) + '\',\'' + cacct + '\')">' +
+          var eff = (c.effective_status || '').toString().toUpperCase();
+          html += '<tr class="cursor-pointer hover:bg-white/5" data-eff-status="' + eff + '" onclick="campPageToggle(this,\'' + encodeURIComponent(cid) + '\',\'' + cacct + '\')">' +
             renderStatusBadge(c.effective_status, c.status) +
             '<td class="text-left"><span class="camp-arrow inline-block w-3 text-slate-500">▶</span> ' + acctBadge + escapeHtml(c.campaign_name || '(未命名)') + '</td>' +
             metaMetricCells(c) + '</tr>';
@@ -5103,7 +5123,28 @@
         if (!rows.length) html += '<tr><td colspan="11" class="text-center text-slate-500 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
         html += '</tbody></table>';
         el.innerHTML = html;
+        applyCampStatusFilter();
       }).catch(function() { el.innerHTML = '<div class="text-red-400 text-center py-6">加载失败</div>'; });
+    }
+
+    function applyCampStatusFilter() {
+      var table = document.getElementById('campPageTable');
+      if (!table) return;
+      if (!_campStatusFilter) {
+        // 显示全部
+        var allRows = table.querySelectorAll('tr[data-eff-status]');
+        allRows.forEach(function(r) { r.style.display = ''; });
+        return;
+      }
+      // PAUSED 也匹配 CAMPAIGN_PAUSED / ADSET_PAUSED
+      // IN_REVIEW 也匹配 ADS_IN_REVIEW
+      var matchSet = [_campStatusFilter];
+      if (_campStatusFilter === 'PAUSED') matchSet = ['PAUSED', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED'];
+      if (_campStatusFilter === 'IN_REVIEW') matchSet = ['IN_REVIEW', 'ADS_IN_REVIEW'];
+      var rows = table.querySelectorAll('tr[data-eff-status]');
+      rows.forEach(function(r) {
+        r.style.display = (matchSet.indexOf(r.dataset.effStatus) >= 0) ? '' : 'none';
+      });
     }
 
     function campPageToggle(rowEl, cidEnc, acctEnc) {
@@ -5124,7 +5165,8 @@
         var html = '<table class="w-full"><tbody>';
         rows.forEach(function(a) {
           var aid = a.adset_id || '';
-          html += '<tr class="text-slate-300 cursor-pointer hover:bg-white/5" onclick="campAdsetToggle(this,\'' + encodeURIComponent(aid) + '\',\'' + acct + '\')">' +
+          var aeff = (a.effective_status || '').toString().toUpperCase();
+          html += '<tr class="text-slate-300 cursor-pointer hover:bg-white/5" data-eff-status="' + aeff + '" onclick="campAdsetToggle(this,\'' + encodeURIComponent(aid) + '\',\'' + acct + '\')">' +
             renderStatusBadge(a.effective_status, a.status) +
             '<td class="text-left pl-6"><span class="aset-arrow inline-block w-3 text-slate-500">▶</span> ' + escapeHtml(a.adset_name || '(未命名组)') + '</td>' +
             metaMetricCells(a) + '</tr>';
@@ -5134,6 +5176,7 @@
         html += '</tbody></table>';
         slot.innerHTML = html;
         slot.setAttribute('data-loaded', '1');
+        applyCampStatusFilter();
       }).catch(function() { slot.innerHTML = '<div class="text-red-400 text-center py-2 text-[10px]">加载失败</div>'; });
     }
 
@@ -5154,7 +5197,8 @@
         var html = '<table class="w-full"><tbody>';
         rows.forEach(function(a) {
           var thumb = a.thumb ? '<img src="' + a.thumb + '" class="w-8 h-8 rounded object-cover inline-block mr-1.5 align-middle border border-slate-700" loading="lazy" onerror="this.style.display=\'none\'">' : '';
-          html += '<tr class="text-slate-400">' +
+          var aeff = (a.effective_status || '').toString().toUpperCase();
+          html += '<tr class="text-slate-400" data-eff-status="' + aeff + '">' +
             renderStatusBadge(a.effective_status, a.status) +
             '<td class="text-left pl-8">' + thumb + escapeHtml(a.ad_name || '(未命名广告)') + '</td>' +
             metaMetricCells(a) + '</tr>';
@@ -5163,6 +5207,7 @@
         html += '</tbody></table>';
         slot.innerHTML = html;
         slot.setAttribute('data-loaded', '1');
+        applyCampStatusFilter();
       }).catch(function() { slot.innerHTML = '<div class="text-red-400 text-center py-2 text-[10px]">加载失败</div>'; });
     }
 
