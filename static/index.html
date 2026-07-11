@@ -4451,6 +4451,12 @@
     // ====== Meta 管理中心 JS ======
 
     var _metaAccounts = [];
+    function metaStatusDot(metaStatus) {
+      // 根据 Meta 真实状态返回指示点颜色
+      if (!metaStatus) return 'bg-slate-500';
+      var colors = { '活跃': 'bg-emerald-400', '已停用': 'bg-red-400', '待关闭': 'bg-amber-400', '已关闭': 'bg-slate-600' };
+      return colors[metaStatus] || 'bg-slate-500';
+    }
     var _metaSelectedAccount = null;
     var _discoveredMetaAccounts = [];
     var _metaDailyPage = 1;
@@ -4518,11 +4524,11 @@
               var bmKey = 'bm:' + ug.id + ':' + bm;
               var acctChildren = bmAccounts.map(function(a) {
                 var actKey = a.act_id;
-                var isActive = a.status === 'active';
+                var statusDot = metaStatusDot(a.meta_status);
                 var metaBadge = a.meta_status ? '<span class=\"text-[9px] px-1 rounded ' + (a.meta_status === '活跃' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300') + '\">' + escapeHtml(a.meta_status) + '</span>' : '';
                 var toggleBtn = '';
                 return '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === actKey ? ' active' : '') + '" style="padding-left:36px">' +
-                  '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + (isActive ? 'bg-emerald-400' : 'bg-slate-500') + '"></span>' +
+                  '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + statusDot + '"></span>' +
                   '<span class="flex-1 truncate cursor-pointer" onclick="event.stopPropagation();selectMetaAccount(\'' + actKey + '\')">' + escapeHtml(a.act_name || a.act_id) + '</span>' +
                   metaBadge +
                   '<span class="text-[10px] text-slate-500 hover:text-indigo-400 cursor-pointer ml-1" onclick="event.stopPropagation();syncOneAccount(\'' + actKey + '\',\'' + escapeHtml(a.act_name || actKey).replace(/'/g,'') + '\')" title="单独更新此账户">🔄</span>' + '</div>';
@@ -4544,9 +4550,10 @@
             var bmKey = 'bm:' + bm;
             var acctChildren = bmAccounts.map(function(a) {
               var actKey = a.act_id;
+              var dotColor2 = metaStatusDot(a.meta_status);
               var metaBadge2 = a.meta_status ? '<span class=\"text-[9px] px-1 rounded ' + (a.meta_status === '活跃' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300') + '\">' + escapeHtml(a.meta_status) + '</span>' : '';
               return '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === actKey ? ' active' : '') + '" style="padding-left:24px">' +
-                '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + (a.status === 'active' ? 'bg-emerald-400' : 'bg-slate-500') + '"></span>' +
+                '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + dotColor2 + '"></span>' +
                 '<span class="flex-1 truncate cursor-pointer" onclick="event.stopPropagation();selectMetaAccount(\'' + actKey + '\')">' + escapeHtml(a.act_name || a.act_id) + '</span>' +
                 metaBadge2 +
                 '<span class="text-[10px] text-slate-500 hover:text-indigo-400 cursor-pointer ml-1" onclick="event.stopPropagation();syncOneAccount(\'' + actKey + '\',\'' + escapeHtml(a.act_name || actKey).replace(/'/g,'') + '\')" title="单独更新此账户">🔄</span></div>';
@@ -4994,7 +5001,7 @@
       }
       function acctNode(a, depth) {
         var sel = _campSelectedKey === a.act_id;
-        var dot = (a.status === 'active') ? 'bg-emerald-400' : 'bg-slate-500';
+        var dot = metaStatusDot(a.meta_status);
         return '<div class="meta-tree-item meta-tree-account' + (sel ? ' active' : '') + '" style="padding-left:' + (8 + depth*12) + 'px">' +
           '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + dot + '"></span>' +
           '<span class="flex-1 truncate cursor-pointer" onclick="event.stopPropagation();campSelectAccount(\'' + a.act_id + '\',\'' + escapeHtml((a.act_name || a.act_id)).replace(/'/g,'') + '\')">' + escapeHtml(a.act_name || a.act_id) + '</span>' +
