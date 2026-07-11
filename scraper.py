@@ -1174,11 +1174,15 @@ def _sync_meta_creatives(act_id: str, access_token: str, from_date: str, user_id
     ad_ids = set(database.get_meta_ad_ids_with_stats(act_id, user_id, since_date=from_date))
     if not ad_ids:
         return 0
+    # 检查是否已有缓存，有则跳过 API 调用
+    cache_dir = Path(__file__).parent / "static" / "meta_creatives"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    missing = [aid for aid in ad_ids if not (cache_dir / f"{aid}.jpg").exists()]
+    if not missing:
+        return len(ad_ids)
     ads, err = meta_api.get_ads_with_creative(act_id, access_token)
     if err or not ads:
         return 0
-    cache_dir = Path(__file__).parent / "static" / "meta_creatives"
-    cache_dir.mkdir(parents=True, exist_ok=True)
     cached = 0
     for ad in ads:
         ad_id = ad.get("id", "")
@@ -1211,7 +1215,17 @@ def _sync_meta_creatives(act_id: str, access_token: str, from_date: str, user_id
 
 
 def _sync_meta_statuses(act_id: str, access_token: str, user_id: int) -> int:
-    """拉取该账户 系列/广告组/广告 三层的投放状态，写入 meta_entity_status。返回写入总数。"""
+    """拉取该账户 系列/广告组/广告 三层的投放状态，写入 meta_entity_status。返回写入总数。
+    若最近 1 小时内已同步过该账户状态则跳过。"""
+    # 检查上次同步时间
+    last_sync = database.get_meta_status_last_sync(act_id, user_id)
+    if last_sync:
+        try:
+            last_dt = dt.strptime(last_sync, "%Y-%m-%d %H:%M:%S")
+            if (dt.utcnow() - last_dt).total_seconds() < 3600:
+                return 0  # 1小时内同步过，跳过
+        except Exception:
+            pass
     total = 0
     for level in ("campaign", "adset", "ad"):
         rows, err = meta_api.get_entity_statuses(act_id, access_token, level)

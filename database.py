@@ -1911,6 +1911,21 @@ def upsert_meta_entity_statuses(level: str, rows: List[Dict[str, Any]],
             n += 1
     return n
 
+def get_meta_status_last_sync(act_id: str, user_id: int = None) -> Optional[str]:
+    """返回该账户状态数据最近同步时间（用于判断是否需重新同步）"""
+    with get_conn() as conn:
+        if user_id is not None:
+            row = conn.execute(
+                "SELECT MAX(updated_at) FROM meta_entity_status WHERE ad_account=? AND user_id=?",
+                (act_id, user_id)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT MAX(updated_at) FROM meta_entity_status WHERE ad_account=?",
+                (act_id,)
+            ).fetchone()
+        return row[0] if row else None
+
 def get_meta_ad_ids_with_stats(act_id: str, user_id: int = None,
                                since_date: str = None) -> List[str]:
     """返回某账户有投放数据的广告 ad_id 列表（用于限定下载素材范围）。"""
