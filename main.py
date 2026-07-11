@@ -4422,7 +4422,7 @@ def _trigger_meta_sync(user: dict = Depends(get_current_user),
             act_id = acct["act_id"]
             with _meta_sync_lock:
                 _meta_sync_progress[uid]["current"] = i + 1
-                _meta_sync_progress[uid]["current_account"] = act_id
+                _meta_sync_progress[uid]["current_account"] = acct.get("act_name", act_id)
 
             try:
                 a_id, count, err = scraper._sync_one_meta_account(
