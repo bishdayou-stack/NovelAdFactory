@@ -5489,25 +5489,20 @@
     // ---- 单账户同步 ----
     async function syncOneAccount(actId, actName) {
       var statusEl = document.getElementById('metaSyncStatus');
-      statusEl.textContent = '更新 ' + actName + ' ...';
+      statusEl.textContent = '⏳ ' + actName + ' 更新中...';
       try {
         var resp = await fetch('/api/meta/sync-account/' + encodeURIComponent(actId) + '?scope=meta', { method: 'POST' });
         var result = await resp.json();
         if (result.success) {
-          statusEl.textContent = '✅ ' + actName + ' 更新中';
-          // 等待完成（轮询最多30秒）
-          var waited = 0;
-          var checkTimer = setInterval(function() {
-            waited++;
-            if (waited > 30) { clearInterval(checkTimer); statusEl.textContent = ''; refreshMetaDashboard(); loadMetaLastSync(); loadCampLastSync(); }
-          }, 1000);
-          setTimeout(function() { clearInterval(checkTimer); statusEl.textContent = ''; refreshMetaDashboard(); loadMetaLastSync(); loadCampLastSync(); }, 15000);
+          statusEl.textContent = '✅ ' + result.message;
+          refreshMetaDashboard(); loadMetaLastSync(); loadCampLastSync();
+          setTimeout(function() { statusEl.textContent = ''; }, 5000);
         } else {
           statusEl.textContent = '✗ ' + (result.message || '更新失败');
-          setTimeout(function() { statusEl.textContent = ''; }, 3000);
+          setTimeout(function() { statusEl.textContent = ''; }, 5000);
         }
       } catch(e) {
-        statusEl.textContent = '✗ 请求失败';
+        statusEl.textContent = '✗ 请求超时';
         setTimeout(function() { statusEl.textContent = ''; }, 3000);
       }
     }
@@ -5515,19 +5510,20 @@
     // ---- 单账户广告系列同步 ----
     async function syncCampaignOneAccount(actId, actName) {
       var statusEl = document.getElementById('campSyncStatus');
-      statusEl.textContent = '更新 ' + actName + ' ...';
+      statusEl.textContent = '⏳ ' + actName + ' 更新中...';
       try {
         var resp = await fetch('/api/meta/sync-account/' + encodeURIComponent(actId) + '?scope=campaign', { method: 'POST' });
         var result = await resp.json();
         if (result.success) {
-          statusEl.textContent = '✅ ' + actName + ' 更新中';
-          setTimeout(function() { statusEl.textContent = ''; campLoadTable(); loadCampLastSync(); }, 8000);
+          statusEl.textContent = '✅ ' + result.message;
+          campLoadTable(); loadCampLastSync();
+          setTimeout(function() { statusEl.textContent = ''; }, 5000);
         } else {
           statusEl.textContent = '✗ ' + (result.message || '更新失败');
-          setTimeout(function() { statusEl.textContent = ''; }, 3000);
+          setTimeout(function() { statusEl.textContent = ''; }, 5000);
         }
       } catch(e) {
-        statusEl.textContent = '✗ 请求失败';
+        statusEl.textContent = '✗ 请求超时';
         setTimeout(function() { statusEl.textContent = ''; }, 3000);
       }
     }
@@ -5536,20 +5532,21 @@
     async function triggerCampSync() {
       if (!_campSelectedAccount) return;
       var statusEl = document.getElementById('campSyncStatus');
-      var acctId = _campSelectedAccount.split(',')[0];  // 取第一个账户
-      statusEl.textContent = '更新中...';
+      var acctId = _campSelectedAccount.split(',')[0];
+      statusEl.textContent = '⏳ 更新中...';
       try {
         var resp = await fetch('/api/meta/sync-account/' + encodeURIComponent(acctId) + '?scope=campaign', { method: 'POST' });
         var result = await resp.json();
         if (result.success) {
           statusEl.textContent = '✅ ' + result.message;
-          setTimeout(function() { statusEl.textContent = ''; campLoadTable(); loadCampLastSync(); }, 8000);
+          campLoadTable(); loadCampLastSync();
+          setTimeout(function() { statusEl.textContent = ''; }, 5000);
         } else {
           statusEl.textContent = '✗ ' + (result.message || '更新失败');
-          setTimeout(function() { statusEl.textContent = ''; }, 3000);
+          setTimeout(function() { statusEl.textContent = ''; }, 5000);
         }
       } catch(e) {
-        statusEl.textContent = '✗ 请求失败';
+        statusEl.textContent = '✗ 请求超时';
         setTimeout(function() { statusEl.textContent = ''; }, 3000);
       }
     }

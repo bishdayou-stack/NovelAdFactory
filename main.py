@@ -4400,14 +4400,14 @@ def _trigger_single_account_sync(act_id: str, scope: str = Query(default="all"),
     token = account.get("access_token") or _load_meta_default_token()
     if not token:
         return {"success": False, "message": "该账户无有效 Token"}
-    def _bg_single():
-        try:
-            a_id, count, err = scraper._sync_one_meta_account(act_id, token, uid, scope=scope)
-            print(f"[单账户同步 {scope}] {account.get('act_name', act_id)}: {count}条, err={err or '无'}")
-        except Exception as e:
-            print(f"[单账户同步] {account.get('act_name', act_id)} 失败: {e}")
-    _EXECUTOR.submit(_bg_single)
-    return {"success": True, "message": f"开始同步 {account.get('act_name', act_id)}"}
+    try:
+        future = _EXECUTOR.submit(scraper._sync_one_meta_account, act_id, token, uid, scope=scope)
+        a_id, count, err = future.result(timeout=120)
+        return {"success": True, "count": count, "error": err or "",
+                "act_name": account.get("act_name", act_id),
+                "message": f"{account.get('act_name', act_id)} 更新完成: {count}条" + (f", 错误: {err}" if err else "")}
+    except Exception as e:
+        return {"success": False, "message": f"同步超时或失败: {str(e)[:100]}"}
 
 
 @app.post("/api/meta/sync")
