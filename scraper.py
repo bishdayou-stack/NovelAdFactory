@@ -1238,8 +1238,10 @@ def _sync_meta_statuses(act_id: str, access_token: str, user_id: int) -> int:
 
 
 def _sync_one_meta_account(act_id: str, access_token: str,
-                           user_id: int) -> Tuple[str, int, str]:
-    """同步单个 Meta 账户的 Insights 数据，返回 (act_id, count, error)"""
+                           user_id: int,
+                           scope: str = "all") -> Tuple[str, int, str]:
+    """同步单个 Meta 账户的 Insights 数据，返回 (act_id, count, error)。
+    scope: all(全部), meta(仅看板insights), campaign(仅广告系列breakdown+statuses)"""
     t_start = time.time()
     last_date = database.get_meta_sync_state(act_id, user_id)
     today = dt.utcnow().strftime("%Y-%m-%d")
@@ -1273,28 +1275,23 @@ def _sync_one_meta_account(act_id: str, access_token: str,
         pass
 
     t0 = time.time()
-    rows, err = meta_api.get_insights(act_id, access_token, from_date, today)
-    print(f"  [meta] {act_id} insights({from_date}~{today}): {len(rows) if rows else 0}行, {time.time()-t0:.1f}s")
+    rows = None; err = None
+    if scope in ("all", "meta"):
+        rows, err = meta_api.get_insights(act_id, access_token, from_date, today)
+        print(f"  [meta] {act_id} insights({from_date}~{today}): {len(rows) if rows else 0}行, {time.time()-t0:.1f}s")
+    else:
+        print(f"  [meta] {act_id} insights: 跳过(campaign模式)")
     if err:
-        # 同步失败 → 检查 Meta 端是否停用了该账户
-        try:
-            info, info_err = meta_api.get_ad_account_info(act_id, access_token)
-            if info and not info_err:
-                raw_status = info.get("account_status", 0)
-                # Meta 状态：2=disabled, 101=closed, 100=pending_closure
-                if raw_status in (2, 100, 101):
-                    database.update_meta_account_status(act_id, "paused", user_id)
-                    return act_id, 0, f"Meta端已停用(状态{raw_status})，已自动标灰: {err}"
-        except Exception:
-            pass
         return act_id, 0, err
-    if not rows:
+    if scope in ("all", "meta") and not rows:
         database.set_meta_sync_state(act_id, today, user_id)
-        return act_id, 0, ""
+        if scope == "meta":
+            return act_id, 0, ""
 
-    # 按日期聚合：Meta API 返回按广告粒度的数据，同一日期可能有多条，
-    # 需要汇总为每日总计后再写入
-    from collections import defaultdict
+    # 按日期聚合 + 写入（仅 all/meta 模式）
+    count = 0
+    if scope in ("all", "meta") and rows:
+        from collections import defaultdict
     aggregated = defaultdict(lambda: {
         "spend": 0.0, "impressions": 0, "clicks": 0,
         "ctr": 0.0, "cpm": 0.0, "cpc": 0.0,
@@ -1365,27 +1362,26 @@ def _sync_one_meta_account(act_id: str, access_token: str,
 
     count = database.upsert_meta_insights(act_id, agg_rows, user_id)
     database.set_meta_sync_state(act_id, today, user_id)
-    # 追加同步「系列/广告组/广告」级明细（失败不影响账户级同步）
-    t0 = time.time()
-    try:
-        _sync_one_meta_account_breakdown(act_id, access_token, campaign_from, today, user_id, rows)
-    except Exception as _e:
-        print(f"[meta breakdown] {act_id} 明细同步失败: {_e}")
-    print(f"  [meta] {act_id} breakdown({campaign_from}~{today}): {time.time()-t0:.1f}s")
-    # 追加同步广告素材缩略图到本地缓存（失败不影响主同步）
-    t0 = time.time()
-    try:
-        _sync_meta_creatives(act_id, access_token, campaign_from, user_id)
-    except Exception as _e:
-        print(f"[meta creative] {act_id} 素材同步失败: {_e}")
-    print(f"  [meta] {act_id} creatives: {time.time()-t0:.1f}s")
-    # 追加同步 系列/组/广告 三层投放状态（失败不影响主同步）
-    t0 = time.time()
-    try:
-        _sync_meta_statuses(act_id, access_token, user_id)
-    except Exception as _e:
-        print(f"[meta status] {act_id} 状态同步失败: {_e}")
-    print(f"  [meta] {act_id} statuses: {time.time()-t0:.1f}s")
+    # 广告系列侧：breakdown + 素材 + 状态（all/campaign 模式）
+    if scope in ("all", "campaign"):
+        t0 = time.time()
+        try:
+            _sync_one_meta_account_breakdown(act_id, access_token, campaign_from, today, user_id, rows)
+        except Exception as _e:
+            print(f"[meta breakdown] {act_id} 明细同步失败: {_e}")
+        print(f"  [meta] {act_id} breakdown({campaign_from}~{today}): {time.time()-t0:.1f}s")
+        t0 = time.time()
+        try:
+            _sync_meta_creatives(act_id, access_token, campaign_from, user_id)
+        except Exception as _e:
+            print(f"[meta creative] {act_id} 素材同步失败: {_e}")
+        print(f"  [meta] {act_id} creatives: {time.time()-t0:.1f}s")
+        t0 = time.time()
+        try:
+            _sync_meta_statuses(act_id, access_token, user_id)
+        except Exception as _e:
+            print(f"[meta status] {act_id} 状态同步失败: {_e}")
+        print(f"  [meta] {act_id} statuses: {time.time()-t0:.1f}s")
     print(f"  [meta] {act_id} 总耗时: {time.time()-t_start:.1f}s")
     return act_id, count, ""
 

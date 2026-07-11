@@ -870,6 +870,8 @@
             <input id="campDateTo" type="date" class="rounded border border-slate-600 bg-slate-700 px-1.5 py-1 text-[11px] text-white focus:border-indigo-400 focus:outline-none w-[120px]" onchange="onCampCustomDate()" title="结束日期">
           </div>
           <div id="campSelectedName" class="text-[11px] text-slate-400 truncate max-w-[220px]"></div>
+          <button id="btnCampSync" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer ml-2" onclick="triggerCampSync()">更新广告系列</button>
+          <span id="campSyncStatus" class="text-[11px] text-slate-500"></span>
           <span id="campLastSync" class="text-[11px] text-slate-500"></span>
         </div>
         <div class="flex items-center gap-1.5 mb-3" id="campStatusFilter">
@@ -5488,7 +5490,7 @@
       var statusEl = document.getElementById('metaSyncStatus');
       statusEl.textContent = '更新 ' + actName + ' ...';
       try {
-        var resp = await fetch('/api/meta/sync-account/' + encodeURIComponent(actId), { method: 'POST' });
+        var resp = await fetch('/api/meta/sync-account/' + encodeURIComponent(actId) + '?scope=meta', { method: 'POST' });
         var result = await resp.json();
         if (result.success) {
           statusEl.textContent = '✅ ' + actName + ' 更新中';
@@ -5499,6 +5501,28 @@
             if (waited > 30) { clearInterval(checkTimer); statusEl.textContent = ''; refreshMetaDashboard(); loadMetaLastSync(); loadCampLastSync(); }
           }, 1000);
           setTimeout(function() { clearInterval(checkTimer); statusEl.textContent = ''; refreshMetaDashboard(); loadMetaLastSync(); loadCampLastSync(); }, 15000);
+        } else {
+          statusEl.textContent = '✗ ' + (result.message || '更新失败');
+          setTimeout(function() { statusEl.textContent = ''; }, 3000);
+        }
+      } catch(e) {
+        statusEl.textContent = '✗ 请求失败';
+        setTimeout(function() { statusEl.textContent = ''; }, 3000);
+      }
+    }
+
+    // ---- 广告系列手动同步 ----
+    async function triggerCampSync() {
+      if (!_campSelectedAccount) return;
+      var statusEl = document.getElementById('campSyncStatus');
+      var acctId = _campSelectedAccount.split(',')[0];  // 取第一个账户
+      statusEl.textContent = '更新中...';
+      try {
+        var resp = await fetch('/api/meta/sync-account/' + encodeURIComponent(acctId) + '?scope=campaign', { method: 'POST' });
+        var result = await resp.json();
+        if (result.success) {
+          statusEl.textContent = '✅ ' + result.message;
+          setTimeout(function() { statusEl.textContent = ''; campLoadTable(); loadCampLastSync(); }, 8000);
         } else {
           statusEl.textContent = '✗ ' + (result.message || '更新失败');
           setTimeout(function() { statusEl.textContent = ''; }, 3000);

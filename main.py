@@ -4381,8 +4381,9 @@ _meta_sync_progress: Dict[int, dict] = {}
 _meta_sync_lock = threading.Lock()
 
 @app.post("/api/meta/sync-account/{act_id}")
-def _trigger_single_account_sync(act_id: str, user: dict = Depends(get_current_user)):
-    """单独同步某个 Meta 账户"""
+def _trigger_single_account_sync(act_id: str, scope: str = Query(default="all"),
+                                  user: dict = Depends(get_current_user)):
+    """单独同步某个 Meta 账户。scope: meta(看板), campaign(广告系列), all(全部,默认)"""
     uid = user["id"]
     accounts = database.get_meta_accounts(uid)
     account = None
@@ -4401,8 +4402,8 @@ def _trigger_single_account_sync(act_id: str, user: dict = Depends(get_current_u
         return {"success": False, "message": "该账户无有效 Token"}
     def _bg_single():
         try:
-            a_id, count, err = scraper._sync_one_meta_account(act_id, token, uid)
-            print(f"[单账户同步] {account.get('act_name', act_id)}: {count}条, err={err or '无'}")
+            a_id, count, err = scraper._sync_one_meta_account(act_id, token, uid, scope=scope)
+            print(f"[单账户同步 {scope}] {account.get('act_name', act_id)}: {count}条, err={err or '无'}")
         except Exception as e:
             print(f"[单账户同步] {account.get('act_name', act_id)} 失败: {e}")
     _EXECUTOR.submit(_bg_single)
