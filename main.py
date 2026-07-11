@@ -4383,8 +4383,10 @@ _meta_sync_lock = threading.Lock()
 @app.post("/api/meta/sync")
 def _trigger_meta_sync(user: dict = Depends(get_current_user),
                        target_user_id: int = None):
-    """后台逐个同步 Meta Insights 数据。管理员可指定 target_user_id 为其他用户同步"""
+    """后台逐个同步 Meta Insights 数据。管理员可指定 target_user_id 为其他用户同步；未指定则同步全部"""
     uid = target_user_id if target_user_id and user.get("role") == "admin" else user["id"]
+    # 管理员未指定目标用户时查询全部账户
+    query_uid = uid if not (user.get("role") == "admin" and not target_user_id) else None
 
     with _meta_sync_lock:
         existing = _meta_sync_progress.get(uid)
@@ -4392,7 +4394,7 @@ def _trigger_meta_sync(user: dict = Depends(get_current_user),
             return {"success": False, "message": "已有同步任务在进行中"}
 
     # 获取账户列表
-    accounts = database.get_meta_accounts(uid)
+    accounts = database.get_meta_accounts(query_uid)
     active = []
     for a in accounts:
         if a.get("status") != "active":
@@ -4401,7 +4403,8 @@ def _trigger_meta_sync(user: dict = Depends(get_current_user),
         if not token:
             token = _load_meta_default_token()
         if token:
-            active.append({"act_id": a["act_id"], "act_name": a.get("act_name", ""), "token": token})
+            active.append({"act_id": a["act_id"], "act_name": a.get("act_name", ""), "token": token,
+                           "owner_user_id": a.get("user_id") or uid})
 
     if not active:
         return {"success": False, "message": "没有活跃的 Meta 账户"}
@@ -4423,7 +4426,7 @@ def _trigger_meta_sync(user: dict = Depends(get_current_user),
 
             try:
                 a_id, count, err = scraper._sync_one_meta_account(
-                    act_id, acct["token"], uid)
+                    act_id, acct["token"], acct.get("owner_user_id", uid))
                 total_count += count
                 with _meta_sync_lock:
                     if uid in _meta_sync_progress:
