@@ -687,36 +687,23 @@ def _row_metrics(spend, impressions, clicks, purchases, purchase_value):
 
 def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
                    user_id: int = None) -> List[Dict[str, Any]]:
-    """某账户下按「广告系列」聚合的表现（以 entity_status 为主，LEFT JOIN 统计，含零消耗系列）"""
+    """某账户下按「广告系列」聚合的表现（由广告组数据 GROUP BY 系列得出）"""
     with database.get_conn() as conn:
         accts = [a for a in (account or "").split(",") if a]
-        # 外层：meta_entity_status 的筛选条件
-        outer_where = ["es.level = 'campaign'"]
-        outer_params: List = list(accts)
-        outer_where.append("es.ad_account IN (" + ",".join(["?"] * len(accts)) + ")")
-        if user_id is not None:
-            outer_where.append("es.user_id = ?")
-            outer_params.append(user_id)
-        # 内层：统计数据的筛选条件
-        inner_where = ["ad_account IN (" + ",".join(["?"] * len(accts)) + ")"]
-        inner_params: List = list(accts)
+        if len(accts) > 1:
+            where = ["ad_account IN (" + ",".join(["?"] * len(accts)) + ")"]
+            params: List = list(accts)
+        else:
+            where = ["ad_account = ?"]
+            params: List = [accts[0] if accts else account]
         if start_date:
-            inner_where.append("date >= ?"); inner_params.append(start_date)
+            where.append("date >= ?"); params.append(start_date)
         if end_date:
-            inner_where.append("date <= ?"); inner_params.append(end_date)
-        _add_user_filter(inner_where, inner_params, user_id)
+            where.append("date <= ?"); params.append(end_date)
+        _add_user_filter(where, params, user_id)
         sql = f"""
-            SELECT es.entity_id AS campaign_id,
-                COALESCE(agg.campaign_name, '') AS campaign_name,
-                COALESCE(agg.ad_account, es.ad_account) AS ad_account,
-                COALESCE(agg.spend, 0) AS spend,
-                COALESCE(agg.impressions, 0) AS impressions,
-                COALESCE(agg.clicks, 0) AS clicks,
-                COALESCE(agg.purchases, 0) AS purchases,
-                COALESCE(agg.purchase_value, 0) AS purchase_value,
-                es.effective_status, es.status
-            FROM meta_entity_status es
-            LEFT JOIN (
+            SELECT agg.*, es.effective_status, es.status
+            FROM (
                 SELECT campaign_id, MAX(campaign_name) AS campaign_name, MAX(ad_account) AS ad_account,
                     COALESCE(SUM(spend),0) AS spend,
                     COALESCE(SUM(impressions),0) AS impressions,
@@ -724,13 +711,17 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
                     COALESCE(SUM(purchases),0) AS purchases,
                     COALESCE(SUM(purchase_value),0) AS purchase_value
                 FROM meta_adset_stats
-                WHERE {' AND '.join(inner_where)}
+                WHERE {' AND '.join(where)}
                 GROUP BY campaign_id
-            ) agg ON es.entity_id = agg.campaign_id
-            WHERE {' AND '.join(outer_where)}
-            ORDER BY spend DESC
+            ) agg
+            LEFT JOIN meta_entity_status es ON agg.campaign_id = es.entity_id
+                AND es.level = 'campaign'
         """
-        rows = conn.execute(sql, inner_params + outer_params).fetchall()
+        if user_id is not None:
+            sql += "\n            AND es.user_id = ?"
+            params.append(user_id)
+        sql += "\n            ORDER BY spend DESC"
+        rows = conn.execute(sql, params).fetchall()
         out = []
         for r in rows:
             m = _row_metrics(r["spend"], r["impressions"], r["clicks"],
@@ -746,55 +737,39 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
 
 def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
                 end_date: str = None, user_id: int = None) -> List[Dict[str, Any]]:
-    """某账户（可指定系列）下按「广告组」聚合的表现（含零消耗广告组）"""
+    """某账户（可指定系列）下按「广告组」聚合的表现"""
     with database.get_conn() as conn:
-        # 外层：meta_entity_status 筛选
-        outer_where = ["es.level = 'adset'", "es.ad_account = ?"]
-        outer_params: List = [account]
-        if user_id is not None:
-            outer_where.append("es.user_id = ?")
-            outer_params.append(user_id)
-        # 内层：统计聚合
-        inner_where = ["ad_account = ?"]
-        inner_params: List = [account]
+        where = ["ad_account = ?"]
+        params: List = [account]
         if campaign_id:
-            inner_where.append("campaign_id = ?"); inner_params.append(campaign_id)
+            where.append("campaign_id = ?"); params.append(campaign_id)
         if start_date:
-            inner_where.append("date >= ?"); inner_params.append(start_date)
+            where.append("date >= ?"); params.append(start_date)
         if end_date:
-            inner_where.append("date <= ?"); inner_params.append(end_date)
-        _add_user_filter(inner_where, inner_params, user_id)
-        # campaign_id 过滤：通过 parent_id 匹配
-        cid_filter = ""
-        if campaign_id:
-            cid_filter = "AND es.parent_id = ?"
-            outer_params.append(campaign_id)
+            where.append("date <= ?"); params.append(end_date)
+        _add_user_filter(where, params, user_id)
         sql = f"""
-            SELECT es.entity_id AS adset_id,
-                COALESCE(agg.adset_name, '') AS adset_name,
-                COALESCE(agg.campaign_id, '') AS campaign_id,
-                COALESCE(agg.campaign_name, '') AS campaign_name,
-                COALESCE(agg.spend, 0) AS spend,
-                COALESCE(agg.impressions, 0) AS impressions,
-                COALESCE(agg.clicks, 0) AS clicks,
-                COALESCE(agg.purchases, 0) AS purchases,
-                COALESCE(agg.purchase_value, 0) AS purchase_value,
-                es.effective_status, es.status
-            FROM meta_entity_status es
-            LEFT JOIN (
+            SELECT agg.*, es.effective_status, es.status
+            FROM (
                 SELECT adset_id, MAX(adset_name) AS adset_name,
-                    MAX(campaign_id) AS campaign_id, MAX(campaign_name) AS campaign_name,
-                    COALESCE(SUM(spend),0) AS spend, COALESCE(SUM(impressions),0) AS impressions,
-                    COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(purchases),0) AS purchases,
+                    campaign_id, MAX(campaign_name) AS campaign_name,
+                    COALESCE(SUM(spend),0) AS spend,
+                    COALESCE(SUM(impressions),0) AS impressions,
+                    COALESCE(SUM(clicks),0) AS clicks,
+                    COALESCE(SUM(purchases),0) AS purchases,
                     COALESCE(SUM(purchase_value),0) AS purchase_value
                 FROM meta_adset_stats
-                WHERE {' AND '.join(inner_where)}
+                WHERE {' AND '.join(where)}
                 GROUP BY adset_id
-            ) agg ON es.entity_id = agg.adset_id
-            WHERE {' AND '.join(outer_where)} {cid_filter}
-            ORDER BY spend DESC
+            ) agg
+            LEFT JOIN meta_entity_status es ON agg.adset_id = es.entity_id
+                AND es.level = 'adset'
         """
-        rows = conn.execute(sql, inner_params + outer_params).fetchall()
+        if user_id is not None:
+            sql += "\n            AND es.user_id = ?"
+            params.append(user_id)
+        sql += "\n            ORDER BY spend DESC"
+        rows = conn.execute(sql, params).fetchall()
         out = []
         for r in rows:
             m = _row_metrics(r["spend"], r["impressions"], r["clicks"],
@@ -811,48 +786,21 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
 
 def meta_ads(account: str, adset_id: str = None, start_date: str = None,
              end_date: str = None, user_id: int = None) -> List[Dict[str, Any]]:
-    """某账户（可指定广告组）下按「广告」聚合的表现，附带素材缩略图（含零消耗广告）。"""
+    """某账户（可指定广告组）下按「广告」聚合的表现，附带素材缩略图。"""
     with database.get_conn() as conn:
-        # 外层：meta_entity_status 筛选
-        outer_where = ["es.level = 'ad'", "es.ad_account = ?"]
-        outer_params: List = [account]
-        if user_id is not None:
-            outer_where.append("es.user_id = ?")
-            outer_params.append(user_id)
-        # 内层：统计 + 素材
-        inner_where = ["s.ad_account = ?"]
-        inner_params: List = [account]
+        where = ["s.ad_account = ?"]
+        params: List = [account]
         if adset_id:
-            inner_where.append("s.adset_id = ?"); inner_params.append(adset_id)
+            where.append("s.adset_id = ?"); params.append(adset_id)
         if start_date:
-            inner_where.append("s.date >= ?"); inner_params.append(start_date)
+            where.append("s.date >= ?"); params.append(start_date)
         if end_date:
-            inner_where.append("s.date <= ?"); inner_params.append(end_date)
+            where.append("s.date <= ?"); params.append(end_date)
         if user_id is not None:
-            inner_where.append("s.user_id = ?"); inner_params.append(user_id)
-        # adset_id 过滤：通过 parent_id 匹配
-        asid_filter = ""
-        if adset_id:
-            asid_filter = "AND es.parent_id = ?"
-            outer_params.append(adset_id)
+            where.append("s.user_id = ?"); params.append(user_id)
         sql = f"""
-            SELECT es.entity_id AS ad_id,
-                COALESCE(agg.ad_name, '') AS ad_name,
-                COALESCE(agg.adset_id, '') AS adset_id,
-                COALESCE(agg.adset_name, '') AS adset_name,
-                COALESCE(agg.campaign_id, '') AS campaign_id,
-                COALESCE(agg.campaign_name, '') AS campaign_name,
-                COALESCE(agg.spend, 0) AS spend,
-                COALESCE(agg.impressions, 0) AS impressions,
-                COALESCE(agg.clicks, 0) AS clicks,
-                COALESCE(agg.purchases, 0) AS purchases,
-                COALESCE(agg.purchase_value, 0) AS purchase_value,
-                COALESCE(agg.local_path, '') AS local_path,
-                COALESCE(agg.thumbnail_url, '') AS thumbnail_url,
-                COALESCE(agg.video_id, '') AS video_id,
-                es.effective_status, es.status
-            FROM meta_entity_status es
-            LEFT JOIN (
+            SELECT agg.*, es.effective_status, es.status
+            FROM (
                 SELECT s.ad_id, MAX(s.ad_name) AS ad_name,
                     s.adset_id, MAX(s.adset_name) AS adset_name,
                     s.campaign_id, MAX(s.campaign_name) AS campaign_name,
@@ -866,13 +814,17 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
                     MAX(c.video_id) AS video_id
                 FROM meta_ad_stats s
                 LEFT JOIN meta_ad_creatives c ON c.ad_id = s.ad_id AND c.user_id = s.user_id
-                WHERE {' AND '.join(inner_where)}
+                WHERE {' AND '.join(where)}
                 GROUP BY s.ad_id
-            ) agg ON es.entity_id = agg.ad_id
-            WHERE {' AND '.join(outer_where)} {asid_filter}
-            ORDER BY spend DESC
+            ) agg
+            LEFT JOIN meta_entity_status es ON agg.ad_id = es.entity_id
+                AND es.level = 'ad'
         """
-        rows = conn.execute(sql, inner_params + outer_params).fetchall()
+        if user_id is not None:
+            sql += "\n            AND es.user_id = ?"
+            params.append(user_id)
+        sql += "\n            ORDER BY spend DESC"
+        rows = conn.execute(sql, params).fetchall()
         out = []
         for r in rows:
             m = _row_metrics(r["spend"], r["impressions"], r["clicks"],
