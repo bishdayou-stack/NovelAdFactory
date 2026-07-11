@@ -1392,6 +1392,8 @@ def sync_all_meta_insights(user_id: int = None, concurrency: int = 1) -> Dict[st
     for a in accounts:
         if a.get("status") != "active":
             continue
+        if a.get("user_id") is None:
+            continue  # 未分配用户，跳过
         token = a.get("access_token") or default_token
         if token:
             active_accounts.append((a["act_id"], token))

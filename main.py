@@ -4399,6 +4399,8 @@ def _trigger_meta_sync(user: dict = Depends(get_current_user),
     for a in accounts:
         if a.get("status") != "active":
             continue
+        if a.get("user_id") is None:
+            continue  # 未分配用户，跳过
         token = a.get("access_token") or ""
         if not token:
             token = _load_meta_default_token()
