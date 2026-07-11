@@ -1418,24 +1418,28 @@ def sync_all_meta_insights(user_id: int = None, concurrency: int = 1) -> Dict[st
     total_count = 0
     errors = []
 
-    # 逐个串行同步，每个账户间隔 3 秒，避免触发 Meta 风控
-    for i, (act_id, token) in enumerate(active_accounts):
-        print(f"[Meta同步] 账户 {i+1}/{len(active_accounts)}: {act_id} ...")
-        try:
-            a_result = _sync_one_meta_account(act_id, token, uid)
-            act_id, count, err = a_result
-        except Exception as e:
-            act_id, count, err = act_id, 0, str(e)
-        result["accounts"][act_id] = {"count": count, "error": err}
-        total_count += count
-        if err:
-            errors.append(f"{act_id}: {err}")
-            print(f"[Meta同步]   ✗ {err[:80]}")
-        else:
-            print(f"[Meta同步]   ✓ {count} 条")
-        # 账户间延迟，避免风控
-        if i < len(active_accounts) - 1:
-            time.sleep(5)
+    # 并发同步（每个账户内部已有速率限制）
+    from concurrent.futures import as_completed
+    workers = max(1, min(concurrency, len(active_accounts)))
+    print(f"[Meta同步] 并行度 {workers}, 共 {len(active_accounts)} 个账户")
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {}
+        for act_id, token in active_accounts:
+            f = pool.submit(_sync_one_meta_account, act_id, token, uid)
+            futures[f] = act_id
+        for i, f in enumerate(as_completed(futures)):
+            act_id = futures[f]
+            try:
+                a_id, count, err = f.result()
+            except Exception as e:
+                count, err = 0, str(e)
+            result["accounts"][act_id] = {"count": count, "error": err}
+            total_count += count
+            if err:
+                errors.append(f"{act_id}: {err}")
+                print(f"[Meta同步] {i+1}/{len(active_accounts)} ✗ {act_id}: {err[:80]}")
+            else:
+                print(f"[Meta同步] {i+1}/{len(active_accounts)} ✓ {act_id}: {count}条")
 
     succeeded = len(active_accounts) - len(errors)
     result["total_count"] = total_count
