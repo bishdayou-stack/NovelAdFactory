@@ -536,13 +536,6 @@ def init_db() -> None:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(level, entity_id, user_id)
             );
-            -- 迁移：补充 parent_id 列
-            c.execute("PRAGMA table_info('meta_entity_status')")
-            cols = [r[1] for r in c.fetchall()]
-            if 'parent_id' not in cols:
-                c.execute("ALTER TABLE meta_entity_status ADD COLUMN parent_id TEXT")
-            -- 迁移：统一 ad_account 格式（补齐 act_ 前缀）
-            c.execute("UPDATE meta_entity_status SET ad_account = 'act_' || ad_account WHERE ad_account NOT LIKE 'act_%'")
 
             CREATE TABLE IF NOT EXISTS orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -728,6 +721,15 @@ def init_db() -> None:
                 registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+
+        # 迁移：meta_entity_status 补充 parent_id 列
+        c = conn.cursor()
+        c.execute("PRAGMA table_info('meta_entity_status')")
+        cols = [r[1] for r in c.fetchall()]
+        if 'parent_id' not in cols:
+            c.execute("ALTER TABLE meta_entity_status ADD COLUMN parent_id TEXT")
+        # 迁移：统一 ad_account 格式
+        c.execute("UPDATE meta_entity_status SET ad_account = 'act_' || ad_account WHERE ad_account NOT LIKE 'act_%'")
 
         # 迁移：hit_materials 增加 ad_id（用于爆款库按广告实时汇总 Meta 数据）
         existing_hit = {r["name"] for r in conn.execute("PRAGMA table_info('hit_materials')").fetchall()}
