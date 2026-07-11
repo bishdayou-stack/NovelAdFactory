@@ -4380,6 +4380,35 @@ def _refresh_meta_token(act_id: str, body: TokenRefreshBody,
 _meta_sync_progress: Dict[int, dict] = {}
 _meta_sync_lock = threading.Lock()
 
+@app.post("/api/meta/sync-account/{act_id}")
+def _trigger_single_account_sync(act_id: str, user: dict = Depends(get_current_user)):
+    """单独同步某个 Meta 账户"""
+    uid = user["id"]
+    accounts = database.get_meta_accounts(uid)
+    account = None
+    for a in accounts:
+        if a.get("act_id") == act_id and a.get("status") == "active":
+            account = a; break
+    if not account and user.get("role") == "admin":
+        all_accts = database.get_meta_accounts(None)
+        for a in all_accts:
+            if a.get("act_id") == act_id and a.get("status") == "active":
+                account = a; uid = a.get("user_id") or uid; break
+    if not account:
+        return {"success": False, "message": "账户不存在或已停用"}
+    token = account.get("access_token") or _load_meta_default_token()
+    if not token:
+        return {"success": False, "message": "该账户无有效 Token"}
+    def _bg_single():
+        try:
+            a_id, count, err = scraper._sync_one_meta_account(act_id, token, uid)
+            print(f"[单账户同步] {account.get('act_name', act_id)}: {count}条, err={err or '无'}")
+        except Exception as e:
+            print(f"[单账户同步] {account.get('act_name', act_id)} 失败: {e}")
+    _EXECUTOR.submit(_bg_single)
+    return {"success": True, "message": f"开始同步 {account.get('act_name', act_id)}"}
+
+
 @app.post("/api/meta/sync")
 def _trigger_meta_sync(user: dict = Depends(get_current_user),
                        target_user_id: int = None):
