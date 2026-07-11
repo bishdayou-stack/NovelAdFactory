@@ -524,6 +524,26 @@ def init_db() -> None:
                 UNIQUE(ad_id, user_id)
             );
 
+            CREATE TABLE IF NOT EXISTS meta_entity_status (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                level TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                ad_account TEXT,
+                parent_id TEXT,
+                effective_status TEXT,
+                status TEXT,
+                user_id INTEGER DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(level, entity_id, user_id)
+            );
+            -- 迁移：补充 parent_id 列
+            c.execute("PRAGMA table_info('meta_entity_status')")
+            cols = [r[1] for r in c.fetchall()]
+            if 'parent_id' not in cols:
+                c.execute("ALTER TABLE meta_entity_status ADD COLUMN parent_id TEXT")
+            -- 迁移：统一 ad_account 格式（补齐 act_ 前缀）
+            c.execute("UPDATE meta_entity_status SET ad_account = 'act_' || ad_account WHERE ad_account NOT LIKE 'act_%'")
+
             CREATE TABLE IF NOT EXISTS orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 order_id TEXT UNIQUE NOT NULL,
@@ -1859,6 +1879,35 @@ def upsert_meta_ad_creative(rec: Dict[str, Any], user_id: int = None) -> None:
             rec.get("thumbnail_url", ""), rec.get("image_url", ""),
             rec.get("video_id", ""), rec.get("local_path", ""), uid,
         ))
+
+def upsert_meta_entity_statuses(level: str, rows: List[Dict[str, Any]],
+                                user_id: int = None) -> int:
+    """批量写入/更新某层级(campaign/adset/ad)的投放状态。rows: [{entity_id, ad_account, effective_status, status, parent_id}]"""
+    uid = user_id or 1
+    if not rows:
+        return 0
+    n = 0
+    with get_conn() as conn:
+        for r in rows:
+            eid = r.get("entity_id", "")
+            if not eid:
+                continue
+            conn.execute("""
+                INSERT INTO meta_entity_status (level, entity_id, ad_account, parent_id,
+                    effective_status, status, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(level, entity_id, user_id) DO UPDATE SET
+                    ad_account=excluded.ad_account,
+                    parent_id=excluded.parent_id,
+                    effective_status=excluded.effective_status,
+                    status=excluded.status,
+                    updated_at=CURRENT_TIMESTAMP
+            """, (
+                level, eid, r.get("ad_account", ""), r.get("parent_id", ""),
+                r.get("effective_status", ""), r.get("status", ""), uid,
+            ))
+            n += 1
+    return n
 
 def get_meta_ad_ids_with_stats(act_id: str, user_id: int = None,
                                since_date: str = None) -> List[str]:

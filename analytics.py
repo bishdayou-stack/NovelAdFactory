@@ -730,7 +730,7 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
             WHERE {' AND '.join(outer_where)}
             ORDER BY spend DESC
         """
-        rows = conn.execute(sql, outer_params + inner_params).fetchall()
+        rows = conn.execute(sql, inner_params + outer_params).fetchall()
         out = []
         for r in rows:
             m = _row_metrics(r["spend"], r["impressions"], r["clicks"],
@@ -764,10 +764,10 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
         if end_date:
             inner_where.append("date <= ?"); inner_params.append(end_date)
         _add_user_filter(inner_where, inner_params, user_id)
-        # campaign_id 过滤：通过子查询查有统计的 adset
+        # campaign_id 过滤：通过 parent_id 匹配
         cid_filter = ""
         if campaign_id:
-            cid_filter = "AND es.entity_id IN (SELECT DISTINCT adset_id FROM meta_adset_stats WHERE campaign_id = ?)"
+            cid_filter = "AND es.parent_id = ?"
             outer_params.append(campaign_id)
         sql = f"""
             SELECT es.entity_id AS adset_id,
@@ -794,7 +794,7 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
             WHERE {' AND '.join(outer_where)} {cid_filter}
             ORDER BY spend DESC
         """
-        rows = conn.execute(sql, outer_params + inner_params).fetchall()
+        rows = conn.execute(sql, inner_params + outer_params).fetchall()
         out = []
         for r in rows:
             m = _row_metrics(r["spend"], r["impressions"], r["clicks"],
@@ -830,10 +830,10 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
             inner_where.append("s.date <= ?"); inner_params.append(end_date)
         if user_id is not None:
             inner_where.append("s.user_id = ?"); inner_params.append(user_id)
-        # adset_id 过滤
+        # adset_id 过滤：通过 parent_id 匹配
         asid_filter = ""
         if adset_id:
-            asid_filter = "AND es.entity_id IN (SELECT DISTINCT ad_id FROM meta_ad_stats WHERE adset_id = ?)"
+            asid_filter = "AND es.parent_id = ?"
             outer_params.append(adset_id)
         sql = f"""
             SELECT es.entity_id AS ad_id,
@@ -872,7 +872,7 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
             WHERE {' AND '.join(outer_where)} {asid_filter}
             ORDER BY spend DESC
         """
-        rows = conn.execute(sql, outer_params + inner_params).fetchall()
+        rows = conn.execute(sql, inner_params + outer_params).fetchall()
         out = []
         for r in rows:
             m = _row_metrics(r["spend"], r["impressions"], r["clicks"],

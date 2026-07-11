@@ -199,6 +199,48 @@ def get_ads_with_creative(act_id: str, access_token: str,
         next_url = d.get("paging", {}).get("next")
     return all_data, None
 
+def get_entity_statuses(act_id: str, access_token: str,
+                        level: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    """拉取某层级所有实体的投放状态。level: campaign/adset/ad。
+    返回 [{entity_id, effective_status, status, parent_id}]。
+    parent_id: campaign 为空，adset 为所属 campaign_id，ad 为所属 adset_id。"""
+    edge = {"campaign": "campaigns", "adset": "adsets", "ad": "ads"}.get(level)
+    if not edge:
+        return None, f"未知层级: {level}"
+    # 按层级决定请求字段和 parent_id 映射
+    if level == "campaign":
+        fields = "id,effective_status,status"
+        parent_from = lambda x: ""
+    elif level == "adset":
+        fields = "id,effective_status,status,campaign_id"
+        parent_from = lambda x: x.get("campaign_id", "")
+    else:  # ad
+        fields = "id,effective_status,status,campaign_id,adset_id"
+        parent_from = lambda x: x.get("adset_id", "")
+    _check_rate(act_id)
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/{edge}"
+    data, err = _http_request("GET", url, params={
+        "access_token": access_token,
+        "fields": fields,
+        "limit": "500",
+    })
+    if err:
+        return None, err
+    all_data = list(data.get("data", []))
+    next_url = data.get("paging", {}).get("next")
+    while next_url:
+        _check_rate(act_id)
+        d, e = _http_request("GET", next_url)
+        if e:
+            break
+        all_data.extend(d.get("data", []))
+        next_url = d.get("paging", {}).get("next")
+    out = [{"entity_id": x.get("id", ""),
+            "effective_status": x.get("effective_status", ""),
+            "status": x.get("status", ""),
+            "parent_id": parent_from(x)} for x in all_data]
+    return out, None
+
 def download_file(url: str, dest_path: str, timeout: int = 30) -> Tuple[bool, Optional[str]]:
     """用 curl 下载文件到本地（代理感知）。返回 (成功, 错误)。"""
     if not url:
