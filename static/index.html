@@ -5499,7 +5499,10 @@
         pollCount++;
         try {
           var pr = await fetch('/api/meta/sync-progress').then(function(r) { return r.json(); });
-          if (pr.status === 'running') {
+          if (pr.status === 'idle') {
+            clearInterval(timer);
+            statusEl.textContent = '';
+          } else if (pr.status === 'running') {
             var cur = pr.current || 0;
             statusEl.textContent = '同步中 ' + cur + '/' + pr.total + ' ' + (pr.current_account || '');
           } else if (pr.status === 'done') {
