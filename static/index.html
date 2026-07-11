@@ -5504,10 +5504,15 @@
             statusEl.textContent = '同步中 ' + cur + '/' + pr.total + ' ' + (pr.current_account || '');
           } else if (pr.status === 'done') {
             clearInterval(timer);
-            var ok = 0, fail = 0;
-            (pr.results || []).forEach(function(r) { if (r.status === 'done') ok++; else fail++; });
+            var ok = 0, fail = 0, errs = [];
+            (pr.results || []).forEach(function(r) { if (r.status === 'done') ok++; else { fail++; if (r.error) errs.push(r.act_name + ': ' + r.error); } });
             var msg = '完成: ' + ok + '成功';
-            if (fail > 0) msg += ', ' + fail + '失败';
+            if (fail > 0) {
+              msg += ', ' + fail + '失败';
+              if (errs.length > 0) msg += ' | ' + errs.slice(0, 3).join('; ');
+              statusEl.title = errs.join('\n');
+              statusEl.style.cursor = 'help';
+            }
             var tc = pr.total_count || 0;
             statusEl.textContent = msg + ' (' + tc + '条)';
             refreshMetaDashboard();
