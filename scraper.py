@@ -1109,12 +1109,17 @@ def _load_default_token() -> Optional[str]:
 
 def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
                                      from_date: str, to_date: str,
-                                     user_id: int) -> int:
-    """同步单个账户的「广告级」Insights（含所属系列/广告组信息），一次拉取 level=ad，
+                                     user_id: int,
+                                     rows: list = None) -> int:
+    """同步单个账户的「广告级」Insights（含所属系列/广告组信息），
     同时聚合出 广告级(meta_ad_stats) 与 广告组级(meta_adset_stats)。
-    系列级由查询时对广告组 GROUP BY 得出。返回广告级写入行数。"""
-    rows, err = meta_api.get_insights(act_id, access_token, from_date, to_date, level="ad")
-    if err or not rows:
+    系列级由查询时对广告组 GROUP BY 得出。返回广告级写入行数。
+    若传入 rows 则复用已有数据，避免重复 API 调用。"""
+    if rows is None:
+        rows, err = meta_api.get_insights(act_id, access_token, from_date, to_date, level="ad")
+        if err or not rows:
+            return 0
+    elif not rows:
         return 0
     from collections import defaultdict
 
@@ -1205,9 +1210,23 @@ def _sync_meta_creatives(act_id: str, access_token: str, from_date: str, user_id
     return cached
 
 
+def _sync_meta_statuses(act_id: str, access_token: str, user_id: int) -> int:
+    """拉取该账户 系列/广告组/广告 三层的投放状态，写入 meta_entity_status。返回写入总数。"""
+    total = 0
+    for level in ("campaign", "adset", "ad"):
+        rows, err = meta_api.get_entity_statuses(act_id, access_token, level)
+        if err or not rows:
+            continue
+        for r in rows:
+            r["ad_account"] = act_id
+        total += database.upsert_meta_entity_statuses(level, rows, user_id)
+    return total
+
+
 def _sync_one_meta_account(act_id: str, access_token: str,
                            user_id: int) -> Tuple[str, int, str]:
     """同步单个 Meta 账户的 Insights 数据，返回 (act_id, count, error)"""
+    t_start = time.time()
     last_date = database.get_meta_sync_state(act_id, user_id)
     today = dt.utcnow().strftime("%Y-%m-%d")
 
@@ -1222,7 +1241,9 @@ def _sync_one_meta_account(act_id: str, access_token: str,
     else:
         from_date = (dt.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
 
+    t0 = time.time()
     rows, err = meta_api.get_insights(act_id, access_token, from_date, today)
+    print(f"  [meta] {act_id} insights({from_date}~{today}): {len(rows) if rows else 0}行, {time.time()-t0:.1f}s")
     if err:
         # 同步失败 → 检查 Meta 端是否停用了该账户
         try:
@@ -1314,15 +1335,27 @@ def _sync_one_meta_account(act_id: str, access_token: str,
     count = database.upsert_meta_insights(act_id, agg_rows, user_id)
     database.set_meta_sync_state(act_id, today, user_id)
     # 追加同步「系列/广告组/广告」级明细（失败不影响账户级同步）
+    t0 = time.time()
     try:
-        _sync_one_meta_account_breakdown(act_id, access_token, from_date, today, user_id)
+        _sync_one_meta_account_breakdown(act_id, access_token, from_date, today, user_id, rows)
     except Exception as _e:
         print(f"[meta breakdown] {act_id} 明细同步失败: {_e}")
+    print(f"  [meta] {act_id} breakdown: {time.time()-t0:.1f}s")
     # 追加同步广告素材缩略图到本地缓存（失败不影响主同步）
+    t0 = time.time()
     try:
         _sync_meta_creatives(act_id, access_token, from_date, user_id)
     except Exception as _e:
         print(f"[meta creative] {act_id} 素材同步失败: {_e}")
+    print(f"  [meta] {act_id} creatives: {time.time()-t0:.1f}s")
+    # 追加同步 系列/组/广告 三层投放状态（失败不影响主同步）
+    t0 = time.time()
+    try:
+        _sync_meta_statuses(act_id, access_token, user_id)
+    except Exception as _e:
+        print(f"[meta status] {act_id} 状态同步失败: {_e}")
+    print(f"  [meta] {act_id} statuses: {time.time()-t0:.1f}s")
+    print(f"  [meta] {act_id} 总耗时: {time.time()-t_start:.1f}s")
     return act_id, count, ""
 
 
