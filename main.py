@@ -12,7 +12,7 @@ import asyncio
 import numpy as np
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 import subprocess as _subprocess
 import tempfile as _tempfile
@@ -4425,10 +4425,8 @@ def _trigger_meta_sync(user: dict = Depends(get_current_user),
                 _meta_sync_progress[uid]["current_account"] = act_id
 
             try:
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(scraper._sync_one_meta_account,
-                        act_id, acct["token"], acct.get("owner_user_id", uid))
-                    a_id, count, err = future.result(timeout=90)
+                a_id, count, err = scraper._sync_one_meta_account(
+                    act_id, acct["token"], acct.get("owner_user_id", uid))
                 total_count += count
                 with _meta_sync_lock:
                     if uid in _meta_sync_progress:
@@ -4436,13 +4434,6 @@ def _trigger_meta_sync(user: dict = Depends(get_current_user),
                             "act_id": act_id, "act_name": acct["act_name"],
                             "count": count, "error": err or "",
                             "status": "done" if not err else "error"
-                        })
-            except FuturesTimeoutError:
-                with _meta_sync_lock:
-                    if uid in _meta_sync_progress:
-                        _meta_sync_progress[uid]["results"].append({
-                            "act_id": act_id, "act_name": acct["act_name"],
-                            "count": 0, "error": "同步超时(>60秒)", "status": "error"
                         })
             except Exception as e:
                 with _meta_sync_lock:
