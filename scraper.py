@@ -1252,8 +1252,12 @@ def _sync_one_meta_account(act_id: str, access_token: str,
             from_date = min_date
         if from_date > today:
             return act_id, 0, ""
+        # 增量同步：广告系列侧从上次同步日拉取
+        campaign_from = from_date
     else:
         from_date = (dt.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
+        # 首次同步：广告系列侧只拉近15天
+        campaign_from = (dt.utcnow() - timedelta(days=15)).strftime("%Y-%m-%d")
 
     t0 = time.time()
     rows, err = meta_api.get_insights(act_id, access_token, from_date, today)
@@ -1351,14 +1355,14 @@ def _sync_one_meta_account(act_id: str, access_token: str,
     # 追加同步「系列/广告组/广告」级明细（失败不影响账户级同步）
     t0 = time.time()
     try:
-        _sync_one_meta_account_breakdown(act_id, access_token, from_date, today, user_id, rows)
+        _sync_one_meta_account_breakdown(act_id, access_token, campaign_from, today, user_id, rows)
     except Exception as _e:
         print(f"[meta breakdown] {act_id} 明细同步失败: {_e}")
-    print(f"  [meta] {act_id} breakdown: {time.time()-t0:.1f}s")
+    print(f"  [meta] {act_id} breakdown({campaign_from}~{today}): {time.time()-t0:.1f}s")
     # 追加同步广告素材缩略图到本地缓存（失败不影响主同步）
     t0 = time.time()
     try:
-        _sync_meta_creatives(act_id, access_token, from_date, user_id)
+        _sync_meta_creatives(act_id, access_token, campaign_from, user_id)
     except Exception as _e:
         print(f"[meta creative] {act_id} 素材同步失败: {_e}")
     print(f"  [meta] {act_id} creatives: {time.time()-t0:.1f}s")
