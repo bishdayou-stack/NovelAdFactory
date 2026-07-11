@@ -872,13 +872,15 @@
           <div id="campSelectedName" class="text-[11px] text-slate-400 truncate max-w-[220px]"></div>
           <span id="campLastSync" class="text-[11px] text-slate-500"></span>
         </div>
-        <div class="flex items-center gap-1 mb-3" id="campStatusFilter">
-          <span class="text-[10px] text-slate-500 mr-1">状态筛选:</span>
-          <button data-status="" class="campStatusPillActive px-2.5 py-1 text-[10px] font-medium rounded-md transition-all bg-slate-700 text-white">全部</button>
-          <button data-status="ACTIVE" class="px-2.5 py-1 text-[10px] font-medium rounded-md transition-all text-slate-400 hover:text-white">投放中</button>
-          <button data-status="PAUSED" class="px-2.5 py-1 text-[10px] font-medium rounded-md transition-all text-slate-400 hover:text-white">已暂停</button>
-          <button data-status="ARCHIVED" class="px-2.5 py-1 text-[10px] font-medium rounded-md transition-all text-slate-400 hover:text-white">已归档</button>
-          <button data-status="IN_REVIEW" class="px-2.5 py-1 text-[10px] font-medium rounded-md transition-all text-slate-400 hover:text-white">审核中</button>
+        <div class="flex items-center gap-1.5 mb-3" id="campStatusFilter">
+          <span class="text-[10px] text-slate-500">状态:</span>
+          <select id="campStatusSelect" class="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] text-white focus:border-indigo-500 focus:outline-none">
+            <option value="">全部</option>
+            <option value="ACTIVE">投放中</option>
+            <option value="PAUSED">已暂停</option>
+            <option value="ARCHIVED">已归档</option>
+            <option value="IN_REVIEW">审核中</option>
+          </select>
         </div>
         <div class="card-dark p-4">
           <h3 class="text-xs font-semibold text-slate-300 mb-2">广告系列 / 广告组明细 <span class="text-slate-500 font-normal">（点系列行展开广告组）</span></h3>
@@ -4936,16 +4938,14 @@
 
     function loadCampPage() {
       loadCampLastSync();
-      // 绑定状态筛选按钮
-      var filterBtns = document.querySelectorAll('#campStatusFilter button');
-      filterBtns.forEach(function(btn) {
-        btn.onclick = function() {
-          filterBtns.forEach(function(b) { b.className = 'px-2.5 py-1 text-[10px] font-medium rounded-md transition-all text-slate-400 hover:text-white'; });
-          btn.className = 'campStatusPillActive px-2.5 py-1 text-[10px] font-medium rounded-md transition-all bg-slate-700 text-white';
-          _campStatusFilter = btn.dataset.status || '';
+      // 绑定状态筛选下拉框
+      var sel = document.getElementById('campStatusSelect');
+      if (sel) {
+        sel.onchange = function() {
+          _campStatusFilter = sel.value;
           applyCampStatusFilter();
         };
-      });
+      }
       fetch('/api/meta/accounts').then(function(r) { return r.json(); }).then(function(data) {
         _campAccounts = data.accounts || data || [];
         renderCampTree();
