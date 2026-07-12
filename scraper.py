@@ -1043,8 +1043,7 @@ def run_full_sync(user_id: int = None) -> Dict[str, Any]:
     result = {"success": True, "login_required": False,
               "ads": {"count": 0, "error": ""},
               "orders": {"count": 0, "error": ""},
-              "novels": {"count": 0, "error": ""},
-              "chapters": {"count": 0, "error": ""}}
+              "novels": {"count": 0, "error": ""}}
 
     ads_count, ads_err = sync_ads(uid)
     result["ads"]["count"] = ads_count
@@ -1061,17 +1060,12 @@ def run_full_sync(user_id: int = None) -> Dict[str, Any]:
     result["novels"]["count"] = novels_count
     result["novels"]["error"] = novels_err
 
-    # 自动补缺章节内容
-    chapters_count, chapters_err = sync_missing_chapters(uid)
-    result["chapters"]["count"] = chapters_count
-    result["chapters"]["error"] = chapters_err
-
     login_lost = ("登录已失效" in ads_err or "登录已失效" in orders_err)
     if login_lost:
         clear_user_session(uid)
         result["login_required"] = True
 
-    all_failed = ads_err and orders_err and novels_err and chapters_err
+    all_failed = ads_err and orders_err and novels_err
     result["success"] = not all_failed
 
     failed_parts = []
@@ -1081,12 +1075,10 @@ def run_full_sync(user_id: int = None) -> Dict[str, Any]:
         failed_parts.append(f"订单: {orders_err}")
     if novels_err:
         failed_parts.append(f"小说: {novels_err}")
-    if chapters_err:
-        failed_parts.append(f"章节: {chapters_err}")
     if failed_parts:
         result["message"] = "部分同步失败: " + "; ".join(failed_parts)
     else:
-        result["message"] = f"同步完成，广告 {ads_count} 条，订单 {orders_count} 条，小说 {novels_count} 本，章节 {chapters_count} 本"
+        result["message"] = f"同步完成，广告 {ads_count} 条，订单 {orders_count} 条，小说 {novels_count} 本"
 
     return result
 

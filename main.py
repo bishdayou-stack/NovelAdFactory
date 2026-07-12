@@ -275,6 +275,26 @@ _scheduler.add_job(
 )
 _scheduler.start()
 
+# 章节补缺定时同步（每3小时一次，低频独立任务）
+def _auto_chapter_sync():
+    users = database.list_active_users_with_credentials()
+    for u in users:
+        try:
+            count, err = scraper.sync_missing_chapters(u["id"])
+            if count > 0:
+                print(f"[章节补缺] 用户 {u['username']}: {count} 章")
+            if err:
+                print(f"[章节补缺] 用户 {u['username']} 错误: {err}")
+        except Exception as e:
+            print(f"[章节补缺] 用户 {u.get('username', '?')} 失败: {e}")
+_scheduler.add_job(
+    _auto_chapter_sync,
+    'interval',
+    seconds=10800,  # 3 小时
+    id='chapter_sync',
+    max_instances=1,
+)
+
 # Meta 数据定时同步（遍历所有用户）
 meta_interval = json.loads(Path("config.json").read_text(encoding="utf-8")).get("meta", {}).get("sync_interval_seconds", 1200)
 if hasattr(scraper, 'sync_all_meta_insights'):
