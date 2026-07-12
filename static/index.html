@@ -154,13 +154,13 @@
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16l4-4 4 4 4-6"/></svg>
         <span class="truncate">Meta 管理</span>
       </button>
-      <button type="button" id="nav-bm-mgmt" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
-        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-        <span class="truncate">BM/App 管理</span>
-      </button>
       <button type="button" id="nav-meta-campaign" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
         <span class="truncate">广告系列</span>
+      </button>
+      <button type="button" id="nav-bm-mgmt" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        <span class="truncate">BM/App 管理</span>
       </button>
       <button type="button" id="nav-meta-gallery" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -192,7 +192,7 @@
 
   <!-- ====== 主内容区 ====== -->
   <main class="flex-1 flex flex-col min-h-screen min-w-0 overflow-hidden">
-    <header class="bg-white border-b border-slate-100 px-6 py-3.5 flex items-center justify-between shrink-0">
+    <header id="pageHeader" class="bg-white border-b border-slate-100 px-6 py-3.5 flex items-center justify-between shrink-0">
       <div>
         <div class="flex items-center gap-1.5 text-[11px] text-slate-400 mb-0.5">
           <span>控制台</span><span class="text-slate-300">/</span><span id="breadcrumb" class="text-slate-600 font-medium">生产中心</span>
@@ -844,48 +844,6 @@
     </div>
 
 
-    <!-- ====== Tab: BM/App 管理 ====== -->
-    <div id="tab-bm-mgmt" class="flex-1 bg-slate-900 overflow-y-auto px-5 py-4" hidden>
-      <!-- App 管理区域 -->
-      <div class="card-dark p-4 mb-4">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-white">App 管理</h3>
-          <button id="btnAddApp" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] text-white hover:bg-indigo-500 cursor-pointer border-0">新增 App</button>
-        </div>
-        <table class="w-full text-[12px]" id="appTable">
-          <thead><tr>
-            <th class="text-left text-slate-400 py-1 font-medium">名称</th>
-            <th class="text-left text-slate-400 py-1 font-medium">App ID</th>
-            <th class="text-center text-slate-400 py-1 font-medium">默认</th>
-            <th class="text-right text-slate-400 py-1 font-medium">操作</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <!-- BM 管理区域 -->
-      <div class="card-dark p-4">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-white">BM 管理</h3>
-          <div class="flex gap-2">
-            <button id="btnDiscoverBm" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] text-white hover:bg-emerald-500 cursor-pointer border-0">发现 BM</button>
-            <button id="btnAddBm" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] text-white hover:bg-indigo-500 cursor-pointer border-0">手动添加</button>
-          </div>
-        </div>
-        <table class="w-full text-[12px]" id="bmTable">
-          <thead><tr>
-            <th class="text-left text-slate-400 py-1 font-medium">BM 名称</th>
-            <th class="text-left text-slate-400 py-1 font-medium">BM ID</th>
-            <th class="text-center text-slate-400 py-1 font-medium">账户数</th>
-            <th class="text-center text-slate-400 py-1 font-medium">绑定 App</th>
-            <th class="text-center text-slate-400 py-1 font-medium">Token</th>
-            <th class="text-right text-slate-400 py-1 font-medium">操作</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
     <!-- ====== Tab: 广告系列 ====== -->
     <div id="tab-meta-campaign" class="flex-1 flex overflow-hidden" hidden>
       <!-- 左侧账户树 -->
@@ -937,6 +895,62 @@
       </div>
     </div>
 
+    <!-- ====== Tab: BM/App 管理 ====== -->
+    <div id="tab-bm-mgmt" class="flex-1 bg-slate-900 overflow-y-auto px-5 py-4" hidden>
+      <!-- 全局设置 -->
+      <div class="card-dark p-4 mb-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white">全局设置</h3>
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="text-[11px] text-slate-400 whitespace-nowrap">代理地址</label>
+          <input id="cfgGlobalProxy" class="flex-1 rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" placeholder="http://127.0.0.1:10808">
+          <button onclick="saveGlobalProxy()" class="rounded-lg bg-indigo-600 px-4 py-1.5 text-[11px] text-white hover:bg-indigo-500 cursor-pointer border-0">保存</button>
+          <span id="proxyMsg" class="text-[11px] text-emerald-400 hidden">已保存</span>
+        </div>
+      </div>
+
+      <!-- App 管理区域 -->
+      <div class="card-dark p-4 mb-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white">App 管理</h3>
+          <button id="btnAddApp" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] text-white hover:bg-indigo-500 cursor-pointer border-0">新增 App</button>
+        </div>
+        <table class="w-full text-[12px]" id="appTable">
+          <thead><tr>
+            <th class="text-left text-slate-400 py-1 font-medium">名称</th>
+            <th class="text-left text-slate-400 py-1 font-medium">App ID</th>
+            <th class="text-center text-slate-400 py-1 font-medium">默认</th>
+            <th class="text-right text-slate-400 py-1 font-medium">操作</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- BM 管理区域 -->
+      <div class="card-dark p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white">BM 管理</h3>
+          <div class="flex gap-2">
+            <button id="btnDiscoverBm" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] text-white hover:bg-emerald-500 cursor-pointer border-0">发现 BM</button>
+            <button id="btnAddBm" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] text-white hover:bg-indigo-500 cursor-pointer border-0">手动添加</button>
+          </div>
+        </div>
+        <table class="w-full text-[12px]" id="bmTable">
+          <thead><tr>
+            <th class="text-left text-slate-400 py-1 font-medium">BM 名称</th>
+            <th class="text-left text-slate-400 py-1 font-medium">BM ID</th>
+            <th class="text-center text-slate-400 py-1 font-medium">账户数</th>
+            <th class="text-center text-slate-400 py-1 font-medium">归属</th>
+            <th class="text-center text-slate-400 py-1 font-medium">绑定 App</th>
+            <th class="text-center text-slate-400 py-1 font-medium">Token</th>
+            <th class="text-right text-slate-400 py-1 font-medium">操作</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- ====== Tab: 素材画廊 ====== -->
     <div id="tab-meta-gallery" class="flex-1 flex flex-col overflow-hidden bg-slate-900" hidden>
       <div class="flex items-center gap-3 flex-wrap px-5 py-3 border-b border-slate-800">
@@ -967,46 +981,46 @@
     </div>
 
     <!-- ====== Tab: 账户分配 ====== -->
-    <div id="tab-meta-assign" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
-      <div class="flex items-center justify-between mb-4 mt-2">
-        <h2 class="text-lg font-bold text-slate-800">账户分配</h2>
-        <span class="text-xs text-slate-400">管理员将 Meta 账户分配给用户</span>
+    <div id="tab-meta-assign" class="flex-1 bg-slate-900 overflow-y-auto px-5 py-4" hidden>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-bold text-white">账户分配</h2>
+        <span class="text-xs text-slate-500">管理员将 Meta 账户分配给用户</span>
       </div>
       <div class="grid grid-cols-3 gap-4">
         <!-- 左侧账户树 -->
-        <div class="card p-4 max-h-[70vh] overflow-y-auto">
-          <h3 class="text-sm font-semibold text-slate-700 mb-3">Meta 账户列表</h3>
+        <div class="card-dark p-4 max-h-[70vh] overflow-y-auto">
+          <h3 class="text-sm font-semibold text-slate-300 mb-3">Meta 账户列表</h3>
           <div class="mb-2">
-            <input id="assignSearch" type="text" placeholder="搜索账户..." class="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs focus:border-indigo-400 focus:outline-none">
+            <input id="assignSearch" type="text" placeholder="搜索账户..." class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none">
           </div>
           <div class="flex items-center gap-2 mb-2">
-            <button onclick="assignSelectAll()" class="text-xs text-indigo-600 cursor-pointer border-0 bg-transparent">全选</button>
-            <button onclick="assignDeselectAll()" class="text-xs text-slate-400 cursor-pointer border-0 bg-transparent">取消</button>
+            <button onclick="assignSelectAll()" class="text-xs text-indigo-400 cursor-pointer border-0 bg-transparent hover:text-indigo-300">全选</button>
+            <button onclick="assignDeselectAll()" class="text-xs text-slate-500 cursor-pointer border-0 bg-transparent hover:text-slate-400">取消</button>
           </div>
-          <div id="assignAccountTree" class="text-xs space-y-0.5"></div>
+          <div id="assignAccountTree" class="text-sm space-y-0.5"></div>
         </div>
         <!-- 右侧操作区 -->
-        <div class="col-span-2 card p-4">
-          <h3 class="text-sm font-semibold text-slate-700 mb-3">分配操作</h3>
+        <div class="col-span-2 card-dark p-4">
+          <h3 class="text-sm font-semibold text-slate-300 mb-3">分配操作</h3>
           <div id="assignSelectedInfo" class="text-xs text-slate-400 mb-3">未选择任何账户</div>
           <div class="flex items-center gap-3 mb-4">
-            <select id="assignTargetUser" class="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
+            <select id="assignTargetUser" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
               <option value="">选择目标用户...</option>
             </select>
-            <button onclick="doAssignAccounts()" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 cursor-pointer">确认分配</button>
+            <button onclick="doAssignAccounts()" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 cursor-pointer border-0">确认分配</button>
           </div>
           <div id="assignMsg" class="text-xs text-slate-500"></div>
-          <hr class="my-3">
-          <h3 class="text-sm font-semibold text-slate-700 mb-2">快捷操作：整个 BM 分配</h3>
+          <hr class="my-3 border-slate-700">
+          <h3 class="text-sm font-semibold text-slate-300 mb-2">快捷操作：整个 BM 分配</h3>
           <div class="flex items-center gap-3">
-            <select id="assignBmSelect" class="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
+            <select id="assignBmSelect" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
               <option value="">选择 BM...</option>
             </select>
-            <span class="text-xs">→</span>
-            <select id="assignBmTarget" class="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
+            <span class="text-xs text-slate-500">→</span>
+            <select id="assignBmTarget" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
               <option value="">分配给...</option>
             </select>
-            <button onclick="doAssignBm()" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 cursor-pointer">一键分配</button>
+            <button onclick="doAssignBm()" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 cursor-pointer border-0">一键分配</button>
           </div>
           <div id="assignBmMsg" class="text-xs text-slate-500 mt-2"></div>
         </div>
@@ -1014,45 +1028,45 @@
     </div>
 
 <!-- ====== Tab: 爆款素材库 ====== -->
-    <div id="tab-hit-gallery" class="flex-1 px-6 pb-6 overflow-y-auto min-w-0" hidden>
-      <div class="flex items-center justify-between mb-4 mt-2">
+    <div id="tab-hit-gallery" class="flex-1 bg-slate-900 overflow-y-auto px-5 py-4 min-w-0" hidden>
+      <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-3">
-          <h2 class="text-lg font-bold text-slate-800">爆款素材库</h2>
-          <span id="hitGalleryCount" class="text-xs text-slate-400"></span>
+          <h2 class="text-sm font-bold text-white">爆款素材库</h2>
+          <span id="hitGalleryCount" class="text-xs text-slate-500"></span>
         </div>
         <div class="flex items-center gap-2">
-          <input id="hitGallerySearch" type="text" placeholder="搜索..." class="w-36 px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:border-amber-400 outline-none">
-          <select id="hitGallerySort" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 outline-none bg-white">
+          <input id="hitGallerySearch" type="text" placeholder="搜索..." class="w-36 px-3 py-1.5 text-xs rounded-lg border border-slate-700 bg-slate-800 text-white placeholder-slate-500 focus:border-amber-500 outline-none">
+          <select id="hitGallerySort" class="px-3 py-1.5 text-xs rounded-lg border border-slate-700 bg-slate-800 text-white outline-none focus:border-amber-500">
             <option value="registered_at">时间最新</option>
             <option value="roi">ROI 最高</option>
             <option value="spend">消耗最高</option>
             <option value="score">评分最高</option>
           </select>
-          <button id="hitGalleryRefresh" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 transition-all bg-white cursor-pointer">刷新</button>
+          <button id="hitGalleryRefresh" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-700 text-amber-400 hover:bg-amber-500/10 transition-all bg-slate-800 cursor-pointer">刷新</button>
         </div>
       </div>
       <div id="hitGalleryGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
-        <div class="text-center text-slate-300 text-xs col-span-full py-12">加载中...</div>
+        <div class="text-center text-slate-500 text-xs col-span-full py-12">加载中...</div>
       </div>
       <div id="hitGalleryPager" class="flex justify-center gap-1"></div>
     </div>
 
     <!-- ====== Tab: 配置管理 ====== -->
-    <div id="tab-config" class="flex-1 px-6 pb-6 overflow-y-auto min-w-0" hidden>
-      <div class="max-w-xl mx-auto mt-2">
-        <h2 class="text-lg font-bold text-slate-800 mb-4">API 配置</h2>
-        <div class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-sm">
-          <div><label class="mb-1 block text-sm font-medium text-slate-600">API 密钥</label><input id="apiKey" type="password" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none" placeholder="sk-..."><p id="apiKeyHint" class="mt-1 text-xs text-amber-600 hidden">⚠ 每个用户需配置自己的 API 密钥，不共享全局密钥。</p></div>
-          <div><label class="mb-1 block text-sm font-medium text-slate-600">API 地址</label><input id="apiUrl" type="text" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none"></div>
+    <div id="tab-config" class="flex-1 bg-slate-900 overflow-y-auto px-5 py-4 min-w-0" hidden>
+      <div class="max-w-xl mx-auto">
+        <h2 class="text-sm font-bold text-white mb-4">API 配置</h2>
+        <div class="card-dark p-6 space-y-4">
+          <div><label class="mb-1 block text-sm font-medium text-slate-400">API 密钥</label><input id="apiKey" type="password" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="sk-..."><p id="apiKeyHint" class="mt-1 text-xs text-amber-500 hidden">⚠ 每个用户需配置自己的 API 密钥，不共享全局密钥。</p></div>
+          <div><label class="mb-1 block text-sm font-medium text-slate-400">API 地址</label><input id="apiUrl" type="text" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"></div>
           <div class="grid grid-cols-2 gap-3">
-            <div><label class="mb-1 block text-sm font-medium text-slate-600">对话模型</label><input id="chatModel" type="text" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none"></div>
-            <div><label class="mb-1 block text-sm font-medium text-slate-600">出图模型</label><input id="imageModel" type="text" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none"></div>
+            <div><label class="mb-1 block text-sm font-medium text-slate-400">对话模型</label><input id="chatModel" type="text" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"></div>
+            <div><label class="mb-1 block text-sm font-medium text-slate-400">出图模型</label><input id="imageModel" type="text" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"></div>
           </div>
-          <div><label class="mb-1 block text-sm font-medium text-slate-600">并发数</label><input id="concurrencySlider" type="number" min="1" max="16" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 outline-none"></div>
+          <div><label class="mb-1 block text-sm font-medium text-slate-400">并发数</label><input id="concurrencySlider" type="number" min="1" max="16" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"></div>
           <div class="flex justify-end pt-2">
-            <button id="configSaveBtn" class="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">保存配置</button>
+            <button id="configSaveBtn" class="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer border-0">保存配置</button>
           </div>
-          <div id="configSaveMsg" class="text-xs text-green-600 hidden text-center">已保存 ✓</div>
+          <div id="configSaveMsg" class="text-xs text-emerald-400 hidden text-center">已保存 ✓</div>
         </div>
       </div>
     </div>
@@ -1175,28 +1189,28 @@
     </div>
 
     <!-- ====== 用户管理 Tab ====== -->
-    <div id="tab-users" hidden class="px-6 py-6">
-      <div class="section-header">
-        <h3 class="text-base font-bold text-slate-800">用户管理</h3>
-        <button id="btnAddUser" type="button" class="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">+ 新增用户</button>
+    <div id="tab-users" hidden class="flex-1 bg-slate-900 overflow-y-auto px-5 py-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-bold text-white">用户管理</h2>
+        <button id="btnAddUser" type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer border-0">+ 新增用户</button>
       </div>
-      <div class="card overflow-hidden">
+      <div class="card-dark overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full text-xs">
+          <table class="w-full text-sm">
             <thead>
-              <tr class="border-b border-slate-100 bg-slate-50/50">
-                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">用户名</th>
-                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">显示名</th>
-                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">角色</th>
-                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">书城账号</th>
-                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">状态</th>
-                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">创建时间</th>
-                <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">最后登录</th>
-                <th class="text-right py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">操作</th>
+              <tr class="border-b border-slate-700 bg-slate-800/50">
+                <th class="text-left py-3 px-4 font-medium text-slate-400 text-xs uppercase tracking-wide">用户名</th>
+                <th class="text-left py-3 px-4 font-medium text-slate-400 text-xs uppercase tracking-wide">显示名</th>
+                <th class="text-left py-3 px-4 font-medium text-slate-400 text-xs uppercase tracking-wide">角色</th>
+                <th class="text-left py-3 px-4 font-medium text-slate-400 text-xs uppercase tracking-wide">书城账号</th>
+                <th class="text-left py-3 px-4 font-medium text-slate-400 text-xs uppercase tracking-wide">状态</th>
+                <th class="text-left py-3 px-4 font-medium text-slate-400 text-xs uppercase tracking-wide">创建时间</th>
+                <th class="text-left py-3 px-4 font-medium text-slate-400 text-xs uppercase tracking-wide">最后登录</th>
+                <th class="text-right py-3 px-4 font-medium text-slate-400 text-xs uppercase tracking-wide">操作</th>
               </tr>
             </thead>
             <tbody id="userTableBody">
-              <tr><td colspan="8" class="py-10 text-center text-slate-400">加载中...</td></tr>
+              <tr><td colspan="8" class="py-10 text-center text-slate-500">加载中...</td></tr>
             </tbody>
           </table>
         </div>
@@ -1204,79 +1218,79 @@
     </div>
 
     <!-- ====== 用户编辑模态框 ====== -->
-    <div id="userModal" hidden class="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto animate-fadeIn">
-        <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-          <h3 id="userModalTitle" class="text-base font-bold text-slate-800">新增用户</h3>
-          <button id="btnUserModalClose" type="button" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 cursor-pointer border-0 bg-transparent">✕</button>
+    <div id="userModal" hidden class="fixed inset-0 z-[110] flex items-center justify-center bg-black/60">
+      <div class="bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto border border-slate-700">
+        <div class="px-6 py-5 border-b border-slate-700 flex items-center justify-between">
+          <h3 id="userModalTitle" class="text-sm font-bold text-white">新增用户</h3>
+          <button id="btnUserModalClose" type="button" class="w-8 h-8 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-400 cursor-pointer border-0 bg-transparent">✕</button>
         </div>
         <div class="px-6 py-5 space-y-4">
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">用户名</label>
-            <input id="umUsername" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="登录用户名" />
+            <label class="block text-xs font-medium text-slate-400 mb-1">用户名</label>
+            <input id="umUsername" type="text" class="w-full px-3 py-2 border border-slate-600 bg-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="登录用户名" />
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-medium text-slate-500 mb-1">密码</label>
-              <input id="umPassword" type="password" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="留空不修改" />
+              <label class="block text-xs font-medium text-slate-400 mb-1">密码</label>
+              <input id="umPassword" type="password" class="w-full px-3 py-2 border border-slate-600 bg-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="留空不修改" />
             </div>
             <div>
-              <label class="block text-xs font-medium text-slate-500 mb-1">角色</label>
-              <select id="umRole" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus bg-white">
+              <label class="block text-xs font-medium text-slate-400 mb-1">角色</label>
+              <select id="umRole" class="w-full px-3 py-2 border border-slate-600 bg-slate-700 rounded-lg text-sm text-white focus:border-indigo-500 focus:outline-none">
                 <option value="user">普通用户</option>
                 <option value="admin">管理员</option>
               </select>
             </div>
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">显示名称</label>
-            <input id="umDisplayName" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="可选" />
+            <label class="block text-xs font-medium text-slate-400 mb-1">显示名称</label>
+            <input id="umDisplayName" type="text" class="w-full px-3 py-2 border border-slate-600 bg-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="可选" />
           </div>
-          <!-- 书城凭据（管理员可为普通用户设置） -->
-          <div class="border-t border-slate-100 pt-4 mt-1">
-            <p class="text-xs font-semibold text-slate-500 mb-3">📚 书城凭据（pingykj 平台）</p>
+          <!-- 书城凭据 -->
+          <div class="border-t border-slate-700 pt-4 mt-1">
+            <p class="text-xs font-semibold text-slate-400 mb-3">📚 书城凭据（pingykj 平台）</p>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-medium text-slate-400 mb-1">书城账号</label>
-                <input id="umPingykjUser" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="书城登录账号" />
+                <label class="block text-xs font-medium text-slate-500 mb-1">书城账号</label>
+                <input id="umPingykjUser" type="text" class="w-full px-3 py-2 border border-slate-600 bg-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="书城登录账号" />
               </div>
               <div>
-                <label class="block text-xs font-medium text-slate-400 mb-1">书城密码</label>
-                <input id="umPingykjPass" type="password" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="留空不修改" />
+                <label class="block text-xs font-medium text-slate-500 mb-1">书城密码</label>
+                <input id="umPingykjPass" type="password" class="w-full px-3 py-2 border border-slate-600 bg-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="留空不修改" />
               </div>
             </div>
           </div>
           <div>
             <label class="flex items-center gap-2 cursor-pointer">
-              <input id="umIsActive" type="checkbox" checked class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
-              <span class="text-xs text-slate-600">账号启用</span>
+              <input id="umIsActive" type="checkbox" checked class="w-4 h-4 rounded accent-indigo-500" />
+              <span class="text-xs text-slate-400">账号启用</span>
             </label>
           </div>
         </div>
-        <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-          <button id="btnUserModalCancel" type="button" class="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all bg-white cursor-pointer">取消</button>
-          <button id="btnUserModalSave" type="button" class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm cursor-pointer">保存</button>
+        <div class="px-6 py-4 border-t border-slate-700 flex justify-end gap-3">
+          <button id="btnUserModalCancel" type="button" class="rounded-lg border border-slate-600 px-5 py-2.5 text-sm text-slate-400 hover:bg-slate-700 transition-all bg-transparent cursor-pointer">取消</button>
+          <button id="btnUserModalSave" type="button" class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer border-0">保存</button>
         </div>
       </div>
     </div>
 
     <!-- ====== 管理员验证码登录弹窗 ====== -->
-    <div id="adminCaptchaModal" hidden class="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 animate-fadeIn">
-        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 class="text-sm font-bold text-slate-800">🔐 验证码登录书城</h3>
-          <button id="btnAdminCaptchaClose" type="button" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 cursor-pointer border-0 bg-transparent">✕</button>
+    <div id="adminCaptchaModal" hidden class="fixed inset-0 z-[120] flex items-center justify-center bg-black/60">
+      <div class="bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm mx-4 border border-slate-700">
+        <div class="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-white">🔐 验证码登录书城</h3>
+          <button id="btnAdminCaptchaClose" type="button" class="w-7 h-7 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-400 cursor-pointer border-0 bg-transparent">✕</button>
         </div>
         <div class="px-5 py-4 space-y-3">
-          <p id="adminCaptchaUser" class="text-xs text-slate-500">用户: —</p>
+          <p id="adminCaptchaUser" class="text-xs text-slate-400">用户: —</p>
           <div class="text-center">
-            <img id="adminCaptchaImg" src="" alt="验证码" class="mx-auto rounded-lg border border-slate-200" style="display:none; max-height:80px;" />
+            <img id="adminCaptchaImg" src="" alt="验证码" class="mx-auto rounded-lg border border-slate-600" style="display:none; max-height:80px;" />
           </div>
           <div id="adminCaptchaRow" class="hidden space-y-2">
-            <input id="adminCaptchaInput" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-center input-focus" placeholder="输入验证码" maxlength="10" autocomplete="off" />
+            <input id="adminCaptchaInput" type="text" class="w-full px-3 py-2 border border-slate-600 bg-slate-700 rounded-lg text-sm text-center text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="输入验证码" maxlength="10" autocomplete="off" />
             <div class="flex gap-2">
-              <button id="btnAdminCaptchaRefresh" type="button" class="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 bg-white cursor-pointer">刷新验证码</button>
-              <button id="btnAdminCaptchaLogin" type="button" class="flex-1 rounded-xl bg-orange-600 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-700 transition-all cursor-pointer">确认登录</button>
+              <button id="btnAdminCaptchaRefresh" type="button" class="flex-1 rounded-lg border border-slate-600 px-3 py-2 text-xs font-medium text-slate-400 hover:bg-slate-700 bg-transparent cursor-pointer">刷新验证码</button>
+              <button id="btnAdminCaptchaLogin" type="button" class="flex-1 rounded-lg bg-orange-600 px-3 py-2 text-xs font-medium text-white hover:bg-orange-500 transition-all cursor-pointer border-0">确认登录</button>
             </div>
           </div>
           <div id="adminCaptchaMsg" class="text-xs rounded-lg px-3 py-2 hidden"></div>
@@ -1534,36 +1548,36 @@
       fetch('/api/users').then(function(r) { return r.json(); }).then(function(users) {
         var tbody = document.getElementById('userTableBody');
         if (!users.length) {
-          tbody.innerHTML = '<tr><td colspan="8" class="py-10 text-center text-slate-400">暂无用户</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" class="py-10 text-center text-slate-500">暂无用户</td></tr>';
           return;
         }
         tbody.innerHTML = users.map(function(u) {
           var roleBadge = u.role === 'admin'
-            ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-[10px] font-medium">管理员</span>'
-            : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-medium">用户</span>';
+            ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[10px] font-medium">管理员</span>'
+            : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-700 text-slate-400 text-[10px] font-medium">用户</span>';
           var statusBadge = u.is_active
-            ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-medium">启用</span>'
-            : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-600 text-[10px] font-medium">禁用</span>';
+            ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-medium">启用</span>'
+            : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-500/20 text-red-400 text-[10px] font-medium">禁用</span>';
           var created = u.created_at ? u.created_at.substring(0, 10) : '-';
           var lastLogin = u.last_login_at ? u.last_login_at.substring(0, 16).replace('T', ' ') : '-';
           var lastIp = u.last_login_ip || '';
           var offlineTime = u.pingykj_offline_at ? u.pingykj_offline_at.substring(0, 16).replace('T', ' ') : '';
-          return '<tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">' +
-            '<td class="py-3 px-4 font-medium text-slate-800">' + htmlEscape(u.username) + '</td>' +
-            '<td class="py-3 px-4 text-slate-600">' + htmlEscape(u.display_name || '-') + '</td>' +
+          return '<tr class="border-b border-slate-700 hover:bg-white/5 transition-colors">' +
+            '<td class="py-3 px-4 font-medium text-white">' + htmlEscape(u.username) + '</td>' +
+            '<td class="py-3 px-4 text-slate-400">' + htmlEscape(u.display_name || '-') + '</td>' +
             '<td class="py-3 px-4">' + roleBadge + '</td>' +
-            '<td class="py-3 px-4 text-slate-600 font-mono text-[11px]">' + htmlEscape(u.pingykj_username || '-') + '</td>' +
+            '<td class="py-3 px-4 text-slate-400 font-mono text-[11px]">' + htmlEscape(u.pingykj_username || '-') + '</td>' +
             '<td class="py-3 px-4">' + statusBadge + '</td>' +
             '<td class="py-3 px-4 text-slate-500">' + created + '</td>' +
-            '<td class="py-3 px-4 text-slate-500 text-[11px]">' + lastLogin + (lastIp ? '<br><span class="text-slate-400 text-[10px]">IP: ' + lastIp + '</span>' : '') + (offlineTime ? '<br><span class="text-red-400 text-[10px]">书城掉线: ' + offlineTime + '</span>' : '') + '</td>' +
+            '<td class="py-3 px-4 text-slate-500 text-[11px]">' + lastLogin + (lastIp ? '<br><span class="text-slate-500 text-[10px]">IP: ' + lastIp + '</span>' : '') + (offlineTime ? '<br><span class="text-red-400 text-[10px]">书城掉线: ' + offlineTime + '</span>' : '') + '</td>' +
             '<td class="py-3 px-4 text-right whitespace-nowrap">' +
             (u.pingykj_username ? (
               u.pingykj_online
-                ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-medium mr-2">● 在线</span>'
-                : '<button class="text-amber-600 hover:text-amber-800 mr-2 font-medium text-[10px] border border-amber-200 rounded-lg px-2 py-1 bg-amber-50 hover:bg-amber-100 cursor-pointer" onclick="reconnectPingykj(' + u.id + ',\'' + htmlEscape(u.username) + '\')">🔐 重新登录</button>'
+                ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-medium mr-2">● 在线</span>'
+                : '<button class="text-amber-400 hover:text-amber-300 mr-2 font-medium text-[10px] border border-amber-600 rounded-lg px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer" onclick="reconnectPingykj(' + u.id + ',\'' + htmlEscape(u.username) + '\')">🔐 重新登录</button>'
             ) : '') +
-            '<button class="text-indigo-600 hover:text-indigo-800 mr-2 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="editUser(' + u.id + ')">编辑</button>' +
-            (u.id !== 1 ? '<button class="text-red-500 hover:text-red-700 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="deleteUser(' + u.id + ',\'' + htmlEscape(u.username) + '\')">删除</button>' : '<span class="text-slate-300 text-[11px]">—</span>') +
+            '<button class="text-indigo-400 hover:text-indigo-300 mr-2 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="editUser(' + u.id + ')">编辑</button>' +
+            (u.id !== 1 ? '<button class="text-red-400 hover:text-red-300 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="deleteUser(' + u.id + ',\'' + htmlEscape(u.username) + '\')">删除</button>' : '<span class="text-slate-600 text-[11px]">—</span>') +
             '</td></tr>';
         }).join('');
       }).catch(function(e) {
@@ -1844,6 +1858,20 @@
       var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'meta': 'Meta 管理', 'bm-mgmt': 'BM/App 管理', 'meta-campaign': '广告系列', 'meta-gallery': '素材画廊', 'meta-assign': '账户分配', 'users': '用户管理' };
       document.getElementById('breadcrumb').textContent = titles[tab] || tab;
       document.getElementById('pageTitle').textContent = titles[tab] || tab;
+
+      // 根据页面类型切换 header 明暗
+      var darkPages = ['meta', 'bm-mgmt', 'meta-campaign', 'meta-gallery', 'meta-assign', 'users', 'hit-gallery', 'config'];
+      var isDark = darkPages.indexOf(tab) >= 0;
+      var header = document.getElementById('pageHeader');
+      if (isDark) {
+        header.className = 'bg-slate-900 border-b border-slate-800 px-6 py-3.5 flex items-center justify-between shrink-0';
+        document.getElementById('pageTitle').className = 'text-base font-bold text-white tracking-tight';
+        document.getElementById('breadcrumb').className = 'text-slate-300 font-medium';
+      } else {
+        header.className = 'bg-white border-b border-slate-100 px-6 py-3.5 flex items-center justify-between shrink-0';
+        document.getElementById('pageTitle').className = 'text-base font-bold text-slate-800 tracking-tight';
+        document.getElementById('breadcrumb').className = 'text-slate-600 font-medium';
+      }
 
       // 只在特定页面显示统计栏
       var showStats = ['generate', 'history', 'video-style', 'prompt-generate', 'novel-analyze'].indexOf(tab) >= 0;
@@ -4528,7 +4556,7 @@
         accounts = accounts.filter(function(a) {
           return (a.act_id || '').toLowerCase().indexOf(searchText) >= 0 ||
                  (a.act_name || '').toLowerCase().indexOf(searchText) >= 0 ||
-                 (a.pingykj_account || '').toLowerCase().indexOf(searchText) >= 0;
+                 (a.bm_name || '').toLowerCase().indexOf(searchText) >= 0;
         });
       }
       var isAdmin = currentUser && currentUser.role === 'admin';
@@ -4562,7 +4590,7 @@
             // 按 BM 分组
             var bmGroups = {};
             ug.accounts.forEach(function(a) {
-              var bm = a.pingykj_account || '未归类';
+              var bm = a.bm_name || '未归类';
               if (!bmGroups[bm]) bmGroups[bm] = [];
               bmGroups[bm].push(a);
             });
@@ -4570,6 +4598,8 @@
             Object.keys(bmGroups).sort().forEach(function(bm) {
               var bmAccounts = bmGroups[bm];
               var bmKey = 'bm:' + ug.id + ':' + bm;
+              // 附加 BM 归属者信息
+              var bmOwner = bmAccounts[0] && bmAccounts[0].bm_owner_name ? ' (归属: ' + bmAccounts[0].bm_owner_name + ')' : '';
               var acctChildren = bmAccounts.map(function(a) {
                 var actKey = a.act_id;
                 var statusDot = metaStatusDot(a.meta_status);
@@ -4579,7 +4609,7 @@
                   '<span class="flex-1 truncate cursor-pointer" onclick="event.stopPropagation();selectMetaAccount(\'' + actKey + '\')">' + escapeHtml(a.act_name || a.act_id) + '</span>' +
                   '<span class="text-[10px] text-slate-500 hover:text-indigo-400 cursor-pointer ml-1" onclick="event.stopPropagation();syncOneAccount(\'' + actKey + '\',\'' + escapeHtml(a.act_name || actKey).replace(/'/g,'') + '\')" title="单独更新此账户">🔄</span>' + '</div>';
               }).join('');
-              bmChildren += makeTreeItem(bmKey, bm, '📁', 2, acctChildren);
+              bmChildren += makeTreeItem(bmKey, bm + bmOwner, '📁', 2, acctChildren);
             });
             html += makeTreeItem(userKey, uname + ' (' + ug.accounts.length + '个账户)', '👤', 1, bmChildren);
           });
@@ -4587,7 +4617,7 @@
           // 普通用户：按 BM → 账户
           var bmGroups = {};
           accounts.forEach(function(a) {
-            var bm = a.pingykj_account || '未归类';
+            var bm = a.bm_name || '未归类';
             if (!bmGroups[bm]) bmGroups[bm] = [];
             bmGroups[bm].push(a);
           });
@@ -4626,8 +4656,7 @@
       var html = '<div id="discoverOverlay" class="fixed inset-0 z-[140] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeDiscoverPanel()">' +
         '<div class="bg-slate-800 rounded-2xl p-5 w-[480px] max-h-[80vh] overflow-y-auto border border-slate-700 shadow-2xl">' +
         '<h3 class="text-sm font-bold text-white mb-3">发现账户</h3>' +
-        '<div class="mb-3"><label class="block text-xs text-slate-400 mb-1">BM 名称</label><input id="discoverBmName" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white placeholder-slate-400" placeholder="填写后导入的账户归入此 BM"></div>' +
-        '<input id="discoverTokenInput" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white placeholder-slate-400 mb-3" placeholder="输入你的 Access Token">' +
+        '<input id="discoverTokenInput" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white placeholder-slate-400 mb-3" placeholder="输入 System User Token">' +
         '<button onclick="doDiscoverAccounts()" class="w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-500 mb-3 cursor-pointer">发现账户</button>' +
         '<div id="discoverResultList" class="max-h-60 overflow-y-auto text-xs"></div>' +
         '<div id="discoverImportArea" class="mt-2 flex gap-2" hidden>' +
@@ -4680,15 +4709,14 @@
       });
       if (!selected.length) { alert('请勾选账户'); return; }
       var token = document.getElementById('discoverTokenInput').value.trim();
-      var bmName = (document.getElementById('discoverBmName') || {}).value || '';
-      // Store BM name in each account for later use
-      selected.forEach(function(a) { a.business_name = bmName || a.business_name || ''; });
       var resp = await fetch('/api/meta/accounts/import', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({accounts: selected, access_token: token})
       });
       var result = await resp.json();
-      alert('已导入 ' + result.count + ' 个账户');
+      var msg = '已导入 ' + result.count + ' 个账户';
+      if (result.new_bms > 0) msg += '，自动创建 ' + result.new_bms + ' 个新 BM 配置';
+      alert(msg);
       closeDiscoverPanel();
       loadMetaAccountTree();
     }
@@ -4812,7 +4840,7 @@
     }
 
     // ---- BM 汇总 ----
-    function renderBmTable(bmData) {
+    function renderBmSummary(bmData) {
       var html = '<table class="w-full"><thead><tr><th class="text-left">BM</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">转化金额</th></tr></thead><tbody>';
       bmData.forEach(function(bm) {
         html += '<tr>' +
@@ -4920,10 +4948,10 @@
           if (parts.length >= 2) {
             var buid = parts[0], bname = parts.slice(1).join(':');
             bmAccts = _metaAccounts.filter(function(a) {
-              return (a.pingykj_account || '未归类') === bname && String(a.user_id) === String(buid);
+              return (a.bm_name || '未归类') === bname && String(a.user_id) === String(buid);
             });
           } else {
-            bmAccts = _metaAccounts.filter(function(a) { return (a.pingykj_account || '未归类') === rest; });
+            bmAccts = _metaAccounts.filter(function(a) { return (a.bm_name || '未归类') === rest; });
           }
           var ids = bmAccts.map(function(a) { return a.act_id; });
           if (ids.length) params += '&account=' + encodeURIComponent(ids.join(','));
@@ -4941,7 +4969,7 @@
         ]);
         renderMetaKpis(summaryRes);
         renderUserSummary(userRes.user_summary || []);
-        renderBmTable(bmRes.bm_summary || []);
+        renderBmSummary(bmRes.bm_summary || []);
         renderAccountRank(rankRes);
         renderMetaDaily(dailyRes);
       } catch(e) { console.error('Meta dashboard error:', e); }
@@ -5028,7 +5056,7 @@
         accounts = accounts.filter(function(a) {
           return (a.act_id || '').toLowerCase().indexOf(searchText) >= 0 ||
                  (a.act_name || '').toLowerCase().indexOf(searchText) >= 0 ||
-                 (a.pingykj_account || '').toLowerCase().indexOf(searchText) >= 0;
+                 (a.bm_name || '').toLowerCase().indexOf(searchText) >= 0;
         });
       }
       var isAdmin = currentUser && currentUser.role === 'admin';
@@ -5063,7 +5091,7 @@
         Object.keys(userGroups).sort().forEach(function(uname) {
           var ug = userGroups[uname];
           var bmGroups = {};
-          ug.accounts.forEach(function(a) { var bm = a.pingykj_account || '未归类'; (bmGroups[bm] = bmGroups[bm] || []).push(a); });
+          ug.accounts.forEach(function(a) { var bm = a.bm_name || '未归类'; (bmGroups[bm] = bmGroups[bm] || []).push(a); });
           var bmChildren = '';
           Object.keys(bmGroups).sort().forEach(function(bm) {
             var acct = bmGroups[bm].map(function(a) { return acctNode(a, 3); }).join('');
@@ -5079,7 +5107,7 @@
         });
       } else {
         var bmGroups2 = {};
-        accounts.forEach(function(a) { var bm = a.pingykj_account || '未归类'; (bmGroups2[bm] = bmGroups2[bm] || []).push(a); });
+        accounts.forEach(function(a) { var bm = a.bm_name || '未归类'; (bmGroups2[bm] = bmGroups2[bm] || []).push(a); });
         Object.keys(bmGroups2).sort().forEach(function(bm) {
           var acct = bmGroups2[bm].map(function(a) { return acctNode(a, 2); }).join('');
           var bmKey = 'cbm:' + bm;
@@ -5289,7 +5317,7 @@
         var cur = sel.value;
         var opts = '<option value="">全部账户</option>';
         accts.forEach(function(a) {
-          var bm = a.pingykj_account ? ' · ' + escapeHtml(a.pingykj_account) : '';
+          var bm = a.bm_name ? ' · ' + escapeHtml(a.bm_name) : '';
           opts += '<option value="' + escapeHtml(a.act_id) + '">' + escapeHtml(a.act_name || a.act_id) + bm + '</option>';
         });
         sel.innerHTML = opts;
@@ -5659,14 +5687,12 @@
         var html = '<div id="configOverlay" class="fixed inset-0 z-[140] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeMetaConfig()">' +
           '<div class="bg-slate-800 rounded-2xl p-5 w-[480px] border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">' +
           '<h3 class="text-sm font-bold text-white mb-4">Meta API 配置</h3>' +
+          '<p class="text-[10px] text-slate-500 mb-3">App 应用请在 <a class="text-indigo-400 cursor-pointer underline" onclick="closeMetaConfig();switchTab(\'bm-mgmt\')">BM/App 管理</a> 页面配置</p>' +
           '<div class="grid grid-cols-2 gap-3 text-xs">' +
-          '<div><label class="block text-slate-400 mb-1">App ID</label><input id="cfg-app-id" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + (cfg.app_id || '') + '"></div>' +
-          '<div><label class="block text-slate-400 mb-1">App Secret</label><input id="cfg-app-secret" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" placeholder="留空不修改"></div>' +
           '<div><label class="block text-slate-400 mb-1">默认 Token</label><input id="cfg-default-token" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" placeholder="留空不修改"></div>' +
           '<div><label class="block text-slate-400 mb-1">API 版本</label><input id="cfg-api-version" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + (cfg.api_version || 'v25.0') + '"></div>' +
           '<div><label class="block text-slate-400 mb-1">同步间隔(秒)</label><input id="cfg-sync-interval" type="number" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + (cfg.sync_interval_seconds || 1200) + '"></div>' +
           '<div><label class="block text-slate-400 mb-1">速率(次/秒)</label><input id="cfg-rate-limit" type="number" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + (cfg.rate_limit_per_second || 4) + '"></div>' +
-          '<div class="col-span-2"><label class="block text-slate-400 mb-1">代理</label><input id="cfg-proxy" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + (cfg.proxy || '') + '"></div>' +
           '</div>' +
           '<div class="mt-4 flex gap-2"><button onclick="saveMetaConfig()" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 cursor-pointer">保存</button><span id="cfgMsg" class="text-xs text-emerald-400 hidden self-center">✓ 已保存</span></div>' +
           '<button onclick="closeMetaConfig()" class="mt-2 w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-400 hover:text-white cursor-pointer bg-transparent">关闭</button>' +
@@ -5682,13 +5708,10 @@
 
     async function saveMetaConfig() {
       var body = {
-        app_id: document.getElementById('cfg-app-id').value,
-        app_secret: document.getElementById('cfg-app-secret').value,
         default_access_token: document.getElementById('cfg-default-token').value,
         api_version: document.getElementById('cfg-api-version').value,
         sync_interval_seconds: parseInt(document.getElementById('cfg-sync-interval').value) || 300,
         rate_limit_per_second: parseInt(document.getElementById('cfg-rate-limit').value) || 4,
-        proxy: document.getElementById('cfg-proxy').value,
       };
       var resp = await fetch('/api/meta/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
       if (resp.ok) {
@@ -5961,7 +5984,7 @@
         renderAssignTree();
         // Populate BM list
         var bms = {};
-        _assignAccounts.forEach(function(a) { var bm = a.pingykj_account || '未归类'; if (!bms[bm]) bms[bm] = 0; bms[bm]++; });
+        _assignAccounts.forEach(function(a) { var bm = a.bm_name || '未归类'; if (!bms[bm]) bms[bm] = 0; bms[bm]++; });
         var bmOpts = '<option value="">选择 BM...</option>';
         Object.keys(bms).sort().forEach(function(bm) { bmOpts += '<option value="' + escapeHtml(bm) + '">' + escapeHtml(bm) + ' (' + bms[bm] + ')</option>'; });
         bmSelect.innerHTML = bmOpts;
@@ -5975,12 +5998,12 @@
         accounts = accounts.filter(function(a) {
           return (a.act_id || '').toLowerCase().indexOf(search) >= 0 ||
                  (a.act_name || '').toLowerCase().indexOf(search) >= 0 ||
-                 (a.pingykj_account || '').toLowerCase().indexOf(search) >= 0;
+                 (a.bm_name || '').toLowerCase().indexOf(search) >= 0;
         });
       }
       var groups = {};
       accounts.forEach(function(a) {
-        var bm = a.pingykj_account || '未归类';
+        var bm = a.bm_name || '未归类';
         if (!groups[bm]) groups[bm] = [];
         groups[bm].push(a);
       });
@@ -5989,17 +6012,17 @@
         var bmAccounts = groups[bm];
         var allChecked = bmAccounts.every(function(a) { return _assignSelected[a.act_id]; });
         var someChecked = bmAccounts.some(function(a) { return _assignSelected[a.act_id]; });
-        html += '<div class="flex items-center gap-2 py-1 px-1 hover:bg-slate-50 rounded cursor-pointer" data-bm="' + escapeHtml(bm) + '" onclick="assignToggleBm(this.getAttribute(\'data-bm\'),' + (allChecked ? 'false' : 'true') + ')">';
-        html += '<input type="checkbox" ' + (allChecked ? 'checked' : '') + ' class="w-3.5 h-3.5 accent-indigo-600 cursor-pointer">';
-        html += '<span class="font-medium text-slate-600">' + escapeHtml(bm) + ' (' + bmAccounts.length + ')</span></div>';
+        html += '<div class="flex items-center gap-2 py-1.5 px-1 hover:bg-white/5 rounded cursor-pointer text-sm" data-bm="' + escapeHtml(bm) + '" onclick="assignToggleBm(this.getAttribute(\'data-bm\'),' + (allChecked ? 'false' : 'true') + ')">';
+        html += '<input type="checkbox" ' + (allChecked ? 'checked' : '') + ' class="w-4 h-4 accent-indigo-500 cursor-pointer">';
+        html += '<span class="font-medium text-slate-200">' + escapeHtml(bm) + ' (' + bmAccounts.length + ')</span></div>';
         bmAccounts.forEach(function(a) {
-          html += '<div class="flex items-center gap-2 py-0.5 px-1 pl-6 hover:bg-slate-50 rounded cursor-pointer text-xs" onclick="assignToggleAccount(\'' + a.act_id + '\')">';
-          html += '<input type="checkbox" ' + (_assignSelected[a.act_id] ? 'checked' : '') + ' class="w-3 h-3 accent-indigo-600 cursor-pointer" onclick="event.stopPropagation();_assignSelected[\'' + a.act_id + '\']=this.checked;updateAssignInfo();renderAssignTree();">';
-          html += '<span class="text-slate-500 font-mono">' + escapeHtml(a.act_id) + '</span>';
-          html += '<span class="text-slate-600">' + escapeHtml(a.act_name || '') + '</span>';
+          html += '<div class="flex items-center gap-2 py-1 px-1 pl-6 hover:bg-white/5 rounded cursor-pointer text-sm" onclick="assignToggleAccount(\'' + a.act_id + '\')">';
+          html += '<input type="checkbox" ' + (_assignSelected[a.act_id] ? 'checked' : '') + ' class="w-3.5 h-3.5 accent-indigo-500 cursor-pointer" onclick="event.stopPropagation();_assignSelected[\'' + a.act_id + '\']=this.checked;updateAssignInfo();renderAssignTree();">';
+          html += '<span class="text-slate-400 font-mono text-xs">' + escapeHtml(a.act_id) + '</span>';
+          html += '<span class="text-slate-300">' + escapeHtml(a.act_name || '') + '</span>';
           var uname = a.user_id ? (a.user_name || ('用户' + a.user_id)) : '未分配';
-          var utag = a.user_id ? 'text-slate-400' : 'text-amber-500';
-          html += '<span class="' + utag + ' text-[10px] ml-auto">👤 ' + escapeHtml(uname) + '</span>';
+          var utag = a.user_id ? 'text-slate-500' : 'text-amber-400';
+          html += '<span class="' + utag + ' text-xs ml-auto">👤 ' + escapeHtml(uname) + '</span>';
           html += '</div>';
         });
       });
@@ -6015,7 +6038,7 @@
 
     function assignToggleBm(bm, checked) {
       _assignAccounts.forEach(function(a) {
-        if ((a.pingykj_account || '未归类') === bm) _assignSelected[a.act_id] = checked;
+        if ((a.bm_name || '未归类') === bm) _assignSelected[a.act_id] = checked;
       });
       updateAssignInfo();
       renderAssignTree();
@@ -6048,7 +6071,7 @@
       var bm = document.getElementById('assignBmSelect').value;
       var targetUserId = document.getElementById('assignBmTarget').value;
       if (!bm || !targetUserId) { alert('请选择 BM 和目标用户'); return; }
-      var actIds = _assignAccounts.filter(function(a) { return (a.pingykj_account || '未归类') === bm; }).map(function(a) { return a.act_id; });
+      var actIds = _assignAccounts.filter(function(a) { return (a.bm_name || '未归类') === bm; }).map(function(a) { return a.act_id; });
       var resp = await fetch('/api/meta/assign', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({act_ids: actIds, user_id: parseInt(targetUserId)})
@@ -6072,6 +6095,26 @@
     function loadBmAppPage() {
       loadAppTable();
       loadBmTable();
+      loadGlobalProxy();
+    }
+
+    function loadGlobalProxy() {
+      fetch('/api/meta/config').then(function(r) { return r.json(); }).then(function(cfg) {
+        document.getElementById('cfgGlobalProxy').value = cfg.proxy || '';
+      }).catch(function() {});
+    }
+
+    async function saveGlobalProxy() {
+      var proxy = document.getElementById('cfgGlobalProxy').value.trim();
+      var resp = await fetch('/api/meta/config', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ proxy: proxy })
+      });
+      if (resp.ok) {
+        var el = document.getElementById('proxyMsg');
+        el.hidden = false;
+        setTimeout(function() { el.hidden = true; }, 2000);
+      }
     }
 
     // ---- App 管理 ----
@@ -6170,29 +6213,49 @@
     // ---- BM 管理 ----
 
     function loadBmTable() {
-      fetch('/api/bm/list').then(function(r) { return r.json(); }).then(function(res) {
+      var promises = [fetch('/api/bm/list').then(function(r) { return r.json(); })];
+      // 管理员预加载用户列表用于归属下拉
+      if (currentUser && currentUser.role === 'admin') {
+        promises.push(fetch('/api/users').then(function(r) { return r.json(); }));
+      }
+      Promise.all(promises).then(function(results) {
+        var res = results[0];
         var bms = res.data || [];
+        if (results.length > 1) { _allUsers = results[1] || []; }
         fetch('/api/app/list').then(function(r2) { return r2.json(); }).then(function(res2) {
           var apps = res2.data || [];
-          renderBmTable(bms, apps);
+          renderBmConfigTable(bms, apps);
         }).catch(function() {
           renderBmTable(bms, []);
         });
       }).catch(function(e) { console.error('加载 BM 列表失败:', e); });
     }
 
-    function renderBmTable(bms, apps) {
+    function renderBmConfigTable(bms, apps) {
       var html = '';
+      var isAdmin = currentUser && currentUser.role === 'admin';
       bms.forEach(function(b) {
         var appOptions = '<option value="">未绑定</option>';
         apps.forEach(function(a) {
           appOptions += '<option value="' + escapeHtml(a.app_id) + '"' + (b.app_id === a.app_id ? ' selected' : '') + '>' + escapeHtml(a.app_name) + '</option>';
         });
         var tokenLabel = b.system_token ? '<span class="text-emerald-400 text-[10px]">已设置</span>' : '<span class="text-slate-500 text-[10px]">点击设置</span>';
+        // 归属列
+        var ownerHtml = '';
+        if (isAdmin) {
+          var userOpts = '';
+          (_allUsers || []).forEach(function(u) {
+            userOpts += '<option value="' + u.id + '"' + (b.user_id === u.id ? ' selected' : '') + '>' + escapeHtml(u.display_name || u.username) + '</option>';
+          });
+          ownerHtml = '<select class="rounded border border-slate-600 bg-slate-700 text-white text-[11px] px-1 py-0.5 focus:border-indigo-400 focus:outline-none" onchange="updateBmOwner(\'' + escapeHtml(b.bm_id).replace(/'/g, "\\'") + '\', this.value)">' + userOpts + '</select>';
+        } else {
+          ownerHtml = escapeHtml(b.owner_name || '未指定');
+        }
         html += '<tr class="border-b border-slate-800">' +
           '<td class="py-2 text-white">' + escapeHtml(b.bm_name) + '</td>' +
           '<td class="py-2 text-slate-400 font-mono text-[11px]">' + escapeHtml(b.bm_id) + '</td>' +
           '<td class="py-2 text-center text-slate-300">' + (b.account_count || 0) + '</td>' +
+          '<td class="py-2 text-center text-slate-300 text-[11px]">' + ownerHtml + '</td>' +
           '<td class="py-2 text-center">' +
             '<select class="rounded border border-slate-600 bg-slate-700 text-white text-[11px] px-2 py-1 focus:border-indigo-400 focus:outline-none" onchange="bindBmApp(\'' + escapeHtml(b.bm_id).replace(/'/g, "\\'") + '\', this.value)">' + appOptions + '</select>' +
           '</td>' +
@@ -6203,7 +6266,18 @@
             '<button class="text-[10px] text-red-400 hover:text-red-300 bg-transparent border-0 cursor-pointer" onclick="deleteBm(\'' + escapeHtml(b.bm_id).replace(/'/g, "\\'") + '\')">删除</button>' +
           '</td></tr>';
       });
-      document.getElementById('bmTable').querySelector('tbody').innerHTML = html || '<tr><td colspan="6" class="text-slate-500 py-4 text-center">暂无 BM</td></tr>';
+      document.getElementById('bmTable').querySelector('tbody').innerHTML = html || '<tr><td colspan="7" class="text-slate-500 py-4 text-center">暂无 BM</td></tr>';
+    }
+
+    function updateBmOwner(bmId, newUserId) {
+      fetch('/api/bm/' + encodeURIComponent(bmId) + '/owner', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ user_id: parseInt(newUserId) })
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) loadBmTable();
+        else alert('更新归属失败: ' + (d.detail || '未知错误'));
+      }).catch(function(e) { alert('更新归属失败: ' + e); });
     }
 
     function editBmToken(bmId) {
@@ -6350,7 +6424,9 @@
         });
         var result = await resp.json();
         if (result.success) {
-          msgEl.textContent = result.message || ('发现并保存 ' + result.count + ' 个 BM');
+          var bmCount = result.bm_count || result.count || 0;
+          var acctCount = result.account_count || 0;
+          msgEl.textContent = '发现并保存 ' + bmCount + ' 个 BM，自动导入 ' + acctCount + ' 个广告账户';
           msgEl.className = 'text-xs text-emerald-400 self-center';
           loadBmTable();
         } else {

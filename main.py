@@ -4337,8 +4337,8 @@ class AppBody(BaseModel):
 
 @app.get("/api/app/list")
 def _app_list(user: dict = Depends(get_current_user)):
-    uid = _opt_user_id(user)
-    return {"data": database.get_app_configs(uid)}
+    """App 列表全局可见，所有用户都能看到全部应用配置"""
+    return {"data": database.get_app_configs(None)}
 
 
 @app.post("/api/app")
@@ -4402,19 +4402,52 @@ def _bm_delete(bm_id: str, user: dict = Depends(get_current_user)):
     database.delete_bm_config(bm_id, uid)
     return {"success": True}
 
+class BmOwnerBody(BaseModel):
+    user_id: int
+
+@app.put("/api/bm/{bm_id}/owner")
+def _bm_update_owner(bm_id: str, body: BmOwnerBody, user: dict = Depends(get_current_admin)):
+    """管理员修改 BM 归属用户"""
+    database.update_bm_owner(bm_id, body.user_id)
+    return {"success": True, "message": "BM 归属已更新"}
+
 @app.post("/api/bm/discover")
 def _bm_discover(body: BmDiscoverRequest, user: dict = Depends(get_current_user)):
-    """用 System User Token 发现 BM 并自动保存"""
+    """用 System User Token 发现 BM 并自动保存，同时自动导入 BM 下所有广告账户"""
     uid = user["id"]
     result = meta_api.discover_all_assets(body.access_token)
     businesses = result.get("businesses", [])
-    count = 0
+    bm_count = 0
+    acct_count = 0
+    # 第一步：保存 BM 配置
     for bm in businesses:
         bm_id = bm.get("id", "")
         if bm_id:
             database.upsert_bm_config(bm_id, bm.get("name", bm_id), body.access_token, "", uid)
-            count += 1
-    return {"success": True, "count": count, "message": f"发现并保存 {count} 个 BM"}
+            bm_count += 1
+    # 第二步：自动导入 BM 下的所有广告账户
+    for bm_id, bm_data in result.get("bm_ad_accounts", {}).items():
+        bm_name = bm_data.get("name", "")
+        for acct in bm_data.get("accounts", []):
+            act_id = acct.get("id") or acct.get("account_id", "")
+            if not act_id:
+                continue
+            database.upsert_meta_account(
+                act_id=act_id,
+                act_name=acct.get("name", ""),
+                access_token=body.access_token,
+                pingykj_account=bm_name,
+                status="active",
+                user_id=uid,
+                bm_id=bm_id
+            )
+            acct_count += 1
+    return {
+        "success": True,
+        "bm_count": bm_count,
+        "account_count": acct_count,
+        "message": f"发现并保存 {bm_count} 个 BM，自动导入 {acct_count} 个广告账户"
+    }
 
 
 # ---- Meta 账户管理 API ----
@@ -4431,10 +4464,25 @@ class MetaAccountBody(BaseModel):
 def _get_meta_accounts(user: dict = Depends(get_current_user)):
     uid = _opt_user_id(user)
     accounts = database.get_meta_accounts(uid)
-    # 附上用户名
+
+    # 预加载所有 BM 配置，用于解析 BM 真实名称
+    bm_configs = {}
+    for bm in database.get_bm_configs(None):
+        bm_configs[bm["bm_id"]] = bm
+
+    # 附上用户名和 BM 真实名称
     for a in accounts:
         u = database.get_user(a.get("user_id", 1))
         a["user_name"] = u.get("display_name") or u.get("username", "") if u else ""
+        # 解析 BM 名称：优先用 bm_config 里的真实名称
+        bm_id = a.get("bm_id", "")
+        if bm_id and bm_id in bm_configs:
+            bm_cfg = bm_configs[bm_id]
+            a["bm_name"] = bm_cfg.get("bm_name", "")
+            a["bm_owner_name"] = bm_cfg.get("owner_name", "")
+        else:
+            a["bm_name"] = a.get("pingykj_account", "") or "未归类"
+            a["bm_owner_name"] = ""
     # 普通用户只看 active 账户（管理员看全部，含已停用）
     if user.get("role") != "admin":
         accounts = [a for a in accounts if a.get("status") == "active"]
@@ -4981,7 +5029,7 @@ def _meta_gallery(account: str = Query(default=None), start: str = Query(default
 def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=None),
                       user_id: int = Query(default=None),
                       user: dict = Depends(get_current_user)):
-    """按 BM（pingykj_account）聚合 Meta 账户 KPI"""
+    """按 BM 聚合 Meta 账户 KPI（使用 bm_config 真实 BM 名称）"""
     uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
     with database.get_conn() as conn:
         where = ["source = 'meta'"]
@@ -4995,7 +5043,7 @@ def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=
 
         rows = conn.execute(f"""
             SELECT
-                COALESCE(ma.pingykj_account, '未归类') AS bm_name,
+                COALESCE(bc.bm_name, ma.pingykj_account, '未归类') AS bm_name,
                 COUNT(DISTINCT ads.ad_account) AS account_count,
                 COALESCE(SUM(ads.total_spend), 0) AS spend,
                 COALESCE(SUM(ads.purchases), 0) AS purchases,
@@ -5016,8 +5064,9 @@ def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=
                 COALESCE(SUM(ads.clicks), 0) AS clicks
             FROM ad_daily_stats ads
             LEFT JOIN meta_accounts ma ON ads.ad_account = ma.act_id AND ads.user_id = ma.user_id
+            LEFT JOIN bm_config bc ON ma.bm_id = bc.bm_id
             WHERE {' AND '.join(where)}
-            GROUP BY COALESCE(ma.pingykj_account, '未归类')
+            GROUP BY COALESCE(bc.bm_name, ma.pingykj_account, '未归类')
             ORDER BY spend DESC
         """, params).fetchall()
 
@@ -5135,6 +5184,7 @@ def _import_meta_accounts(body: ImportAccountBody,
     uid = _opt_user_id(user)
     token = body.access_token or ""
     count = 0
+    created_bms = set()  # 本次导入中自动创建的 BM
     for acct in body.accounts:
         act_id = acct.get("id", "")
         if not act_id:
@@ -5142,10 +5192,25 @@ def _import_meta_accounts(body: ImportAccountBody,
         status = acct.get("status", "active")
         if status == "unknown" or not status:
             status = "active"
+        bm_id = acct.get("bm_id", "")
+        bm_name = acct.get("business_name", "")
+        # 自动创建 BM 配置（如果 bm_id 有值且尚未存在）
+        if bm_id and bm_id not in created_bms:
+            existing = database.get_bm_configs(None)
+            existing_ids = {b["bm_id"] for b in existing}
+            if bm_id not in existing_ids:
+                database.upsert_bm_config(
+                    bm_id=bm_id,
+                    bm_name=bm_name or bm_id,
+                    system_token=token,
+                    app_id="",
+                    user_id=uid if uid else 1
+                )
+                created_bms.add(bm_id)
         database.upsert_meta_account(
             act_id=act_id, act_name=acct.get("name", ""),
-            access_token=token, pingykj_account=acct.get("business_name", ""),
-            status=status, user_id=uid, bm_id=acct.get("bm_id", "")
+            access_token=token, pingykj_account=bm_name,
+            status=status, user_id=uid, bm_id=bm_id
         )
         # 后导入覆盖：历史 Meta 数据也转移归属
         with database.get_conn() as conn:
@@ -5154,7 +5219,7 @@ def _import_meta_accounts(body: ImportAccountBody,
                 (uid, act_id)
             )
         count += 1
-    return {"success": True, "count": count}
+    return {"success": True, "count": count, "new_bms": len(created_bms)}
 
 
 # ---- Meta 配置管理 API ----

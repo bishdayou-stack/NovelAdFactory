@@ -2245,20 +2245,22 @@ def delete_app_config(config_id: int, user_id: int = None) -> bool:
 # ====== BM Config CRUD ======
 
 def get_bm_configs(user_id: int = None) -> List[Dict[str, Any]]:
-    """获取 BM 配置列表，含每个 BM 下关联的账户数"""
+    """获取 BM 配置列表，含每个 BM 下关联的账户数及归属用户名"""
     with get_conn() as conn:
+        base_sql = """SELECT b.*,
+            (SELECT COUNT(*) FROM meta_accounts m WHERE m.bm_id = b.bm_id) as account_count,
+            COALESCE(u.display_name, u.username, '') as owner_name
+        FROM bm_config b
+        LEFT JOIN users u ON b.user_id = u.id
+        """
         if user_id is not None:
             rows = conn.execute(
-                """SELECT b.*,
-                    (SELECT COUNT(*) FROM meta_accounts m WHERE m.bm_id = b.bm_id) as account_count
-                FROM bm_config b WHERE b.user_id = ? ORDER BY b.bm_name""",
+                base_sql + " WHERE b.user_id = ? ORDER BY b.bm_name",
                 (user_id,)
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT b.*,
-                    (SELECT COUNT(*) FROM meta_accounts m WHERE m.bm_id = b.bm_id) as account_count
-                FROM bm_config b ORDER BY b.bm_name"""
+                base_sql + " ORDER BY b.bm_name"
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -2288,6 +2290,15 @@ def delete_bm_config(bm_id: str, user_id: int = None) -> bool:
             (bm_id, uid)
         )
         return True
+
+
+def update_bm_owner(bm_id: str, new_user_id: int) -> None:
+    """管理员修改 BM 归属用户"""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE bm_config SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE bm_id = ?",
+            (new_user_id, bm_id)
+        )
 
 
 def get_bm_token(bm_id: str) -> Optional[str]:
