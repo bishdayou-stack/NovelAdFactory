@@ -806,6 +806,7 @@
         </div>
         <div class="px-3 py-1.5 flex gap-1.5">
           <button id="btnMetaDiscover" class="flex-1 rounded-lg bg-indigo-600 px-2 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer">+ 发现账户</button>
+          <button id="btnMetaStage" class="rounded-lg bg-emerald-600 px-2 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-500 transition-all cursor-pointer border-0" title="阶段消耗统计">📈 阶段</button>
           <button id="btnMetaConfig" class="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 text-sm hover:bg-slate-700 hover:text-white transition-all flex items-center justify-center cursor-pointer border-0" title="API 配置">&#9874;</button>
         </div>
         <div id="metaAccountTree" class="flex-1 overflow-y-auto px-2 py-1 text-xs"></div>
@@ -1305,6 +1306,40 @@
       <button id="previewNextBtn" class="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-black/30 text-white text-3xl hover:bg-black/50 transition-all flex items-center justify-center cursor-pointer border-0 z-10 backdrop-blur-sm" onclick="previewNext()" style="visibility:hidden">▶</button>
       <span id="previewCounter" class="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/10 text-white text-xs font-medium z-10"></span>
       <img id="imagePreviewImg" src="" class="max-w-[85vw] max-h-[85vh] object-contain rounded-xl shadow-2xl" onclick="event.stopPropagation()" />
+    </div>
+
+    <!-- 阶段消耗统计弹窗 -->
+    <div id="stageStatsModal" hidden class="fixed inset-0 z-[135] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeStageStats()">
+      <div class="bg-slate-800 rounded-2xl w-full max-w-5xl mx-4 max-h-[85vh] flex flex-col border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">
+        <div class="px-5 py-3 border-b border-slate-700 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-white">📈 阶段消耗统计</h3>
+          <button onclick="closeStageStats()" class="w-7 h-7 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-400 cursor-pointer border-0 bg-transparent text-lg">✕</button>
+        </div>
+        <!-- 汇总卡片 -->
+        <div id="stageSummaryCards" class="px-5 py-3 grid grid-cols-6 gap-3 text-[11px]"></div>
+        <!-- 明细表格 -->
+        <div class="flex-1 overflow-y-auto px-5 pb-4">
+          <table class="w-full text-xs" id="stageStatsTable">
+            <thead class="sticky top-0 bg-slate-800 z-10">
+              <tr class="border-b border-slate-700 text-slate-400">
+                <th class="text-left py-2 font-medium">账户</th>
+                <th class="text-right py-2 font-medium">阶段消耗</th>
+                <th class="text-right py-2 font-medium">阶段收入</th>
+                <th class="text-right py-2 font-medium">阶段展示</th>
+                <th class="text-right py-2 font-medium">阶段点击</th>
+                <th class="text-right py-2 font-medium">总消耗</th>
+                <th class="text-right py-2 font-medium">总收入</th>
+                <th class="text-right py-2 font-medium">总展示</th>
+                <th class="text-right py-2 font-medium">总点击</th>
+                <th class="text-right py-2 font-medium">最新同步</th>
+              </tr>
+            </thead>
+            <tbody id="stageStatsBody">
+              <tr><td colspan="10" class="text-slate-500 text-center py-8">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
   </main>
@@ -4730,6 +4765,131 @@
     }
 
     document.getElementById('btnMetaDiscover').addEventListener('click', openDiscoverPanel);
+    document.getElementById('btnMetaStage').addEventListener('click', openStageStats);
+
+    // ---- 阶段消耗弹窗 ----
+    function openStageStats() {
+      var modal = document.getElementById('stageStatsModal');
+      modal.hidden = false;
+      document.getElementById('stageStatsBody').innerHTML = '<tr><td colspan="10" class="text-slate-500 text-center py-8">加载中...</td></tr>';
+      document.getElementById('stageSummaryCards').innerHTML = '';
+      fetch('/api/meta/stage-stats').then(function(r) { return r.json(); }).then(function(res) {
+        renderStageSummary(res.summary);
+        renderStageTable(res.data);
+      }).catch(function(e) {
+        document.getElementById('stageStatsBody').innerHTML = '<tr><td colspan="10" class="text-red-400 text-center py-8">加载失败: ' + e + '</td></tr>';
+      });
+    }
+
+    function closeStageStats() {
+      document.getElementById('stageStatsModal').hidden = true;
+    }
+
+    function renderStageSummary(s) {
+      if (!s) return;
+      var cards = [
+        {label: '总消耗', value: '$' + (s.total_spend || 0).toFixed(2), sub: '阶段 +$' + (s.stage_spend || 0).toFixed(2), cls: 'text-amber-400'},
+        {label: '总收入', value: '$' + (s.total_revenue || 0).toFixed(2), sub: '阶段 +$' + (s.stage_revenue || 0).toFixed(2), cls: 'text-emerald-400'},
+        {label: '总展示', value: (s.total_impressions || 0).toLocaleString(), sub: '阶段 +' + (s.stage_impressions || 0).toLocaleString(), cls: 'text-blue-400'},
+        {label: '总点击', value: (s.total_clicks || 0).toLocaleString(), sub: '阶段 +' + (s.stage_clicks || 0).toLocaleString(), cls: 'text-indigo-400'},
+        {label: '已记录账户', value: s.accounts_with_stage + '/' + s.account_count, sub: '阶段数据可用', cls: 'text-purple-400'},
+        {label: '总转化', value: (s.total_purchases || 0).toLocaleString(), sub: '阶段 +' + (s.stage_purchases || 0).toLocaleString(), cls: 'text-pink-400'},
+      ];
+      var html = '';
+      cards.forEach(function(c) {
+        html += '<div class="card-dark p-3 text-center"><div class="text-slate-500 text-[10px]">' + c.label + '</div><div class="' + c.cls + ' font-bold text-sm">' + c.value + '</div><div class="text-slate-500 text-[10px]">' + c.sub + '</div></div>';
+      });
+      document.getElementById('stageSummaryCards').innerHTML = html;
+    }
+
+    var _stageExpanded = {};
+    var _stageDataCache = null;
+    function renderStageTable(data) {
+      _stageDataCache = data;
+      if (!data || !data.length) {
+        document.getElementById('stageStatsBody').innerHTML = '<tr><td colspan="10" class="text-slate-500 text-center py-8">暂无阶段数据（需要至少两次同步才能计算）</td></tr>';
+        return;
+      }
+      var html = '';
+      data.forEach(function(d) {
+        var stageSpend = d.stage_spend != null ? '<span class="text-amber-400">+$' + d.stage_spend.toFixed(2) + '</span>' : '<span class="text-slate-600">—</span>';
+        var stageRev = d.stage_revenue != null ? '<span class="text-emerald-400">+$' + d.stage_revenue.toFixed(2) + '</span>' : '<span class="text-slate-600">—</span>';
+        var stageImp = d.stage_impressions != null ? '<span class="text-blue-400">+' + d.stage_impressions.toLocaleString() + '</span>' : '<span class="text-slate-600">—</span>';
+        var stageClick = d.stage_clicks != null ? '<span class="text-indigo-400">+' + d.stage_clicks.toLocaleString() + '</span>' : '<span class="text-slate-600">—</span>';
+        var syncTime = d.last_sync ? d.last_sync.substring(0, 16).replace('T', ' ') : '-';
+        var name = d.act_name || d.act_id;
+        var expanded = _stageExpanded[d.act_id];
+        html += '<tr class="border-b border-slate-700 hover:bg-white/5 cursor-pointer" onclick="toggleStageHistory(\'' + d.act_id + '\')">' +
+          '<td class="py-2 text-white"><div class="font-medium">' + escapeHtml(name) + '</div><div class="text-[10px] text-slate-500">' + escapeHtml(d.user_name || '') + ' · ' + (expanded ? '▲' : '▼') + '</div></td>' +
+          '<td class="py-2 text-right">' + stageSpend + '</td>' +
+          '<td class="py-2 text-right">' + stageRev + '</td>' +
+          '<td class="py-2 text-right">' + stageImp + '</td>' +
+          '<td class="py-2 text-right">' + stageClick + '</td>' +
+          '<td class="py-2 text-right text-slate-300">$' + (d.total_spend || 0).toFixed(2) + '</td>' +
+          '<td class="py-2 text-right text-slate-300">$' + (d.total_revenue || 0).toFixed(2) + '</td>' +
+          '<td class="py-2 text-right text-slate-400">' + (d.total_impressions || 0).toLocaleString() + '</td>' +
+          '<td class="py-2 text-right text-slate-400">' + (d.total_clicks || 0).toLocaleString() + '</td>' +
+          '<td class="py-2 text-right text-slate-500 text-[10px]">' + syncTime + '</td>' +
+          '</tr>';
+        // 展开的历史表格
+        if (expanded) {
+          html += '<tr id="stageHist-' + d.act_id.replace(/[^a-zA-Z0-9]/g, '_') + '"><td colspan="10" class="bg-slate-900 px-4 py-2"><div class="text-slate-500 text-center text-[11px]">加载中...</div></td></tr>';
+        }
+      });
+      document.getElementById('stageStatsBody').innerHTML = html;
+    }
+
+    function toggleStageHistory(actId) {
+      if (_stageExpanded[actId]) {
+        _stageExpanded[actId] = false;
+      } else {
+        _stageExpanded[actId] = true;
+      }
+      // 用缓存数据重渲染，不重新请求
+      renderStageTable(_stageDataCache || []);
+      if (_stageExpanded[actId]) {
+        fetch('/api/meta/stage-stats/' + encodeURIComponent(actId)).then(function(r) { return r.json(); }).then(function(res) {
+          renderStageHistory(actId, res.history || []);
+        }).catch(function() {
+          var el = document.getElementById('stageHist-' + actId.replace(/[^a-zA-Z0-9]/g, '_'));
+          if (el) el.innerHTML = '<td colspan="10" class="text-red-400 text-center text-[11px] py-2">加载失败</td>';
+        });
+      }
+    }
+
+    function renderStageHistory(actId, history) {
+      var el = document.getElementById('stageHist-' + actId.replace(/[^a-zA-Z0-9]/g, '_'));
+      if (!el) return;
+      if (!history || history.length < 2) {
+        el.innerHTML = '<td colspan="10" class="text-slate-500 text-center text-[11px] py-2">暂无历史快照（需要多次同步后才有记录）</td>';
+        return;
+      }
+      var html = '<td colspan="10" class="py-2"><table class="w-full text-[11px]"><thead><tr class="text-slate-500">' +
+        '<th class="text-left py-1">快照时间</th>' +
+        '<th class="text-right py-1">消耗</th><th class="text-right py-1">阶段增量</th>' +
+        '<th class="text-right py-1">收入</th><th class="text-right py-1">阶段增量</th>' +
+        '<th class="text-right py-1">展示</th><th class="text-right py-1">阶段增量</th>' +
+        '<th class="text-right py-1">点击</th><th class="text-right py-1">阶段增量</th>' +
+        '<th class="text-right py-1">转化</th>' +
+        '</tr></thead><tbody>';
+      history.forEach(function(h, i) {
+        var t = h.snapshot_at ? h.snapshot_at.substring(0, 16).replace('T', ' ') : '-';
+        var dS = h.delta_spend != null ? '<span class="text-amber-400">+$' + h.delta_spend.toFixed(2) + '</span>' : '<span class="text-slate-600">基线</span>';
+        var dR = h.delta_revenue != null ? '<span class="text-emerald-400">+$' + (h.delta_revenue || 0).toFixed(2) + '</span>' : '';
+        var dI = h.delta_impressions != null ? '<span class="text-blue-400">+' + (h.delta_impressions || 0).toLocaleString() + '</span>' : '';
+        var dC = h.delta_clicks != null ? '<span class="text-indigo-400">+' + (h.delta_clicks || 0).toLocaleString() + '</span>' : '';
+        html += '<tr class="border-b border-slate-800 ' + (i === 0 ? 'text-slate-200' : 'text-slate-400') + '">' +
+          '<td class="py-1">' + t + (i === 0 ? ' <span class=\"text-[9px] text-indigo-400\">最新</span>' : '') + '</td>' +
+          '<td class="py-1 text-right">$' + (h.spend || 0).toFixed(2) + '</td><td class="py-1 text-right">' + dS + '</td>' +
+          '<td class="py-1 text-right">$' + (h.revenue || 0).toFixed(2) + '</td><td class="py-1 text-right">' + dR + '</td>' +
+          '<td class="py-1 text-right">' + (h.impressions || 0).toLocaleString() + '</td><td class="py-1 text-right">' + dI + '</td>' +
+          '<td class="py-1 text-right">' + (h.clicks || 0).toLocaleString() + '</td><td class="py-1 text-right">' + dC + '</td>' +
+          '<td class="py-1 text-right">' + (h.purchases || 0) + '</td>' +
+          '</tr>';
+      });
+      html += '</tbody></table></td>';
+      el.innerHTML = html;
+    }
 
     // ---- 日期和对比基准 ----
     var _metaCustomDate = false;

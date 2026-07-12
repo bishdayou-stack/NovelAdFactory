@@ -1372,6 +1372,12 @@ def _sync_one_meta_account(act_id: str, access_token: str,
             print(f"[meta status] {act_id} 状态同步失败: {_e}")
         print(f"  [meta] {act_id} statuses: {time.time()-t0:.1f}s")
     print(f"  [meta] {act_id} 总耗时: {time.time()-t_start:.1f}s")
+    # 同步完成后保存 KPI 快照，用于阶段统计
+    if count > 0:
+        try:
+            database.save_account_snapshot(act_id, user_id)
+        except Exception as _e:
+            print(f"[meta snapshot] {act_id} 快照保存失败: {_e}")
     return act_id, count, ""
 
 

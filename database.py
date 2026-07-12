@@ -788,6 +788,25 @@ def init_db() -> None:
         if 'bm_id' not in meta_cols:
             c.execute("ALTER TABLE meta_accounts ADD COLUMN bm_id TEXT")
 
+        # 迁移：meta_account_snapshots 阶段统计快照表
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS meta_account_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                act_id TEXT NOT NULL,
+                user_id INTEGER DEFAULT 1,
+                snapshot_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                spend REAL DEFAULT 0,
+                revenue REAL DEFAULT 0,
+                impressions INTEGER DEFAULT 0,
+                clicks INTEGER DEFAULT 0,
+                purchases INTEGER DEFAULT 0,
+                ctr REAL DEFAULT 0,
+                cpm REAL DEFAULT 0,
+                cpa REAL DEFAULT 0,
+                roi REAL DEFAULT 0
+            )
+        """)
+
 # ====== 用户管理 CRUD ======
 
 def create_user(username: str, password: str, role: str = "user",
@@ -1552,6 +1571,112 @@ def update_meta_token(act_id: str, access_token: str, user_id: int = None) -> No
             "UPDATE meta_accounts SET access_token = ?, token_expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE act_id = ? AND user_id = ?",
             (access_token, token_expires_at, act_id, uid)
         )
+
+
+# ====== 阶段统计快照 ======
+
+def save_account_snapshot(act_id: str, user_id: int = None) -> None:
+    """保存账户当前 KPI 快照（同步完成后调用），对比 ad_daily_stats 汇总"""
+    uid = user_id or 1
+    with get_conn() as conn:
+        row = conn.execute("""
+            SELECT
+                COALESCE(SUM(total_spend), 0) as spend,
+                COALESCE(SUM(purchase_value), 0) as revenue,
+                COALESCE(SUM(impressions), 0) as impressions,
+                COALESCE(SUM(clicks), 0) as clicks,
+                COALESCE(SUM(purchases), 0) as purchases,
+                CASE WHEN SUM(impressions) > 0 THEN ROUND(SUM(clicks) * 100.0 / SUM(impressions), 2) ELSE 0 END as ctr,
+                CASE WHEN SUM(impressions) > 0 THEN ROUND(SUM(total_spend) / SUM(impressions) * 1000, 2) ELSE 0 END as cpm,
+                CASE WHEN SUM(purchases) > 0 THEN ROUND(SUM(total_spend) / SUM(purchases), 2) ELSE 0 END as cpa,
+                CASE WHEN SUM(total_spend) > 0 THEN ROUND(SUM(purchase_value) / SUM(total_spend), 2) ELSE 0 END as roi
+            FROM ad_daily_stats
+            WHERE ad_account = ? AND source = 'meta'
+        """, (act_id,)).fetchone()
+        conn.execute("""
+            INSERT INTO meta_account_snapshots (act_id, user_id, spend, revenue, impressions, clicks, purchases, ctr, cpm, cpa, roi)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (act_id, uid, *row))
+
+
+def get_account_stage_stats(user_id: int = None) -> List[Dict[str, Any]]:
+    """获取所有账户的阶段统计（最新快照 vs 上一次快照的增量）"""
+    uid = user_id
+    with get_conn() as conn:
+        rows = conn.execute("""
+            WITH ranked AS (
+                SELECT act_id, user_id, snapshot_at, spend, revenue, impressions, clicks, purchases, ctr, cpm, cpa, roi,
+                    ROW_NUMBER() OVER (PARTITION BY act_id ORDER BY id DESC) as rn
+                FROM meta_account_snapshots
+                WHERE (? IS NULL OR user_id = ?)
+            ),
+            latest AS (SELECT * FROM ranked WHERE rn = 1),
+            prev AS (SELECT * FROM ranked WHERE rn = 2)
+            SELECT
+                l.act_id,
+                l.user_id,
+                l.snapshot_at as last_sync,
+                l.spend as total_spend,
+                l.revenue as total_revenue,
+                l.impressions as total_impressions,
+                l.clicks as total_clicks,
+                l.purchases as total_purchases,
+                l.ctr as total_ctr,
+                l.cpm as total_cpm,
+                l.cpa as total_cpa,
+                l.roi as total_roi,
+                CASE WHEN p.spend IS NOT NULL THEN ROUND(l.spend - p.spend, 2) ELSE NULL END as stage_spend,
+                CASE WHEN p.revenue IS NOT NULL THEN ROUND(l.revenue - p.revenue, 2) ELSE NULL END as stage_revenue,
+                CASE WHEN p.impressions IS NOT NULL THEN l.impressions - p.impressions ELSE NULL END as stage_impressions,
+                CASE WHEN p.clicks IS NOT NULL THEN l.clicks - p.clicks ELSE NULL END as stage_clicks,
+                CASE WHEN p.purchases IS NOT NULL THEN l.purchases - p.purchases ELSE NULL END as stage_purchases,
+                CASE WHEN p.ctr IS NOT NULL AND p.ctr > 0 THEN ROUND(l.ctr - p.ctr, 2) ELSE NULL END as stage_ctr,
+                CASE WHEN p.cpm IS NOT NULL AND p.cpm > 0 THEN ROUND(l.cpm - p.cpm, 2) ELSE NULL END as stage_cpm,
+                CASE WHEN p.cpa IS NOT NULL AND p.cpa > 0 THEN ROUND(l.cpa - p.cpa, 2) ELSE NULL END as stage_cpa,
+                CASE WHEN p.roi IS NOT NULL AND p.roi > 0 THEN ROUND(l.roi - p.roi, 2) ELSE NULL END as stage_roi,
+                CASE WHEN p.snapshot_at IS NOT NULL THEN p.snapshot_at ELSE NULL END as prev_sync
+            FROM latest l
+            LEFT JOIN prev p ON l.act_id = p.act_id
+            ORDER BY l.spend DESC
+        """, (uid, uid)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_account_snapshot_history(act_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+    """获取单个账户的快照历史（按时间倒序），附带每次增量"""
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT s.*,
+                LAG(s.spend) OVER (ORDER BY s.id) as prev_spend,
+                LAG(s.revenue) OVER (ORDER BY s.id) as prev_revenue,
+                LAG(s.impressions) OVER (ORDER BY s.id) as prev_impressions,
+                LAG(s.clicks) OVER (ORDER BY s.id) as prev_clicks,
+                LAG(s.purchases) OVER (ORDER BY s.id) as prev_purchases,
+                LAG(s.snapshot_at) OVER (ORDER BY s.id) as prev_snapshot_at
+            FROM meta_account_snapshots s
+            WHERE s.act_id = ?
+            ORDER BY s.id DESC
+            LIMIT ?
+        """, (act_id, limit)).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            prev = d.pop("prev_spend", None)
+            if prev is not None:
+                d["delta_spend"] = round(d["spend"] - prev, 2)
+                d["delta_revenue"] = round(d["revenue"] - (d.pop("prev_revenue") or 0), 2)
+                d["delta_impressions"] = d["impressions"] - (d.pop("prev_impressions") or 0)
+                d["delta_clicks"] = d["clicks"] - (d.pop("prev_clicks") or 0)
+                d["delta_purchases"] = d["purchases"] - (d.pop("prev_purchases") or 0)
+                d["prev_snapshot_at"] = d.pop("prev_snapshot_at")
+            else:
+                d.pop("prev_revenue", None)
+                d.pop("prev_impressions", None)
+                d.pop("prev_clicks", None)
+                d.pop("prev_purchases", None)
+                d["delta_spend"] = None
+            result.append(d)
+        return result
 
 
 # ====== Delivery Templates CRUD ======

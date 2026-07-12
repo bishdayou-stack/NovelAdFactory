@@ -4984,6 +4984,49 @@ def _meta_account_ranking(start: str = Query(default=None), end: str = Query(def
     return analytics.meta_account_ranking(start_date=start, end_date=end, account=account, page=page, page_size=page_size, user_id=uid)
 
 
+@app.get("/api/meta/stage-stats")
+def _meta_stage_stats(user: dict = Depends(get_current_user)):
+    """获取所有账户的阶段消耗统计（最新同步 vs 上一次同步的增量）"""
+    uid = _opt_user_id(user)
+    data = database.get_account_stage_stats(uid)
+    # 附上账户名和用户名
+    for item in data:
+        acct = database.get_meta_account(item["act_id"], uid)
+        if acct:
+            item["act_name"] = acct.get("act_name", item["act_id"])
+        u = database.get_user(item.get("user_id", 1))
+        if u:
+            item["user_name"] = u.get("display_name") or u.get("username", "")
+    # 汇总报告
+    summary = {
+        "total_spend": sum(d["total_spend"] or 0 for d in data),
+        "total_revenue": sum(d["total_revenue"] or 0 for d in data),
+        "total_impressions": sum(d["total_impressions"] or 0 for d in data),
+        "total_clicks": sum(d["total_clicks"] or 0 for d in data),
+        "total_purchases": sum(d["total_purchases"] or 0 for d in data),
+        "stage_spend": sum(d["stage_spend"] or 0 for d in data),
+        "stage_revenue": sum(d["stage_revenue"] or 0 for d in data),
+        "stage_impressions": sum(d["stage_impressions"] or 0 for d in data),
+        "stage_clicks": sum(d["stage_clicks"] or 0 for d in data),
+        "stage_purchases": sum(d["stage_purchases"] or 0 for d in data),
+        "account_count": len(data),
+        "accounts_with_stage": sum(1 for d in data if d["stage_spend"] is not None),
+    }
+    return {"data": data, "summary": summary}
+
+
+@app.get("/api/meta/stage-stats/{act_id}")
+def _meta_stage_history(act_id: str, user: dict = Depends(get_current_user)):
+    """获取单个账户的快照历史记录"""
+    data = database.get_account_snapshot_history(act_id)
+    acct = database.get_meta_account(act_id)
+    return {
+        "act_id": act_id,
+        "act_name": acct.get("act_name", act_id) if acct else act_id,
+        "history": data
+    }
+
+
 @app.get("/api/meta/campaigns")
 def _meta_campaigns(account: str = Query(...), start: str = Query(default=None),
                     end: str = Query(default=None), user_id: int = Query(default=None),
