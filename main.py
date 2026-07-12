@@ -4311,6 +4311,48 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
         return {"status": "failed", "error": str(e)}
 
 
+# ---- App 管理 API ----
+
+class AppBody(BaseModel):
+    app_name: str
+    app_id: str
+    app_secret: str
+    is_default: int = 0
+
+
+@app.get("/api/app/list")
+def _app_list(user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    return {"data": database.get_app_configs(uid)}
+
+
+@app.post("/api/app")
+def _app_create(body: AppBody, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(403, "仅管理员可操作")
+    uid = user["id"]
+    app_id = database.upsert_app_config(body.app_name, body.app_id, body.app_secret, body.is_default, uid)
+    return {"success": True, "id": app_id}
+
+
+@app.put("/api/app/{config_id}")
+def _app_update(config_id: int, body: AppBody, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(403, "仅管理员可操作")
+    uid = user["id"]
+    database.upsert_app_config(body.app_name, body.app_id, body.app_secret, body.is_default, uid, config_id)
+    return {"success": True}
+
+
+@app.delete("/api/app/{config_id}")
+def _app_delete(config_id: int, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(403, "仅管理员可操作")
+    uid = user["id"]
+    database.delete_app_config(config_id, uid)
+    return {"success": True}
+
+
 # ---- Meta 账户管理 API ----
 
 class MetaAccountBody(BaseModel):
