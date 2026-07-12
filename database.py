@@ -2227,3 +2227,61 @@ def delete_app_config(config_id: int, user_id: int = None) -> bool:
                 (uid,)
             )
         return True
+
+
+# ====== BM Config CRUD ======
+
+def get_bm_configs(user_id: int = None) -> List[Dict[str, Any]]:
+    """获取 BM 配置列表，含每个 BM 下关联的账户数"""
+    with get_conn() as conn:
+        if user_id is not None:
+            rows = conn.execute(
+                """SELECT b.*,
+                    (SELECT COUNT(*) FROM meta_accounts m WHERE m.bm_id = b.bm_id) as account_count
+                FROM bm_config b WHERE b.user_id = ? ORDER BY b.bm_name""",
+                (user_id,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT b.*,
+                    (SELECT COUNT(*) FROM meta_accounts m WHERE m.bm_id = b.bm_id) as account_count
+                FROM bm_config b ORDER BY b.bm_name"""
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def upsert_bm_config(bm_id: str, bm_name: str, system_token: str = "",
+                     app_id: str = "", user_id: int = None) -> None:
+    """新增或更新 BM 配置"""
+    uid = user_id or 1
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO bm_config (bm_id, bm_name, system_token, app_id, user_id)
+            VALUES (?, ?, ?, ?, ?) ON CONFLICT(bm_id) DO UPDATE SET
+            bm_name = excluded.bm_name,
+            system_token = excluded.system_token,
+            app_id = excluded.app_id,
+            updated_at = CURRENT_TIMESTAMP""",
+            (bm_id, bm_name, system_token, app_id, uid)
+        )
+
+
+def delete_bm_config(bm_id: str, user_id: int = None) -> bool:
+    """删除 BM 配置"""
+    uid = user_id or 1
+    with get_conn() as conn:
+        conn.execute(
+            "DELETE FROM bm_config WHERE bm_id = ? AND user_id = ?",
+            (bm_id, uid)
+        )
+        return True
+
+
+def get_bm_token(bm_id: str) -> Optional[str]:
+    """获取 BM 的 System User Token，用于该 BM 下所有账户的 API 调用"""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT system_token FROM bm_config WHERE bm_id = ? AND system_token != ''",
+            (bm_id,)
+        ).fetchone()
+        return row[0] if row else None
