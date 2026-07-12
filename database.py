@@ -745,6 +745,37 @@ def init_db() -> None:
             except Exception:
                 pass
 
+        # 迁移：app_config 表 + bm_config 表（BM 管理 + 多应用支持）
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS app_config (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                app_name    TEXT NOT NULL,
+                app_id      TEXT NOT NULL,
+                app_secret  TEXT NOT NULL,
+                is_default  INTEGER DEFAULT 0,
+                user_id     INTEGER DEFAULT 1,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS bm_config (
+                bm_id         TEXT PRIMARY KEY,
+                bm_name       TEXT NOT NULL,
+                system_token  TEXT,
+                app_id        TEXT,
+                user_id       INTEGER DEFAULT 1,
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        # 迁移：meta_accounts 加 bm_id（关联 BM）
+        c = conn.cursor()
+        c.execute("PRAGMA table_info('meta_accounts')")
+        meta_cols = [r[1] for r in c.fetchall()]
+        if 'bm_id' not in meta_cols:
+            c.execute("ALTER TABLE meta_accounts ADD COLUMN bm_id TEXT")
+
 # ====== 用户管理 CRUD ======
 
 def create_user(username: str, password: str, role: str = "user",
