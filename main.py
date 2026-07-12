@@ -157,6 +157,21 @@ def _opt_user_id(user: dict) -> int:
 # 启动时初始化数据库
 database.init_db()
 
+# 迁移：将 config.json 的全局 App 配置写入 app_config（仅首次）
+_config_path = Path(__file__).parent / "config.json"
+if _config_path.exists():
+    _cfg = json.loads(_config_path.read_text(encoding="utf-8"))
+    _meta_cfg = _cfg.get("meta", {})
+    _global_app_id = _meta_cfg.get("app_id", "")
+    if _global_app_id:
+        _existing = database.get_app_configs()
+        if not _existing:
+            database.upsert_app_config(
+                "默认应用", _global_app_id,
+                _meta_cfg.get("app_secret", ""), is_default=1
+            )
+            print("[迁移] 全局 App 配置已写入 app_config 表")
+
 @app.on_event("startup")
 def _recover_incomplete_batches():
     """启动时扫描：有 _progress.json 但无 _meta.json 的批次标记为 interrupted"""
