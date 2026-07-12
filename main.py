@@ -4417,7 +4417,9 @@ def _trigger_single_account_sync(act_id: str, scope: str = Query(default="all"),
                 account = a; uid = a.get("user_id") or uid; break
     if not account:
         return {"success": False, "message": "账户不存在或已停用"}
-    token = account.get("access_token") or _load_meta_default_token()
+    # Token 优先级: BM level → 账户 level → 全局默认
+    bm_id = account.get("bm_id", "")
+    token = (database.get_bm_token(bm_id) if bm_id else "") or account.get("access_token") or _load_meta_default_token()
     if not token:
         return {"success": False, "message": "该账户无有效 Token"}
     try:
@@ -4451,9 +4453,9 @@ def _trigger_meta_sync(user: dict = Depends(get_current_user),
             continue
         if a.get("user_id") is None:
             continue  # 未分配用户，跳过
-        token = a.get("access_token") or ""
-        if not token:
-            token = _load_meta_default_token()
+        # Token 优先级: BM level → 账户 level → 全局默认
+        bm_id = a.get("bm_id", "")
+        token = (database.get_bm_token(bm_id) if bm_id else "") or a.get("access_token") or _load_meta_default_token()
         if token:
             active.append({"act_id": a["act_id"], "act_name": a.get("act_name", ""), "token": token,
                            "owner_user_id": a.get("user_id") or uid})
