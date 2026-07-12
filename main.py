@@ -4353,6 +4353,55 @@ def _app_delete(config_id: int, user: dict = Depends(get_current_user)):
     return {"success": True}
 
 
+# ---- BM 管理 API ----
+
+class BmBody(BaseModel):
+    bm_id: str
+    bm_name: str = ""
+    system_token: str = ""
+    app_id: str = ""
+
+class BmDiscoverRequest(BaseModel):
+    access_token: str
+
+@app.get("/api/bm/list")
+def _bm_list(user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    return {"data": database.get_bm_configs(uid)}
+
+@app.post("/api/bm")
+def _bm_upsert(body: BmBody, user: dict = Depends(get_current_user)):
+    uid = user["id"]
+    database.upsert_bm_config(body.bm_id, body.bm_name, body.system_token, body.app_id, uid)
+    return {"success": True}
+
+@app.put("/api/bm/{bm_id}")
+def _bm_update(bm_id: str, body: BmBody, user: dict = Depends(get_current_user)):
+    uid = user["id"]
+    database.upsert_bm_config(bm_id, body.bm_name, body.system_token, body.app_id, uid)
+    return {"success": True}
+
+@app.delete("/api/bm/{bm_id}")
+def _bm_delete(bm_id: str, user: dict = Depends(get_current_user)):
+    uid = user["id"]
+    database.delete_bm_config(bm_id, uid)
+    return {"success": True}
+
+@app.post("/api/bm/discover")
+def _bm_discover(body: BmDiscoverRequest, user: dict = Depends(get_current_user)):
+    """用 System User Token 发现 BM 并自动保存"""
+    uid = user["id"]
+    result = meta_api.discover_all_assets(body.access_token)
+    businesses = result.get("businesses", [])
+    count = 0
+    for bm in businesses:
+        bm_id = bm.get("id", "")
+        if bm_id:
+            database.upsert_bm_config(bm_id, bm.get("name", bm_id), body.access_token, "", uid)
+            count += 1
+    return {"success": True, "count": count, "message": f"发现并保存 {count} 个 BM"}
+
+
 # ---- Meta 账户管理 API ----
 
 class MetaAccountBody(BaseModel):
