@@ -5027,6 +5027,31 @@ def _meta_stage_history(act_id: str, user: dict = Depends(get_current_user)):
     }
 
 
+@app.get("/api/meta/campaign-stage-stats")
+def _meta_campaign_stage_stats(account: str = Query(...),
+                                user: dict = Depends(get_current_user)):
+    """获取某账户下所有广告系列的最新阶段统计"""
+    data = database.get_campaign_stage_stats(account)
+    summary = {
+        "total_spend": sum(d["total_spend"] or 0 for d in data),
+        "total_revenue": sum(d["total_revenue"] or 0 for d in data),
+        "stage_spend": sum(d["stage_spend"] or 0 for d in data),
+        "stage_revenue": sum(d["stage_revenue"] or 0 for d in data),
+        "stage_impressions": sum(d["stage_impressions"] or 0 for d in data),
+        "stage_clicks": sum(d["stage_clicks"] or 0 for d in data),
+        "campaign_count": len(data),
+        "with_stage": sum(1 for d in data if d["stage_spend"] is not None),
+    }
+    return {"data": data, "summary": summary}
+
+
+@app.get("/api/meta/campaign-stage-stats/{campaign_id}")
+def _meta_campaign_stage_history(campaign_id: str, user: dict = Depends(get_current_user)):
+    """获取单个广告系列的快照历史"""
+    data = database.get_campaign_snapshot_history(campaign_id)
+    return {"campaign_id": campaign_id, "history": data}
+
+
 @app.get("/api/meta/campaigns")
 def _meta_campaigns(account: str = Query(...), start: str = Query(default=None),
                     end: str = Query(default=None), user_id: int = Query(default=None),

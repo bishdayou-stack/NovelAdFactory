@@ -806,7 +806,6 @@
         </div>
         <div class="px-3 py-1.5 flex gap-1.5">
           <button id="btnMetaDiscover" class="flex-1 rounded-lg bg-indigo-600 px-2 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer">+ 发现账户</button>
-          <button id="btnMetaStage" class="rounded-lg bg-emerald-600 px-2 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-500 transition-all cursor-pointer border-0" title="阶段消耗统计">📈 阶段</button>
           <button id="btnMetaConfig" class="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 text-sm hover:bg-slate-700 hover:text-white transition-all flex items-center justify-center cursor-pointer border-0" title="API 配置">&#9874;</button>
         </div>
         <div id="metaAccountTree" class="flex-1 overflow-y-auto px-2 py-1 text-xs"></div>
@@ -1306,6 +1305,20 @@
       <button id="previewNextBtn" class="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-black/30 text-white text-3xl hover:bg-black/50 transition-all flex items-center justify-center cursor-pointer border-0 z-10 backdrop-blur-sm" onclick="previewNext()" style="visibility:hidden">▶</button>
       <span id="previewCounter" class="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/10 text-white text-xs font-medium z-10"></span>
       <img id="imagePreviewImg" src="" class="max-w-[85vw] max-h-[85vh] object-contain rounded-xl shadow-2xl" onclick="event.stopPropagation()" />
+    </div>
+
+    <!-- 广告系列阶段消耗弹窗 -->
+    <div id="campStageModal" hidden class="fixed inset-0 z-[136] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeCampStageStats()">
+      <div class="bg-slate-800 rounded-2xl w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">
+        <div class="px-5 py-3 border-b border-slate-700 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-white">📈 <span id="campStageTitle">广告系列阶段消耗</span></h3>
+          <button onclick="closeCampStageStats()" class="w-7 h-7 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-400 cursor-pointer border-0 bg-transparent text-lg">✕</button>
+        </div>
+        <div id="campStageSummary" class="px-5 py-2 grid grid-cols-5 gap-2 text-[11px]"></div>
+        <div class="flex-1 overflow-y-auto px-5 pb-4">
+          <div id="campStageBody" class="text-slate-500 text-center py-8 text-xs">加载中...</div>
+        </div>
+      </div>
     </div>
 
     <!-- 阶段消耗统计弹窗 -->
@@ -4765,7 +4778,82 @@
     }
 
     document.getElementById('btnMetaDiscover').addEventListener('click', openDiscoverPanel);
-    document.getElementById('btnMetaStage').addEventListener('click', openStageStats);
+
+    // ---- 广告系列阶段消耗弹窗 ----
+
+    function openCampStageStats(cid, cname, cacct) {
+      var modal = document.getElementById('campStageModal');
+      modal.hidden = false;
+      document.getElementById('campStageTitle').textContent = decodeURIComponent(cname) + ' — 阶段消耗';
+      document.getElementById('campStageBody').innerHTML = '<div class="text-slate-500 text-center py-8 text-xs">加载中...</div>';
+      document.getElementById('campStageSummary').innerHTML = '';
+      // 单系列历史
+      fetch('/api/meta/campaign-stage-stats/' + cid).then(function(r) { return r.json(); }).then(function(res) {
+        renderCampStageHistory(res.history || []);
+      }).catch(function() {
+        document.getElementById('campStageBody').innerHTML = '<div class="text-red-400 text-center py-8 text-xs">加载失败</div>';
+      });
+    }
+
+    function closeCampStageStats() {
+      document.getElementById('campStageModal').hidden = true;
+    }
+
+    function renderCampStageHistory(history) {
+      if (!history || history.length < 2) {
+        document.getElementById('campStageBody').innerHTML = '<div class="text-slate-500 text-center py-8 text-xs">暂无阶段数据（需要多次同步后才有记录）</div>';
+        return;
+      }
+      // 汇总：最新一条 vs 最早一条 的总增量
+      var latest = history[0], earliest = history[history.length - 1];
+      var totalDelta = {
+        spend: latest.spend - earliest.spend,
+        revenue: latest.revenue - earliest.revenue,
+        impressions: latest.impressions - earliest.impressions,
+        clicks: latest.clicks - earliest.clicks,
+        purchases: latest.purchases - earliest.purchases,
+      };
+      var cards = [
+        {label: '累计消耗', v: '$' + (latest.spend || 0).toFixed(2), d: '+$' + totalDelta.spend.toFixed(2), c: 'text-amber-400'},
+        {label: '累计收入', v: '$' + (latest.revenue || 0).toFixed(2), d: '+$' + totalDelta.revenue.toFixed(2), c: 'text-emerald-400'},
+        {label: '累计展示', v: (latest.impressions || 0).toLocaleString(), d: '+' + totalDelta.impressions.toLocaleString(), c: 'text-blue-400'},
+        {label: '累计点击', v: (latest.clicks || 0).toLocaleString(), d: '+' + totalDelta.clicks.toLocaleString(), c: 'text-indigo-400'},
+        {label: '记录次数', v: history.length + ' 次', d: (history.length - 1) + ' 次阶段', c: 'text-purple-400'},
+      ];
+      var html = '';
+      cards.forEach(function(c) {
+        html += '<div class="card-dark p-2 text-center"><div class="text-slate-500 text-[10px]">' + c.label + '</div><div class="' + c.c + ' font-bold text-xs">' + c.v + '</div><div class="text-slate-500 text-[9px]">' + c.d + '</div></div>';
+      });
+      document.getElementById('campStageSummary').innerHTML = html;
+
+      // 历史明细表
+      var th = '<table class="w-full text-[11px]"><thead><tr class="text-slate-500">' +
+        '<th class="text-left py-1">快照时间</th>' +
+        '<th class="text-right py-1">消耗</th><th class="text-right py-1">阶段增量</th>' +
+        '<th class="text-right py-1">收入</th><th class="text-right py-1">阶段增量</th>' +
+        '<th class="text-right py-1">展示</th><th class="text-right py-1">阶段增量</th>' +
+        '<th class="text-right py-1">点击</th><th class="text-right py-1">阶段增量</th>' +
+        '<th class="text-right py-1">转化</th>' +
+        '</tr></thead><tbody>';
+      history.forEach(function(h, i) {
+        var t = h.snapshot_at ? h.snapshot_at.substring(0, 16).replace('T', ' ') : '-';
+        var isFirst = (i === history.length - 1);
+        var dS = !isFirst && h.delta_spend != null ? '<span class="text-amber-400">+$' + h.delta_spend.toFixed(2) + '</span>' : (isFirst ? '<span class="text-slate-600 text-[10px]">基线</span>' : '');
+        var dR = !isFirst && h.delta_revenue != null ? '<span class="text-emerald-400">+$' + (h.delta_revenue || 0).toFixed(2) + '</span>' : '';
+        var dI = !isFirst && h.delta_impressions != null ? '<span class="text-blue-400">+' + (h.delta_impressions || 0).toLocaleString() + '</span>' : '';
+        var dC = !isFirst && h.delta_clicks != null ? '<span class="text-indigo-400">+' + (h.delta_clicks || 0).toLocaleString() + '</span>' : '';
+        th += '<tr class="border-b border-slate-800 ' + (i === 0 ? 'text-slate-200' : 'text-slate-400') + '">' +
+          '<td class="py-1">' + t + (i === 0 ? ' <span class="text-[9px] text-indigo-400">最新</span>' : '') + '</td>' +
+          '<td class="py-1 text-right">$' + (h.spend || 0).toFixed(2) + '</td><td class="py-1 text-right">' + dS + '</td>' +
+          '<td class="py-1 text-right">$' + (h.revenue || 0).toFixed(2) + '</td><td class="py-1 text-right">' + dR + '</td>' +
+          '<td class="py-1 text-right">' + (h.impressions || 0).toLocaleString() + '</td><td class="py-1 text-right">' + dI + '</td>' +
+          '<td class="py-1 text-right">' + (h.clicks || 0).toLocaleString() + '</td><td class="py-1 text-right">' + dC + '</td>' +
+          '<td class="py-1 text-right">' + (h.purchases || 0) + '</td>' +
+          '</tr>';
+      });
+      th += '</tbody></table>';
+      document.getElementById('campStageBody').innerHTML = th;
+    }
 
     // ---- 阶段消耗弹窗 ----
     function openStageStats() {
@@ -5364,7 +5452,9 @@
           var eff = (c.effective_status || '').toString().toUpperCase();
           html += '<tr class="cursor-pointer hover:bg-white/5" data-eff-status="' + eff + '" onclick="campPageToggle(this,\'' + encodeURIComponent(cid) + '\',\'' + cacct + '\')">' +
             renderStatusBadge(c.effective_status, c.status) +
-            '<td class="text-left"><span class="camp-arrow inline-block w-3 text-slate-500">▶</span> ' + acctBadge + escapeHtml(c.campaign_name || '(未命名)') + '</td>' +
+            '<td class="text-left"><span class="camp-arrow inline-block w-3 text-slate-500">▶</span> ' + acctBadge + escapeHtml(c.campaign_name || '(未命名)') +
+            ' <button class="text-[10px] text-emerald-400 hover:text-emerald-300 bg-transparent border-0 cursor-pointer ml-1" onclick="event.stopPropagation();openCampStageStats(\'' + encodeURIComponent(cid) + '\',\'' + encodeURIComponent(escapeHtml(c.campaign_name || cid).replace(/'/g,'')) + '\',\'' + cacct + '\')" title="阶段消耗">📈</button>' +
+            '</td>' +
             metaMetricCells(c) + '</tr>';
           html += '<tr class="camp-adsets" hidden><td colspan="11" class="p-0"><div class="adset-slot"></div></td></tr>';
         });

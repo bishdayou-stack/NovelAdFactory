@@ -807,6 +807,23 @@ def init_db() -> None:
             )
         """)
 
+        # 迁移：meta_campaign_snapshots 广告系列阶段统计快照表
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS meta_campaign_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                campaign_id TEXT NOT NULL,
+                ad_account TEXT NOT NULL,
+                campaign_name TEXT,
+                user_id INTEGER DEFAULT 1,
+                snapshot_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                spend REAL DEFAULT 0,
+                revenue REAL DEFAULT 0,
+                impressions INTEGER DEFAULT 0,
+                clicks INTEGER DEFAULT 0,
+                purchases INTEGER DEFAULT 0
+            )
+        """)
+
 # ====== 用户管理 CRUD ======
 
 def create_user(username: str, password: str, role: str = "user",
@@ -1674,6 +1691,100 @@ def get_account_snapshot_history(act_id: str, limit: int = 20) -> List[Dict[str,
                 d.pop("prev_impressions", None)
                 d.pop("prev_clicks", None)
                 d.pop("prev_purchases", None)
+                d["delta_spend"] = None
+            result.append(d)
+        return result
+
+
+# ====== 广告系列阶段统计快照 ======
+
+def save_campaign_snapshots(act_id: str, user_id: int = None) -> int:
+    """为某账户下的所有广告系列保存当前 KPI 快照，返回快照数"""
+    uid = user_id or 1
+    count = 0
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT campaign_id, MAX(campaign_name) AS campaign_name,
+                COALESCE(SUM(spend),0) AS spend,
+                COALESCE(SUM(purchase_value),0) AS revenue,
+                COALESCE(SUM(impressions),0) AS impressions,
+                COALESCE(SUM(clicks),0) AS clicks,
+                COALESCE(SUM(purchases),0) AS purchases
+            FROM meta_adset_stats
+            WHERE ad_account = ? AND (user_id IS NULL OR user_id = ?)
+            GROUP BY campaign_id
+        """, (act_id, uid)).fetchall()
+        for r in rows:
+            conn.execute("""
+                INSERT INTO meta_campaign_snapshots (campaign_id, ad_account, campaign_name, user_id, spend, revenue, impressions, clicks, purchases)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (r["campaign_id"], act_id, r["campaign_name"] or r["campaign_id"], uid,
+                  r["spend"], r["revenue"], r["impressions"], r["clicks"], r["purchases"]))
+            count += 1
+    return count
+
+
+def get_campaign_stage_stats(ad_account: str, user_id: int = None) -> List[Dict[str, Any]]:
+    """获取某账户下所有广告系列的最新阶段统计"""
+    with get_conn() as conn:
+        rows = conn.execute("""
+            WITH ranked AS (
+                SELECT campaign_id, campaign_name, spend, revenue, impressions, clicks, purchases, snapshot_at,
+                    ROW_NUMBER() OVER (PARTITION BY campaign_id ORDER BY id DESC) as rn
+                FROM meta_campaign_snapshots
+                WHERE ad_account = ?
+            ),
+            latest AS (SELECT * FROM ranked WHERE rn = 1),
+            prev AS (SELECT * FROM ranked WHERE rn = 2)
+            SELECT
+                l.campaign_id, l.campaign_name,
+                l.snapshot_at as last_sync,
+                l.spend as total_spend, l.revenue as total_revenue,
+                l.impressions as total_impressions, l.clicks as total_clicks,
+                l.purchases as total_purchases,
+                CASE WHEN p.spend IS NOT NULL THEN ROUND(l.spend - p.spend, 2) ELSE NULL END as stage_spend,
+                CASE WHEN p.revenue IS NOT NULL THEN ROUND(l.revenue - p.revenue, 2) ELSE NULL END as stage_revenue,
+                CASE WHEN p.impressions IS NOT NULL THEN l.impressions - p.impressions ELSE NULL END as stage_impressions,
+                CASE WHEN p.clicks IS NOT NULL THEN l.clicks - p.clicks ELSE NULL END as stage_clicks,
+                CASE WHEN p.purchases IS NOT NULL THEN l.purchases - p.purchases ELSE NULL END as stage_purchases,
+                p.snapshot_at as prev_sync
+            FROM latest l
+            LEFT JOIN prev p ON l.campaign_id = p.campaign_id
+            ORDER BY l.spend DESC
+        """, (ad_account,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_campaign_snapshot_history(campaign_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+    """获取单个广告系列的快照历史"""
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT s.*,
+                LAG(s.spend) OVER (ORDER BY s.id) as prev_spend,
+                LAG(s.revenue) OVER (ORDER BY s.id) as prev_revenue,
+                LAG(s.impressions) OVER (ORDER BY s.id) as prev_impressions,
+                LAG(s.clicks) OVER (ORDER BY s.id) as prev_clicks,
+                LAG(s.purchases) OVER (ORDER BY s.id) as prev_purchases,
+                LAG(s.snapshot_at) OVER (ORDER BY s.id) as prev_snapshot_at
+            FROM meta_campaign_snapshots s
+            WHERE s.campaign_id = ?
+            ORDER BY s.id DESC
+            LIMIT ?
+        """, (campaign_id, limit)).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            prev = d.pop("prev_spend", None)
+            if prev is not None:
+                d["delta_spend"] = round(d["spend"] - prev, 2)
+                d["delta_revenue"] = round(d["revenue"] - (d.pop("prev_revenue") or 0), 2)
+                d["delta_impressions"] = d["impressions"] - (d.pop("prev_impressions") or 0)
+                d["delta_clicks"] = d["clicks"] - (d.pop("prev_clicks") or 0)
+                d["delta_purchases"] = d["purchases"] - (d.pop("prev_purchases") or 0)
+                d["prev_snapshot_at"] = d.pop("prev_snapshot_at")
+            else:
+                d.pop("prev_revenue", None); d.pop("prev_impressions", None)
+                d.pop("prev_clicks", None); d.pop("prev_purchases", None)
                 d["delta_spend"] = None
             result.append(d)
         return result

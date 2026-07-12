@@ -1378,6 +1378,13 @@ def _sync_one_meta_account(act_id: str, access_token: str,
             database.save_account_snapshot(act_id, user_id)
         except Exception as _e:
             print(f"[meta snapshot] {act_id} 快照保存失败: {_e}")
+        # 广告系列快照
+        if scope in ("all", "campaign"):
+            try:
+                n = database.save_campaign_snapshots(act_id, user_id)
+                print(f"  [meta snapshot] {act_id} 系列快照: {n} 条")
+            except Exception as _e:
+                print(f"[meta snapshot] {act_id} 系列快照保存失败: {_e}")
     return act_id, count, ""
 
 
