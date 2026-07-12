@@ -154,6 +154,10 @@
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16l4-4 4 4 4-6"/></svg>
         <span class="truncate">Meta 管理</span>
       </button>
+      <button type="button" id="nav-bm-mgmt" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        <span class="truncate">BM/App 管理</span>
+      </button>
       <button type="button" id="nav-meta-campaign" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
         <span class="truncate">广告系列</span>
@@ -839,6 +843,48 @@
       </div>
     </div>
 
+
+    <!-- ====== Tab: BM/App 管理 ====== -->
+    <div id="tab-bm-mgmt" class="flex-1 bg-slate-900 overflow-y-auto px-5 py-4" hidden>
+      <!-- App 管理区域 -->
+      <div class="card-dark p-4 mb-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white">App 管理</h3>
+          <button id="btnAddApp" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] text-white hover:bg-indigo-500 cursor-pointer border-0">新增 App</button>
+        </div>
+        <table class="w-full text-[12px]" id="appTable">
+          <thead><tr>
+            <th class="text-left text-slate-400 py-1 font-medium">名称</th>
+            <th class="text-left text-slate-400 py-1 font-medium">App ID</th>
+            <th class="text-center text-slate-400 py-1 font-medium">默认</th>
+            <th class="text-right text-slate-400 py-1 font-medium">操作</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- BM 管理区域 -->
+      <div class="card-dark p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white">BM 管理</h3>
+          <div class="flex gap-2">
+            <button id="btnDiscoverBm" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] text-white hover:bg-emerald-500 cursor-pointer border-0">发现 BM</button>
+            <button id="btnAddBm" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] text-white hover:bg-indigo-500 cursor-pointer border-0">手动添加</button>
+          </div>
+        </div>
+        <table class="w-full text-[12px]" id="bmTable">
+          <thead><tr>
+            <th class="text-left text-slate-400 py-1 font-medium">BM 名称</th>
+            <th class="text-left text-slate-400 py-1 font-medium">BM ID</th>
+            <th class="text-center text-slate-400 py-1 font-medium">账户数</th>
+            <th class="text-center text-slate-400 py-1 font-medium">绑定 App</th>
+            <th class="text-center text-slate-400 py-1 font-medium">Token</th>
+            <th class="text-right text-slate-400 py-1 font-medium">操作</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
 
     <!-- ====== Tab: 广告系列 ====== -->
     <div id="tab-meta-campaign" class="flex-1 flex overflow-hidden" hidden>
@@ -1771,7 +1817,7 @@
       // 隐藏所有 tab
       var allTabs = ['generate', 'history', 'assets', 'video-style', 'prompt-generate',
                      'novel-analyze', 'dashboard', 'novel-mgr', 'hit-gallery', 'config',
-                     'meta', 'meta-campaign', 'meta-gallery', 'meta-assign', 'users'];
+                     'meta', 'bm-mgmt', 'meta-campaign', 'meta-gallery', 'meta-assign', 'users'];
       for (var i = 0; i < allTabs.length; i++) {
         var el = document.getElementById('tab-' + allTabs[i]);
         if (el) el.hidden = true;
@@ -1795,7 +1841,7 @@
       }
 
       // 更新面包屑
-      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'meta': 'Meta 管理', 'meta-campaign': '广告系列', 'meta-gallery': '素材画廊', 'meta-assign': '账户分配', 'users': '用户管理' };
+      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'meta': 'Meta 管理', 'bm-mgmt': 'BM/App 管理', 'meta-campaign': '广告系列', 'meta-gallery': '素材画廊', 'meta-assign': '账户分配', 'users': '用户管理' };
       document.getElementById('breadcrumb').textContent = titles[tab] || tab;
       document.getElementById('pageTitle').textContent = titles[tab] || tab;
 
@@ -1815,6 +1861,7 @@
       if (tab === 'novel-mgr') { if (novelMgrPages.books === 1) loadNovelBooks(1); else loadNovelBooks(novelMgrPages.books); }
       if (tab === 'hit-gallery') loadHitGallery();
       if (tab === 'meta') { loadMetaAccountTree(); refreshMetaDashboard(); }
+      if (tab === 'bm-mgmt') { loadBmAppPage(); }
       if (tab === 'meta-campaign') { loadCampPage(); }
       if (tab === 'meta-gallery') { loadGalleryPage(); }
       if (tab === 'meta-assign') { loadAssignPage(); }
@@ -3422,6 +3469,7 @@
     document.getElementById('nav-hit-gallery').addEventListener('click', function() { switchTab('hit-gallery'); });
     document.getElementById('nav-config').addEventListener('click', function() { switchTab('config'); });
     document.getElementById('nav-meta').addEventListener('click', function() { switchTab('meta'); });
+    document.getElementById('nav-bm-mgmt').addEventListener('click', function() { switchTab('bm-mgmt'); });
     document.getElementById('nav-meta-campaign').addEventListener('click', function() { switchTab('meta-campaign'); });
     document.getElementById('nav-meta-gallery').addEventListener('click', function() { switchTab('meta-gallery'); });
     document.getElementById('nav-meta-assign').addEventListener('click', function() { switchTab('meta-assign'); });
@@ -6011,6 +6059,314 @@
     }
 
     document.getElementById('assignSearch').addEventListener('input', renderAssignTree);
+
+    // ====== BM/App 管理 ======
+
+    function maskAppId(appId) {
+      if (!appId) return '';
+      var s = String(appId);
+      if (s.length <= 8) return s;
+      return s.slice(0, 4) + '****' + s.slice(-4);
+    }
+
+    function loadBmAppPage() {
+      loadAppTable();
+      loadBmTable();
+    }
+
+    // ---- App 管理 ----
+
+    function loadAppTable() {
+      fetch('/api/app/list').then(function(r) { return r.json(); }).then(function(res) {
+        var apps = res.data || [];
+        var html = '';
+        apps.forEach(function(a) {
+          html += '<tr class="border-b border-slate-800">' +
+            '<td class="py-2 text-white">' + escapeHtml(a.app_name) + '</td>' +
+            '<td class="py-2 text-slate-400 font-mono text-[11px]">' + escapeHtml(maskAppId(a.app_id)) + '</td>' +
+            '<td class="py-2 text-center">' + (a.is_default ? '<span class="text-emerald-400 text-xs font-medium">默认</span>' : '') + '</td>' +
+            '<td class="py-2 text-right">' +
+              '<button class="text-[10px] text-indigo-400 hover:text-indigo-300 mr-2 bg-transparent border-0 cursor-pointer" onclick="editApp(' + a.id + ')">编辑</button>' +
+              '<button class="text-[10px] text-red-400 hover:text-red-300 bg-transparent border-0 cursor-pointer" onclick="deleteApp(' + a.id + ')">删除</button>' +
+            '</td></tr>';
+        });
+        document.getElementById('appTable').querySelector('tbody').innerHTML = html || '<tr><td colspan="4" class="text-slate-500 py-4 text-center">暂无 App</td></tr>';
+      }).catch(function(e) { console.error('加载 App 列表失败:', e); });
+    }
+
+    function addApp() {
+      var html = '<div id="appModalOverlay" class="fixed inset-0 z-[140] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeAppModal()">' +
+        '<div class="bg-slate-800 rounded-2xl p-5 w-[420px] border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">' +
+        '<h3 class="text-sm font-bold text-white mb-4">新增 App</h3>' +
+        '<div class="space-y-3 text-xs">' +
+        '<div><label class="block text-slate-400 mb-1">App 名称</label><input id="appFormName" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" placeholder="例如: My App"></div>' +
+        '<div><label class="block text-slate-400 mb-1">App ID</label><input id="appFormId" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm font-mono" placeholder="Facebook App ID"></div>' +
+        '<div><label class="block text-slate-400 mb-1">App Secret</label><input id="appFormSecret" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm font-mono" placeholder="App Secret"></div>' +
+        '<div class="flex items-center gap-2"><input type="checkbox" id="appFormDefault"><label for="appFormDefault" class="text-slate-400">设为默认应用</label></div>' +
+        '</div>' +
+        '<div class="mt-4 flex gap-2"><button onclick="saveApp(false)" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 cursor-pointer border-0">保存</button><span id="appFormMsg" class="text-xs text-emerald-400 hidden self-center">已保存</span></div>' +
+        '<button onclick="closeAppModal()" class="mt-2 w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-400 hover:text-white cursor-pointer bg-transparent">关闭</button>' +
+        '</div></div>';
+      document.body.insertAdjacentHTML('beforeend', html);
+    }
+
+    function editApp(id) {
+      fetch('/api/app/list').then(function(r) { return r.json(); }).then(function(res) {
+        var apps = res.data || [];
+        var a = apps.find(function(x) { return x.id === id; });
+        if (!a) { alert('未找到该 App'); return; }
+        var html = '<div id="appModalOverlay" class="fixed inset-0 z-[140] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeAppModal()">' +
+          '<div class="bg-slate-800 rounded-2xl p-5 w-[420px] border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">' +
+          '<h3 class="text-sm font-bold text-white mb-4">编辑 App</h3>' +
+          '<div class="space-y-3 text-xs">' +
+          '<div><label class="block text-slate-400 mb-1">App 名称</label><input id="appFormName" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + escapeHtml(a.app_name) + '"></div>' +
+          '<div><label class="block text-slate-400 mb-1">App ID</label><input id="appFormId" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm font-mono" value="' + escapeHtml(a.app_id) + '"></div>' +
+          '<div><label class="block text-slate-400 mb-1">App Secret</label><input id="appFormSecret" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm font-mono" placeholder="留空不修改"></div>' +
+          '<div class="flex items-center gap-2"><input type="checkbox" id="appFormDefault"' + (a.is_default ? ' checked' : '') + '><label for="appFormDefault" class="text-slate-400">设为默认应用</label></div>' +
+          '</div>' +
+          '<div class="mt-4 flex gap-2"><button onclick="saveApp(true, ' + id + ')" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 cursor-pointer border-0">保存</button><span id="appFormMsg" class="text-xs text-emerald-400 hidden self-center">已保存</span></div>' +
+          '<button onclick="closeAppModal()" class="mt-2 w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-400 hover:text-white cursor-pointer bg-transparent">关闭</button>' +
+          '</div></div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+      });
+    }
+
+    function saveApp(isEdit, id) {
+      var name = document.getElementById('appFormName').value.trim();
+      var appId = document.getElementById('appFormId').value.trim();
+      var secret = document.getElementById('appFormSecret').value.trim();
+      var isDefault = document.getElementById('appFormDefault').checked ? 1 : 0;
+      if (!name || !appId) { alert('名称和 App ID 不能为空'); return; }
+      if (!isEdit && !secret) { alert('App Secret 不能为空'); return; }
+      var body = { app_name: name, app_id: appId, app_secret: secret, is_default: isDefault };
+      if (isEdit && !secret) { delete body.app_secret; }
+      var url = isEdit ? '/api/app/' + id : '/api/app';
+      var method = isEdit ? 'PUT' : 'POST';
+      fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })
+        .then(function(r) { return r.json(); }).then(function(d) {
+          if (d.success) {
+            var el = document.getElementById('appFormMsg');
+            if (el) { el.hidden = false; setTimeout(function() { el.hidden = true; }, 2000); }
+            loadAppTable();
+          } else {
+            alert('保存失败: ' + (d.detail || '未知错误'));
+          }
+        }).catch(function(e) { alert('保存失败: ' + e); });
+    }
+
+    function closeAppModal() {
+      var el = document.getElementById('appModalOverlay');
+      if (el) el.remove();
+    }
+
+    function deleteApp(id) {
+      if (!confirm('确定要删除这个 App 配置吗？')) return;
+      fetch('/api/app/' + id, { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) loadAppTable();
+        else alert('删除失败: ' + (d.detail || '未知错误'));
+      }).catch(function(e) { alert('删除失败: ' + e); });
+    }
+
+    // ---- BM 管理 ----
+
+    function loadBmTable() {
+      fetch('/api/bm/list').then(function(r) { return r.json(); }).then(function(res) {
+        var bms = res.data || [];
+        fetch('/api/app/list').then(function(r2) { return r2.json(); }).then(function(res2) {
+          var apps = res2.data || [];
+          renderBmTable(bms, apps);
+        }).catch(function() {
+          renderBmTable(bms, []);
+        });
+      }).catch(function(e) { console.error('加载 BM 列表失败:', e); });
+    }
+
+    function renderBmTable(bms, apps) {
+      var html = '';
+      bms.forEach(function(b) {
+        var appOptions = '<option value="">未绑定</option>';
+        apps.forEach(function(a) {
+          appOptions += '<option value="' + escapeHtml(a.app_id) + '"' + (b.app_id === a.app_id ? ' selected' : '') + '>' + escapeHtml(a.app_name) + '</option>';
+        });
+        var tokenLabel = b.system_token ? '<span class="text-emerald-400 text-[10px]">已设置</span>' : '<span class="text-slate-500 text-[10px]">点击设置</span>';
+        html += '<tr class="border-b border-slate-800">' +
+          '<td class="py-2 text-white">' + escapeHtml(b.bm_name) + '</td>' +
+          '<td class="py-2 text-slate-400 font-mono text-[11px]">' + escapeHtml(b.bm_id) + '</td>' +
+          '<td class="py-2 text-center text-slate-300">' + (b.account_count || 0) + '</td>' +
+          '<td class="py-2 text-center">' +
+            '<select class="rounded border border-slate-600 bg-slate-700 text-white text-[11px] px-2 py-1 focus:border-indigo-400 focus:outline-none" onchange="bindBmApp(\'' + escapeHtml(b.bm_id).replace(/'/g, "\\'") + '\', this.value)">' + appOptions + '</select>' +
+          '</td>' +
+          '<td class="py-2 text-center">' +
+            '<button class="text-[10px] text-indigo-400 hover:text-indigo-300 bg-transparent border-0 cursor-pointer" onclick="editBmToken(\'' + escapeHtml(b.bm_id).replace(/'/g, "\\'") + '\')">' + tokenLabel + '</button>' +
+          '</td>' +
+          '<td class="py-2 text-right">' +
+            '<button class="text-[10px] text-red-400 hover:text-red-300 bg-transparent border-0 cursor-pointer" onclick="deleteBm(\'' + escapeHtml(b.bm_id).replace(/'/g, "\\'") + '\')">删除</button>' +
+          '</td></tr>';
+      });
+      document.getElementById('bmTable').querySelector('tbody').innerHTML = html || '<tr><td colspan="6" class="text-slate-500 py-4 text-center">暂无 BM</td></tr>';
+    }
+
+    function editBmToken(bmId) {
+      fetch('/api/bm/list').then(function(r) { return r.json(); }).then(function(res) {
+        var bms = res.data || [];
+        var b = bms.find(function(x) { return x.bm_id === bmId; });
+        var currentName = b ? b.bm_name : '';
+        var html = '<div id="bmModalOverlay" class="fixed inset-0 z-[140] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeBmModal()">' +
+          '<div class="bg-slate-800 rounded-2xl p-5 w-[420px] border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">' +
+          '<h3 class="text-sm font-bold text-white mb-4">编辑 BM: ' + escapeHtml(bmId) + '</h3>' +
+          '<div class="space-y-3 text-xs">' +
+          '<div><label class="block text-slate-400 mb-1">BM 名称</label><input id="bmFormName" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" value="' + escapeHtml(currentName) + '"></div>' +
+          '<div><label class="block text-slate-400 mb-1">System User Token</label><input id="bmFormToken" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm font-mono" placeholder="留空不修改"></div>' +
+          '</div>' +
+          '<div class="mt-4 flex gap-2"><button onclick="saveBm(\'' + escapeHtml(bmId).replace(/'/g, "\\'") + '\')" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 cursor-pointer border-0">保存</button><span id="bmFormMsg" class="text-xs text-emerald-400 hidden self-center">已保存</span></div>' +
+          '<button onclick="closeBmModal()" class="mt-2 w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-400 hover:text-white cursor-pointer bg-transparent">关闭</button>' +
+          '</div></div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+      });
+    }
+
+    function saveBm(bmId) {
+      var name = document.getElementById('bmFormName').value.trim();
+      var token = document.getElementById('bmFormToken').value.trim();
+      if (!name) { alert('BM 名称不能为空'); return; }
+      fetch('/api/bm/list').then(function(r) { return r.json(); }).then(function(res) {
+        var bms = res.data || [];
+        var b = bms.find(function(x) { return x.bm_id === bmId; });
+        var body = {
+          bm_id: bmId,
+          bm_name: name,
+          system_token: token || (b ? b.system_token : ''),
+          app_id: b ? (b.app_id || '') : ''
+        };
+        fetch('/api/bm/' + encodeURIComponent(bmId), {
+          method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+        }).then(function(r) { return r.json(); }).then(function(d) {
+          if (d.success) {
+            var el = document.getElementById('bmFormMsg');
+            if (el) { el.hidden = false; setTimeout(function() { el.hidden = true; }, 2000); }
+            loadBmTable();
+          } else {
+            alert('保存失败: ' + (d.detail || '未知错误'));
+          }
+        }).catch(function(e) { alert('保存失败: ' + e); });
+      });
+    }
+
+    function closeBmModal() {
+      var el = document.getElementById('bmModalOverlay');
+      if (el) el.remove();
+    }
+
+    function bindBmApp(bmId, appId) {
+      fetch('/api/bm/list').then(function(r) { return r.json(); }).then(function(res) {
+        var bms = res.data || [];
+        var b = bms.find(function(x) { return x.bm_id === bmId; });
+        var body = {
+          bm_id: bmId,
+          bm_name: b ? b.bm_name : bmId,
+          system_token: b ? (b.system_token || '') : '',
+          app_id: appId
+        };
+        fetch('/api/bm/' + encodeURIComponent(bmId), {
+          method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+        }).then(function(r) { return r.json(); }).then(function(d) {
+          if (d.success) loadBmTable();
+        }).catch(function(e) { console.error('绑定失败:', e); });
+      });
+    }
+
+    function deleteBm(bmId) {
+      if (!confirm('确定要删除这个 BM 配置吗？')) return;
+      fetch('/api/bm/' + encodeURIComponent(bmId), { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) loadBmTable();
+        else alert('删除失败: ' + (d.detail || '未知错误'));
+      }).catch(function(e) { alert('删除失败: ' + e); });
+    }
+
+    function addBm() {
+      var html = '<div id="bmModalOverlay" class="fixed inset-0 z-[140] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeBmModal()">' +
+        '<div class="bg-slate-800 rounded-2xl p-5 w-[420px] border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">' +
+        '<h3 class="text-sm font-bold text-white mb-4">手动添加 BM</h3>' +
+        '<div class="space-y-3 text-xs">' +
+        '<div><label class="block text-slate-400 mb-1">BM ID</label><input id="bmFormId" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm font-mono" placeholder="Facebook BM ID"></div>' +
+        '<div><label class="block text-slate-400 mb-1">BM 名称</label><input id="bmFormName" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm" placeholder="例如: My Business"></div>' +
+        '<div><label class="block text-slate-400 mb-1">System User Token</label><input id="bmFormToken" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm font-mono" placeholder="System User Token"></div>' +
+        '</div>' +
+        '<div class="mt-4 flex gap-2"><button onclick="saveBmAdd()" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 cursor-pointer border-0">保存</button><span id="bmFormMsg" class="text-xs text-emerald-400 hidden self-center">已保存</span></div>' +
+        '<button onclick="closeBmModal()" class="mt-2 w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-400 hover:text-white cursor-pointer bg-transparent">关闭</button>' +
+        '</div></div>';
+      document.body.insertAdjacentHTML('beforeend', html);
+    }
+
+    function saveBmAdd() {
+      var bmId = document.getElementById('bmFormId').value.trim();
+      var name = document.getElementById('bmFormName').value.trim();
+      var token = document.getElementById('bmFormToken').value.trim();
+      if (!bmId) { alert('BM ID 不能为空'); return; }
+      var body = { bm_id: bmId, bm_name: name || bmId, system_token: token, app_id: '' };
+      fetch('/api/bm', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) {
+          var el = document.getElementById('bmFormMsg');
+          if (el) { el.hidden = false; setTimeout(function() { el.hidden = true; }, 2000); }
+          loadBmTable();
+        } else {
+          alert('保存失败: ' + (d.detail || '未知错误'));
+        }
+      }).catch(function(e) { alert('保存失败: ' + e); });
+    }
+
+    // ---- 发现 BM ----
+
+    function openBmDiscover() {
+      var html = '<div id="bmDiscoverOverlay" class="fixed inset-0 z-[140] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeBmDiscoverModal()">' +
+        '<div class="bg-slate-800 rounded-2xl p-5 w-[480px] border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">' +
+        '<h3 class="text-sm font-bold text-white mb-4">发现 BM</h3>' +
+        '<div class="space-y-3 text-xs">' +
+        '<div><label class="block text-slate-400 mb-1">System User Token</label><input id="discoverToken" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-white text-sm font-mono" placeholder="输入 System User Token 以发现其下所有 BM"></div>' +
+        '</div>' +
+        '<div class="mt-4 flex gap-2"><button onclick="doBmDiscover()" class="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 cursor-pointer border-0">开始发现</button><span id="discoverMsg" class="text-xs text-slate-400 self-center"></span></div>' +
+        '<button onclick="closeBmDiscoverModal()" class="mt-2 w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-400 hover:text-white cursor-pointer bg-transparent">关闭</button>' +
+        '</div></div>';
+      document.body.insertAdjacentHTML('beforeend', html);
+    }
+
+    function closeBmDiscoverModal() {
+      var el = document.getElementById('bmDiscoverOverlay');
+      if (el) el.remove();
+    }
+
+    async function doBmDiscover() {
+      var token = document.getElementById('discoverToken').value.trim();
+      if (!token) { alert('请输入 Token'); return; }
+      var msgEl = document.getElementById('discoverMsg');
+      msgEl.textContent = '正在发现...';
+      msgEl.className = 'text-xs text-slate-400 self-center';
+      try {
+        var resp = await fetch('/api/bm/discover', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ access_token: token })
+        });
+        var result = await resp.json();
+        if (result.success) {
+          msgEl.textContent = result.message || ('发现并保存 ' + result.count + ' 个 BM');
+          msgEl.className = 'text-xs text-emerald-400 self-center';
+          loadBmTable();
+        } else {
+          msgEl.textContent = '发现失败: ' + (result.detail || '未知错误');
+          msgEl.className = 'text-xs text-red-400 self-center';
+        }
+      } catch(e) {
+        msgEl.textContent = '请求失败: ' + e;
+        msgEl.className = 'text-xs text-red-400 self-center';
+      }
+    }
+
+    // BM/App 管理按钮事件绑定
+    document.getElementById('btnAddApp').addEventListener('click', addApp);
+    document.getElementById('btnAddBm').addEventListener('click', addBm);
+    document.getElementById('btnDiscoverBm').addEventListener('click', openBmDiscover);
 
 </script>
 </body>
