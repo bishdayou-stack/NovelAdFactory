@@ -820,9 +820,15 @@ def init_db() -> None:
                 revenue REAL DEFAULT 0,
                 impressions INTEGER DEFAULT 0,
                 clicks INTEGER DEFAULT 0,
-                purchases INTEGER DEFAULT 0
+                purchases INTEGER DEFAULT 0,
+                cpm REAL DEFAULT 0
             )
         """)
+        # 迁移：meta_campaign_snapshots 补加 cpm 列
+        c.execute("PRAGMA table_info('meta_campaign_snapshots')")
+        camp_snap_cols = [r[1] for r in c.fetchall()]
+        if 'cpm' not in camp_snap_cols:
+            c.execute("ALTER TABLE meta_campaign_snapshots ADD COLUMN cpm REAL DEFAULT 0")
 
 # ====== 用户管理 CRUD ======
 
@@ -1709,17 +1715,18 @@ def save_campaign_snapshots(act_id: str, user_id: int = None) -> int:
                 COALESCE(SUM(purchase_value),0) AS revenue,
                 COALESCE(SUM(impressions),0) AS impressions,
                 COALESCE(SUM(clicks),0) AS clicks,
-                COALESCE(SUM(purchases),0) AS purchases
+                COALESCE(SUM(purchases),0) AS purchases,
+                CASE WHEN SUM(impressions) > 0 THEN ROUND(SUM(spend) / SUM(impressions) * 1000, 2) ELSE 0 END AS cpm
             FROM meta_adset_stats
             WHERE ad_account = ? AND (user_id IS NULL OR user_id = ?)
             GROUP BY campaign_id
         """, (act_id, uid)).fetchall()
         for r in rows:
             conn.execute("""
-                INSERT INTO meta_campaign_snapshots (campaign_id, ad_account, campaign_name, user_id, spend, revenue, impressions, clicks, purchases)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO meta_campaign_snapshots (campaign_id, ad_account, campaign_name, user_id, spend, revenue, impressions, clicks, purchases, cpm)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (r["campaign_id"], act_id, r["campaign_name"] or r["campaign_id"], uid,
-                  r["spend"], r["revenue"], r["impressions"], r["clicks"], r["purchases"]))
+                  r["spend"], r["revenue"], r["impressions"], r["clicks"], r["purchases"], r["cpm"]))
             count += 1
     return count
 
@@ -1729,7 +1736,7 @@ def get_campaign_stage_stats(ad_account: str, user_id: int = None) -> List[Dict[
     with get_conn() as conn:
         rows = conn.execute("""
             WITH ranked AS (
-                SELECT campaign_id, campaign_name, spend, revenue, impressions, clicks, purchases, snapshot_at,
+                SELECT campaign_id, campaign_name, spend, revenue, impressions, clicks, purchases, cpm, snapshot_at,
                     ROW_NUMBER() OVER (PARTITION BY campaign_id ORDER BY id DESC) as rn
                 FROM meta_campaign_snapshots
                 WHERE ad_account = ?
@@ -1741,12 +1748,13 @@ def get_campaign_stage_stats(ad_account: str, user_id: int = None) -> List[Dict[
                 l.snapshot_at as last_sync,
                 l.spend as total_spend, l.revenue as total_revenue,
                 l.impressions as total_impressions, l.clicks as total_clicks,
-                l.purchases as total_purchases,
+                l.purchases as total_purchases, l.cpm as total_cpm,
                 CASE WHEN p.spend IS NOT NULL THEN ROUND(l.spend - p.spend, 2) ELSE NULL END as stage_spend,
                 CASE WHEN p.revenue IS NOT NULL THEN ROUND(l.revenue - p.revenue, 2) ELSE NULL END as stage_revenue,
                 CASE WHEN p.impressions IS NOT NULL THEN l.impressions - p.impressions ELSE NULL END as stage_impressions,
                 CASE WHEN p.clicks IS NOT NULL THEN l.clicks - p.clicks ELSE NULL END as stage_clicks,
                 CASE WHEN p.purchases IS NOT NULL THEN l.purchases - p.purchases ELSE NULL END as stage_purchases,
+                CASE WHEN p.cpm IS NOT NULL THEN ROUND(l.cpm - p.cpm, 2) ELSE NULL END as stage_cpm,
                 p.snapshot_at as prev_sync
             FROM latest l
             LEFT JOIN prev p ON l.campaign_id = p.campaign_id
@@ -1765,6 +1773,7 @@ def get_campaign_snapshot_history(campaign_id: str, limit: int = 20) -> List[Dic
                 LAG(s.impressions) OVER (ORDER BY s.id) as prev_impressions,
                 LAG(s.clicks) OVER (ORDER BY s.id) as prev_clicks,
                 LAG(s.purchases) OVER (ORDER BY s.id) as prev_purchases,
+                LAG(s.cpm) OVER (ORDER BY s.id) as prev_cpm,
                 LAG(s.snapshot_at) OVER (ORDER BY s.id) as prev_snapshot_at
             FROM meta_campaign_snapshots s
             WHERE s.campaign_id = ?
@@ -1781,10 +1790,11 @@ def get_campaign_snapshot_history(campaign_id: str, limit: int = 20) -> List[Dic
                 d["delta_impressions"] = d["impressions"] - (d.pop("prev_impressions") or 0)
                 d["delta_clicks"] = d["clicks"] - (d.pop("prev_clicks") or 0)
                 d["delta_purchases"] = d["purchases"] - (d.pop("prev_purchases") or 0)
+                d["delta_cpm"] = round(d["cpm"] - (d.pop("prev_cpm") or 0), 2)
                 d["prev_snapshot_at"] = d.pop("prev_snapshot_at")
             else:
                 d.pop("prev_revenue", None); d.pop("prev_impressions", None)
-                d.pop("prev_clicks", None); d.pop("prev_purchases", None)
+                d.pop("prev_clicks", None); d.pop("prev_purchases", None); d.pop("prev_cpm", None)
                 d["delta_spend"] = None
             result.append(d)
         return result
