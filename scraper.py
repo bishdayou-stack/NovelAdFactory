@@ -1257,7 +1257,7 @@ def _sync_one_meta_account(act_id: str, access_token: str,
         # 增量同步：广告系列侧从上次同步日拉取
         campaign_from = from_date
     else:
-        from_date = (dt.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
+        from_date = (dt.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
         # 首次同步：广告系列侧只拉近15天
         campaign_from = (dt.utcnow() - timedelta(days=15)).strftime("%Y-%m-%d")
 
