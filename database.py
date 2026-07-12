@@ -2159,3 +2159,71 @@ def delete_hit_material(mid: int, user_id: int = None) -> bool:
         else:
             conn.execute("DELETE FROM hit_materials WHERE id = ?", (mid,))
         return True
+
+
+# ====== App Config CRUD ======
+
+def get_app_configs(user_id: int = None) -> List[Dict[str, Any]]:
+    """获取应用配置列表，默认应用排在最前"""
+    with get_conn() as conn:
+        if user_id is not None:
+            rows = conn.execute(
+                "SELECT * FROM app_config WHERE user_id = ? ORDER BY is_default DESC, id",
+                (user_id,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM app_config ORDER BY is_default DESC, id"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_default_app(user_id: int = None) -> Optional[Dict[str, Any]]:
+    """获取当前默认应用配置"""
+    uid = user_id or 1
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM app_config WHERE is_default = 1 AND user_id = ? LIMIT 1",
+            (uid,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def upsert_app_config(app_name: str, app_id: str, app_secret: str,
+                      is_default: int = 0, user_id: int = None,
+                      config_id: int = None) -> int:
+    """新增或更新应用配置。is_default=1 时自动取消其他默认。返回 config_id"""
+    uid = user_id or 1
+    with get_conn() as conn:
+        if is_default:
+            conn.execute("UPDATE app_config SET is_default = 0 WHERE user_id = ?", (uid,))
+        if config_id:
+            conn.execute("""
+                UPDATE app_config SET app_name = ?, app_id = ?, app_secret = ?,
+                    is_default = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND user_id = ?
+            """, (app_name, app_id, app_secret, is_default, config_id, uid))
+            return config_id
+        else:
+            c = conn.execute("""
+                INSERT INTO app_config (app_name, app_id, app_secret, is_default, user_id)
+                VALUES (?, ?, ?, ?, ?)
+            """, (app_name, app_id, app_secret, is_default, uid))
+            return c.lastrowid
+
+
+def delete_app_config(config_id: int, user_id: int = None) -> bool:
+    """删除应用配置。若删除的是默认应用，自动将下一个设为默认"""
+    uid = user_id or 1
+    with get_conn() as conn:
+        conn.execute("DELETE FROM app_config WHERE id = ? AND user_id = ?", (config_id, uid))
+        row = conn.execute(
+            "SELECT COUNT(*) FROM app_config WHERE is_default = 1 AND user_id = ?",
+            (uid,)
+        ).fetchone()
+        if row[0] == 0:
+            conn.execute(
+                "UPDATE app_config SET is_default = 1 WHERE id = (SELECT id FROM app_config WHERE user_id = ? LIMIT 1)",
+                (uid,)
+            )
+        return True
