@@ -290,7 +290,7 @@ def _auto_chapter_sync():
 _scheduler.add_job(
     _auto_chapter_sync,
     'interval',
-    seconds=10800,  # 3 小时
+    seconds=21600,  # 6 小时
     id='chapter_sync',
     max_instances=1,
 )
