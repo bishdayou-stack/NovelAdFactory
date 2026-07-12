@@ -702,7 +702,7 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
             where.append("date <= ?"); params.append(end_date)
         _add_user_filter(where, params, user_id)
         sql = f"""
-            SELECT agg.*, es.effective_status, es.status
+            SELECT agg.*, es.effective_status, es.status, es.created_time
             FROM (
                 SELECT campaign_id, MAX(campaign_name) AS campaign_name, MAX(ad_account) AS ad_account,
                     COALESCE(SUM(spend),0) AS spend,
@@ -720,7 +720,7 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
         if user_id is not None:
             sql += "\n            AND es.user_id = ?"
             params.append(user_id)
-        sql += "\n            ORDER BY spend DESC"
+        sql += "\n            ORDER BY es.created_time DESC, spend DESC"
         rows = conn.execute(sql, params).fetchall()
         out = []
         for r in rows:

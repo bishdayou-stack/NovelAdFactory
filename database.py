@@ -728,6 +728,8 @@ def init_db() -> None:
         cols = [r[1] for r in c.fetchall()]
         if 'parent_id' not in cols:
             c.execute("ALTER TABLE meta_entity_status ADD COLUMN parent_id TEXT")
+        if 'created_time' not in cols:
+            c.execute("ALTER TABLE meta_entity_status ADD COLUMN created_time TEXT")
         # 迁移：统一 ad_account 格式
         c.execute("UPDATE meta_entity_status SET ad_account = 'act_' || ad_account WHERE ad_account NOT LIKE 'act_%'")
         # 迁移：meta_accounts 增加 meta_status 列
@@ -1897,7 +1899,7 @@ def upsert_meta_ad_creative(rec: Dict[str, Any], user_id: int = None) -> None:
 
 def upsert_meta_entity_statuses(level: str, rows: List[Dict[str, Any]],
                                 user_id: int = None) -> int:
-    """批量写入/更新某层级(campaign/adset/ad)的投放状态。rows: [{entity_id, ad_account, effective_status, status, parent_id}]"""
+    """批量写入/更新某层级(campaign/adset/ad)的投放状态。rows: [{entity_id, ad_account, effective_status, status, parent_id, created_time}]"""
     uid = user_id or 1
     if not rows:
         return 0
@@ -1909,17 +1911,18 @@ def upsert_meta_entity_statuses(level: str, rows: List[Dict[str, Any]],
                 continue
             conn.execute("""
                 INSERT INTO meta_entity_status (level, entity_id, ad_account, parent_id,
-                    effective_status, status, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    effective_status, status, created_time, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(level, entity_id, user_id) DO UPDATE SET
                     ad_account=excluded.ad_account,
                     parent_id=excluded.parent_id,
                     effective_status=excluded.effective_status,
                     status=excluded.status,
+                    created_time=excluded.created_time,
                     updated_at=CURRENT_TIMESTAMP
             """, (
                 level, eid, r.get("ad_account", ""), r.get("parent_id", ""),
-                r.get("effective_status", ""), r.get("status", ""), uid,
+                r.get("effective_status", ""), r.get("status", ""), r.get("created_time", ""), uid,
             ))
             n += 1
     return n

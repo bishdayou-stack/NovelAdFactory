@@ -210,7 +210,7 @@ def get_entity_statuses(act_id: str, access_token: str,
         return None, f"未知层级: {level}"
     # 按层级决定请求字段和 parent_id 映射
     if level == "campaign":
-        fields = "id,effective_status,status"
+        fields = "id,effective_status,status,created_time"
         parent_from = lambda x: ""
     elif level == "adset":
         fields = "id,effective_status,status,campaign_id"
@@ -239,7 +239,8 @@ def get_entity_statuses(act_id: str, access_token: str,
     out = [{"entity_id": x.get("id", ""),
             "effective_status": x.get("effective_status", ""),
             "status": x.get("status", ""),
-            "parent_id": parent_from(x)} for x in all_data]
+            "parent_id": parent_from(x),
+            "created_time": x.get("created_time", "")} for x in all_data]
     return out, None
 
 def download_file(url: str, dest_path: str, timeout: int = 30) -> Tuple[bool, Optional[str]]:
