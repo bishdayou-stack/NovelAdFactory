@@ -5456,7 +5456,7 @@
           html += '<tr class="cursor-pointer hover:bg-white/5" data-eff-status="' + eff + '" onclick="campPageToggle(this,\'' + encodeURIComponent(cid) + '\',\'' + cacct + '\')">' +
             renderStatusBadge(c.effective_status, c.status) +
             '<td class="text-left"><span class="camp-arrow inline-block w-3 text-slate-500">▶</span> ' + acctBadge + escapeHtml(c.campaign_name || '(未命名)') +
-            ' <button class="text-[10px] text-emerald-400 hover:text-emerald-300 bg-transparent border-0 cursor-pointer ml-1" onclick="event.stopPropagation();openCampStageStats(\'' + encodeURIComponent(cid) + '\',\'' + encodeURIComponent(escapeHtml(c.campaign_name || cid).replace(/'/g,'')) + '\',\'' + cacct + '\')" title="阶段消耗">📈</button>' +
+            ' <button class="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-2" onclick="event.stopPropagation();openCampStageStats(\'' + encodeURIComponent(cid) + '\',\'' + encodeURIComponent(escapeHtml(c.campaign_name || cid).replace(/'/g,'')) + '\',\'' + cacct + '\')" title="阶段消耗">📈 阶段</button>' +
             '</td>' +
             metaMetricCells(c) + '</tr>';
           html += '<tr class="camp-adsets" hidden><td colspan="11" class="p-0"><div class="adset-slot"></div></td></tr>';
