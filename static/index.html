@@ -6139,7 +6139,7 @@
       if (!name || !appId) { alert('名称和 App ID 不能为空'); return; }
       if (!isEdit && !secret) { alert('App Secret 不能为空'); return; }
       var body = { app_name: name, app_id: appId, app_secret: secret, is_default: isDefault };
-      if (isEdit && !secret) { delete body.app_secret; }
+      /* 编辑时留空 secret 也发送空字符串，避免后端 422 */
       var url = isEdit ? '/api/app/' + id : '/api/app';
       var method = isEdit ? 'PUT' : 'POST';
       fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })

@@ -4425,6 +4425,7 @@ class MetaAccountBody(BaseModel):
     access_token: str = ""
     pingykj_account: str = ""
     status: str = "active"
+    bm_id: str = ""
 
 @app.get("/api/meta/accounts")
 def _get_meta_accounts(user: dict = Depends(get_current_user)):
@@ -4443,7 +4444,7 @@ def _get_meta_accounts(user: dict = Depends(get_current_user)):
 def _add_meta_account(body: MetaAccountBody, user: dict = Depends(get_current_user)):
     uid = _opt_user_id(user)
     database.upsert_meta_account(
-        body.act_id, body.act_name, body.access_token, body.pingykj_account, body.status, uid
+        body.act_id, body.act_name, body.access_token, body.pingykj_account, body.status, uid, body.bm_id
     )
     return {"success": True}
 
@@ -4452,7 +4453,7 @@ def _update_meta_account(act_id: str, body: MetaAccountBody,
                           user: dict = Depends(get_current_user)):
     uid = _opt_user_id(user)
     database.upsert_meta_account(
-        act_id, body.act_name, body.access_token, body.pingykj_account, body.status, uid
+        act_id, body.act_name, body.access_token, body.pingykj_account, body.status, uid, body.bm_id
     )
     return {"success": True}
 
@@ -5089,11 +5090,13 @@ def _discover_meta_assets(body: DiscoverBody, user: dict = Depends(get_current_u
         if aid and aid not in seen:
             seen.add(aid)
             raw_status = acct.get("account_status", 1)
+            biz = acct.get("business", {}) or {}
             all_accounts.append({
                 "id": aid, "name": acct.get("name", ""),
                 "status": _ACCOUNT_STATUS_MAP.get(raw_status, f"unknown_{raw_status}"),
                 "raw_status": raw_status, "currency": acct.get("currency", ""),
                 "business_name": acct.get("business_name", ""),
+                "bm_id": biz.get("id", ""),
                 "disable_reason": acct.get("disable_reason", ""),
             })
     for bm_id, bm_data in result.get("bm_ad_accounts", {}).items():
@@ -5107,6 +5110,7 @@ def _discover_meta_assets(body: DiscoverBody, user: dict = Depends(get_current_u
                     "status": _ACCOUNT_STATUS_MAP.get(raw_status, f"unknown_{raw_status}"),
                     "raw_status": raw_status, "currency": acct.get("currency", ""),
                     "business_name": bm_data.get("name", ""),
+                    "bm_id": bm_id,
                     "disable_reason": acct.get("disable_reason", ""),
                 })
 
@@ -5141,7 +5145,7 @@ def _import_meta_accounts(body: ImportAccountBody,
         database.upsert_meta_account(
             act_id=act_id, act_name=acct.get("name", ""),
             access_token=token, pingykj_account=acct.get("business_name", ""),
-            status=status, user_id=uid
+            status=status, user_id=uid, bm_id=acct.get("bm_id", "")
         )
         # 后导入覆盖：历史 Meta 数据也转移归属
         with database.get_conn() as conn:

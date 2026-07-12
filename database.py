@@ -323,16 +323,26 @@ def _migrate_user_isolation(conn) -> None:
                     status TEXT DEFAULT 'active',
                     rate_limit_remaining INTEGER DEFAULT 0,
                     user_id INTEGER DEFAULT 1,
+                    bm_id TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(act_id)
                 )
             """)
-            conn.execute("""
-                INSERT INTO meta_accounts SELECT id, act_id, act_name, access_token,
-                token_expires_at, pingykj_account, status, rate_limit_remaining,
-                1, created_at, updated_at FROM meta_accounts_old
-            """)
+            # 检查旧表是否有 bm_id 列
+            old_cols = {r["name"] for r in conn.execute("PRAGMA table_info('meta_accounts_old')").fetchall()}
+            if "bm_id" in old_cols:
+                conn.execute("""
+                    INSERT INTO meta_accounts SELECT id, act_id, act_name, access_token,
+                    token_expires_at, pingykj_account, status, rate_limit_remaining,
+                    1, bm_id, created_at, updated_at FROM meta_accounts_old
+                """)
+            else:
+                conn.execute("""
+                    INSERT INTO meta_accounts SELECT id, act_id, act_name, access_token,
+                    token_expires_at, pingykj_account, status, rate_limit_remaining,
+                    1, NULL, created_at, updated_at FROM meta_accounts_old
+                """)
             conn.execute("DROP TABLE meta_accounts_old")
     except Exception:
         try:
@@ -652,6 +662,8 @@ def init_db() -> None:
                 status TEXT DEFAULT 'active',
                 rate_limit_remaining INTEGER DEFAULT 0,
                 user_id INTEGER DEFAULT 1,
+                bm_id TEXT,
+                meta_status TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(act_id)
@@ -1489,14 +1501,14 @@ def get_meta_account(act_id: str, user_id: int = None) -> Optional[Dict[str, Any
 
 def upsert_meta_account(act_id: str, act_name: str = "", access_token: str = "",
                         pingykj_account: str = "", status: str = "active",
-                        user_id: int = None) -> None:
+                        user_id: int = None, bm_id: str = "") -> None:
     uid = user_id or 1
     token_expires_at = (datetime.utcnow() + timedelta(days=60)).isoformat()
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO meta_accounts (act_id, act_name, access_token, token_expires_at,
-                pingykj_account, status, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                pingykj_account, status, user_id, bm_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(act_id) DO UPDATE SET
                 act_name=excluded.act_name,
                 access_token=excluded.access_token,
@@ -1504,8 +1516,9 @@ def upsert_meta_account(act_id: str, act_name: str = "", access_token: str = "",
                 pingykj_account=excluded.pingykj_account,
                 status=excluded.status,
                 user_id=excluded.user_id,
+                bm_id=excluded.bm_id,
                 updated_at=CURRENT_TIMESTAMP
-        """, (act_id, act_name, access_token, token_expires_at, pingykj_account, status, uid))
+        """, (act_id, act_name, access_token, token_expires_at, pingykj_account, status, uid, bm_id))
 
 def delete_meta_account(act_id: str, user_id: int = None) -> None:
     uid = user_id or 1
