@@ -4839,7 +4839,7 @@
 
       // 历史明细表
       var th = '<table class="w-full text-[11px]"><thead><tr class="text-slate-500">' +
-        '<th class="text-left py-1">快照时间 (北京时间)</th>' +
+        '<th class="text-left py-1">快照时间(北京时间)</th>' +
         '<th class="text-right py-1">消耗</th><th class="text-right py-1">阶段增量</th>' +
         '<th class="text-right py-1">收入</th><th class="text-right py-1">阶段增量</th>' +
         '<th class="text-right py-1">展示</th><th class="text-right py-1">阶段增量</th>' +
@@ -4848,7 +4848,9 @@
         '<th class="text-right py-1">转化</th>' +
         '</tr></thead><tbody>';
       history.forEach(function(h, i) {
-        var t = h.snapshot_at ? h.snapshot_at.substring(0, 16).replace('T', ' ') + ' (UTC+8)' : '-';
+        var rawT = h.snapshot_at ? h.snapshot_at.replace('T', ' ') : '';
+        var t = '-';
+        if (rawT) { var d = new Date(rawT + 'Z'); d.setHours(d.getHours() + 8); t = d.toISOString().substring(0, 16).replace('T', ' '); }
         var isVeryFirst = (page === totalPages) && (i === history.length - 1);
         var dS = !isVeryFirst && h.delta_spend != null ? '<span class="text-amber-400">+$' + h.delta_spend.toFixed(2) + '</span>' : (isVeryFirst ? '<span class="text-slate-600 text-[10px]">基线</span>' : '');
         var dR = !isVeryFirst && h.delta_revenue != null ? '<span class="text-emerald-400">+$' + (h.delta_revenue || 0).toFixed(2) + '</span>' : '';
@@ -4932,7 +4934,9 @@
         var stageRev = d.stage_revenue != null ? '<span class="text-emerald-400">+$' + d.stage_revenue.toFixed(2) + '</span>' : '<span class="text-slate-600">—</span>';
         var stageImp = d.stage_impressions != null ? '<span class="text-blue-400">+' + d.stage_impressions.toLocaleString() + '</span>' : '<span class="text-slate-600">—</span>';
         var stageClick = d.stage_clicks != null ? '<span class="text-indigo-400">+' + d.stage_clicks.toLocaleString() + '</span>' : '<span class="text-slate-600">—</span>';
-        var syncTime = d.last_sync ? d.last_sync.substring(0, 16).replace('T', ' ') + ' (UTC+8)' : '-';
+        var syncRaw = d.last_sync ? d.last_sync.replace('T', ' ') : '';
+        var syncTime = '-';
+        if (syncRaw) { var sd = new Date(syncRaw + 'Z'); sd.setHours(sd.getHours() + 8); syncTime = sd.toISOString().substring(0, 16).replace('T', ' '); }
         var name = d.act_name || d.act_id;
         var expanded = _stageExpanded[d.act_id];
         html += '<tr class="border-b border-slate-700 hover:bg-white/5 cursor-pointer" onclick="toggleStageHistory(\'' + d.act_id + '\')">' +
@@ -4981,7 +4985,7 @@
         return;
       }
       var html = '<td colspan="10" class="py-2"><table class="w-full text-[11px]"><thead><tr class="text-slate-500">' +
-        '<th class="text-left py-1">快照时间 (北京时间)</th>' +
+        '<th class="text-left py-1">快照时间(北京时间)</th>' +
         '<th class="text-right py-1">消耗</th><th class="text-right py-1">阶段增量</th>' +
         '<th class="text-right py-1">收入</th><th class="text-right py-1">阶段增量</th>' +
         '<th class="text-right py-1">展示</th><th class="text-right py-1">阶段增量</th>' +
@@ -4989,7 +4993,9 @@
         '<th class="text-right py-1">转化</th>' +
         '</tr></thead><tbody>';
       history.forEach(function(h, i) {
-        var t = h.snapshot_at ? h.snapshot_at.substring(0, 16).replace('T', ' ') + ' (UTC+8)' : '-';
+        var rawT = h.snapshot_at ? h.snapshot_at.replace('T', ' ') : '';
+        var t = '-';
+        if (rawT) { var d = new Date(rawT + 'Z'); d.setHours(d.getHours() + 8); t = d.toISOString().substring(0, 16).replace('T', ' '); }
         var dS = h.delta_spend != null ? '<span class="text-amber-400">+$' + h.delta_spend.toFixed(2) + '</span>' : '<span class="text-slate-600">基线</span>';
         var dR = h.delta_revenue != null ? '<span class="text-emerald-400">+$' + (h.delta_revenue || 0).toFixed(2) + '</span>' : '';
         var dI = h.delta_impressions != null ? '<span class="text-blue-400">+' + (h.delta_impressions || 0).toLocaleString() + '</span>' : '';
