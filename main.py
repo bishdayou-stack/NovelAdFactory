@@ -315,7 +315,7 @@ meta_interval = json.loads(Path("config.json").read_text(encoding="utf-8")).get(
 if hasattr(scraper, 'sync_all_meta_insights'):
     try:
         def _auto_meta_sync_all():
-            users = database.list_all_users()
+            users = database.list_users()
             for u in users:
                 if not u.get("is_active"):
                     continue
