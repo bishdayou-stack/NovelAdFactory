@@ -848,7 +848,7 @@ def meta_creative_gallery(account: str = None, start_date: str = None, end_date:
     sort_col = {"spend": "spend", "roi": "roi", "purchases": "purchases",
                 "purchase_value": "purchase_value"}.get(sort, "spend")
     with database.get_conn() as conn:
-        where = ["s.spend > 0"]
+        where = ["(s.spend > 0 OR s.purchases > 0)"]
         params: List = []
         if account:
             where.append("s.ad_account = ?"); params.append(account)
