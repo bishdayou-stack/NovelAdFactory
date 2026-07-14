@@ -5089,8 +5089,9 @@ def _meta_gallery(account: str = Query(default=None), start: str = Query(default
                   page: int = Query(default=1), page_size: int = Query(default=40),
                   user_id: int = Query(default=None),
                   user: dict = Depends(get_current_user)):
-    """素材画廊：按广告聚合、附缩略图、按表现排序、分页"""
-    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
+    """素材画廊：按广告聚合、附缩略图、按表现排序、分页（全员可见）"""
+    # 管理员可指定 user_id 过滤，普通用户看全部
+    uid = user_id if (user_id and user.get("role") == "admin") else None
     return analytics.meta_creative_gallery(account=account, start_date=start, end_date=end,
                                            sort=sort, page=page, page_size=page_size, user_id=uid)
 
