@@ -969,7 +969,7 @@
           <option value="roi">按 ROI</option>
           <option value="purchases">按转化数</option>
         </select>
-        <select id="galUser" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none">
+        <select id="galUser" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none" hidden>
           <option value="">全部用户</option>
         </select>
         <span id="galCount" class="text-[11px] text-slate-500 ml-auto"></span>
@@ -5601,19 +5601,23 @@
         sel.innerHTML = opts;
         if (cur) sel.value = cur;
       });
-      // 全员可见：填充「按用户筛选」下拉
+      // 仅管理员：填充「按用户筛选」下拉
       var galUser = document.getElementById('galUser');
-      galUser.hidden = false;
-      fetch('/api/users').then(function(r) { return r.json(); }).then(function(users) {
-        var list = users || [];
-        var cur = galUser.value;
-        var opts = '<option value="">全部用户</option>';
-        list.forEach(function(u) {
-          opts += '<option value="' + u.id + '">' + escapeHtml(u.display_name || u.username) + '</option>';
+      if (currentUser && currentUser.role === 'admin') {
+        galUser.hidden = false;
+        fetch('/api/users').then(function(r) { return r.json(); }).then(function(users) {
+          var list = users || [];
+          var cur = galUser.value;
+          var opts = '<option value="">全部用户</option>';
+          list.forEach(function(u) {
+            opts += '<option value="' + u.id + '">' + escapeHtml(u.display_name || u.username) + '</option>';
+          });
+          galUser.innerHTML = opts;
+          if (cur) galUser.value = cur;
         });
-        galUser.innerHTML = opts;
-        if (cur) galUser.value = cur;
-      });
+      } else {
+        galUser.hidden = true;
+      }
       _galPage = 1;
       galleryLoad();
     }
@@ -5634,7 +5638,7 @@
       var sort = document.getElementById('galSort').value;
       var range = getGalDateRange();
       var isAdmin = currentUser && currentUser.role === 'admin';
-      var filterUser = document.getElementById('galUser').value;
+      var filterUser = isAdmin ? document.getElementById('galUser').value : '';
       var grid = document.getElementById('galGrid');
       grid.innerHTML = '<div class="col-span-full text-slate-500 text-center py-10">加载中...</div>';
       var pageSize = getGalCols() * 4;
