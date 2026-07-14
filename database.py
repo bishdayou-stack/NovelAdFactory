@@ -1705,21 +1705,23 @@ def get_account_snapshot_history(act_id: str, limit: int = 20) -> List[Dict[str,
 # ====== 广告系列阶段统计快照 ======
 
 def save_campaign_snapshots(act_id: str, user_id: int = None) -> int:
-    """为某账户下的所有广告系列保存当前 KPI 快照，返回快照数"""
+    """为某账户下「投放中」的广告系列保存当前 KPI 快照，返回快照数"""
     uid = user_id or 1
     count = 0
     with get_conn() as conn:
         rows = conn.execute("""
-            SELECT campaign_id, MAX(campaign_name) AS campaign_name,
-                COALESCE(SUM(spend),0) AS spend,
-                COALESCE(SUM(purchase_value),0) AS revenue,
-                COALESCE(SUM(impressions),0) AS impressions,
-                COALESCE(SUM(clicks),0) AS clicks,
-                COALESCE(SUM(purchases),0) AS purchases,
-                CASE WHEN SUM(impressions) > 0 THEN ROUND(SUM(spend) / SUM(impressions) * 1000, 2) ELSE 0 END AS cpm
-            FROM meta_adset_stats
-            WHERE ad_account = ? AND (user_id IS NULL OR user_id = ?)
-            GROUP BY campaign_id
+            SELECT m.campaign_id, MAX(m.campaign_name) AS campaign_name,
+                COALESCE(SUM(m.spend),0) AS spend,
+                COALESCE(SUM(m.purchase_value),0) AS revenue,
+                COALESCE(SUM(m.impressions),0) AS impressions,
+                COALESCE(SUM(m.clicks),0) AS clicks,
+                COALESCE(SUM(m.purchases),0) AS purchases,
+                CASE WHEN SUM(m.impressions) > 0 THEN ROUND(SUM(m.spend) / SUM(m.impressions) * 1000, 2) ELSE 0 END AS cpm
+            FROM meta_adset_stats m
+            INNER JOIN meta_entity_status es ON m.campaign_id = es.entity_id
+                AND es.level = 'campaign' AND es.effective_status = 'ACTIVE'
+            WHERE m.ad_account = ? AND (m.user_id IS NULL OR m.user_id = ?)
+            GROUP BY m.campaign_id
         """, (act_id, uid)).fetchall()
         for r in rows:
             conn.execute("""
@@ -1763,9 +1765,15 @@ def get_campaign_stage_stats(ad_account: str, user_id: int = None) -> List[Dict[
         return [dict(r) for r in rows]
 
 
-def get_campaign_snapshot_history(campaign_id: str, limit: int = 20) -> List[Dict[str, Any]]:
-    """获取单个广告系列的快照历史"""
+def get_campaign_snapshot_history(campaign_id: str, page: int = 1,
+                                   page_size: int = 20) -> Dict[str, Any]:
+    """获取单个广告系列的快照历史（分页）"""
+    offset = (page - 1) * page_size
     with get_conn() as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM meta_campaign_snapshots WHERE campaign_id = ?",
+            (campaign_id,)
+        ).fetchone()[0]
         rows = conn.execute("""
             SELECT s.*,
                 LAG(s.spend) OVER (ORDER BY s.id) as prev_spend,
@@ -1778,8 +1786,8 @@ def get_campaign_snapshot_history(campaign_id: str, limit: int = 20) -> List[Dic
             FROM meta_campaign_snapshots s
             WHERE s.campaign_id = ?
             ORDER BY s.id DESC
-            LIMIT ?
-        """, (campaign_id, limit)).fetchall()
+            LIMIT ? OFFSET ?
+        """, (campaign_id, page_size, offset)).fetchall()
         result = []
         for r in rows:
             d = dict(r)
@@ -1797,7 +1805,7 @@ def get_campaign_snapshot_history(campaign_id: str, limit: int = 20) -> List[Dic
                 d.pop("prev_clicks", None); d.pop("prev_purchases", None); d.pop("prev_cpm", None)
                 d["delta_spend"] = None
             result.append(d)
-        return result
+        return {"history": result, "total": total, "page": page, "page_size": page_size}
 
 
 # ====== Delivery Templates CRUD ======

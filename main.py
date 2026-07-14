@@ -5046,10 +5046,12 @@ def _meta_campaign_stage_stats(account: str = Query(...),
 
 
 @app.get("/api/meta/campaign-stage-stats/{campaign_id}")
-def _meta_campaign_stage_history(campaign_id: str, user: dict = Depends(get_current_user)):
-    """获取单个广告系列的快照历史"""
-    data = database.get_campaign_snapshot_history(campaign_id)
-    return {"campaign_id": campaign_id, "history": data}
+def _meta_campaign_stage_history(campaign_id: str, page: int = Query(default=1),
+                                  page_size: int = Query(default=20),
+                                  user: dict = Depends(get_current_user)):
+    """获取单个广告系列的快照历史（分页）"""
+    data = database.get_campaign_snapshot_history(campaign_id, page=page, page_size=page_size)
+    return {"campaign_id": campaign_id, **data}
 
 
 @app.get("/api/meta/campaigns")

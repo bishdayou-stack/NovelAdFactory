@@ -4781,15 +4781,23 @@
 
     // ---- 广告系列阶段消耗弹窗 ----
 
+    var _campStageCid = '', _campStagePage = 1, _campStagePageSize = 20;
+
     function openCampStageStats(cid, cname, cacct) {
+      _campStageCid = cid; _campStagePage = 1;
       var modal = document.getElementById('campStageModal');
       modal.hidden = false;
       document.getElementById('campStageTitle').textContent = decodeURIComponent(cname) + ' — 阶段消耗';
       document.getElementById('campStageBody').innerHTML = '<div class="text-slate-500 text-center py-8 text-xs">加载中...</div>';
       document.getElementById('campStageSummary').innerHTML = '';
-      // 单系列历史
-      fetch('/api/meta/campaign-stage-stats/' + cid).then(function(r) { return r.json(); }).then(function(res) {
-        renderCampStageHistory(res.history || []);
+      loadCampStagePage();
+    }
+
+    function loadCampStagePage() {
+      var url = '/api/meta/campaign-stage-stats/' + _campStageCid + '?page=' + _campStagePage + '&page_size=' + _campStagePageSize;
+      document.getElementById('campStageBody').innerHTML = '<div class="text-slate-500 text-center py-8 text-xs">加载中...</div>';
+      fetch(url).then(function(r) { return r.json(); }).then(function(res) {
+        renderCampStageHistory(res.history || [], res.total, res.page, res.page_size);
       }).catch(function() {
         document.getElementById('campStageBody').innerHTML = '<div class="text-red-400 text-center py-8 text-xs">加载失败</div>';
       });
@@ -4799,26 +4807,29 @@
       document.getElementById('campStageModal').hidden = true;
     }
 
-    function renderCampStageHistory(history) {
-      if (!history || history.length < 2) {
-        document.getElementById('campStageBody').innerHTML = '<div class="text-slate-500 text-center py-8 text-xs">暂无阶段数据（需要多次同步后才有记录）</div>';
+    function renderCampStageHistory(history, total, page, pageSize) {
+      if (!history || !history.length) {
+        document.getElementById('campStageBody').innerHTML = '<div class="text-slate-500 text-center py-8 text-xs">暂无阶段数据</div>';
         return;
       }
-      // 汇总：最新一条 vs 最早一条 的总增量
+      total = total || history.length; page = page || 1; pageSize = pageSize || 20;
+      var totalPages = Math.ceil(total / pageSize);
+
+      // 汇总（仅当前页计算）
       var latest = history[0], earliest = history[history.length - 1];
-      var totalDelta = {
+      var totalDelta = latest && earliest ? {
         spend: latest.spend - earliest.spend,
         revenue: latest.revenue - earliest.revenue,
         impressions: latest.impressions - earliest.impressions,
         clicks: latest.clicks - earliest.clicks,
         purchases: latest.purchases - earliest.purchases,
-      };
+      } : {spend:0,revenue:0,impressions:0,clicks:0,purchases:0};
       var cards = [
-        {label: '累计消耗', v: '$' + (latest.spend || 0).toFixed(2), d: '+$' + totalDelta.spend.toFixed(2), c: 'text-amber-400'},
-        {label: '累计收入', v: '$' + (latest.revenue || 0).toFixed(2), d: '+$' + totalDelta.revenue.toFixed(2), c: 'text-emerald-400'},
-        {label: '累计展示', v: (latest.impressions || 0).toLocaleString(), d: '+' + totalDelta.impressions.toLocaleString(), c: 'text-blue-400'},
-        {label: '累计点击', v: (latest.clicks || 0).toLocaleString(), d: '+' + totalDelta.clicks.toLocaleString(), c: 'text-indigo-400'},
-        {label: '记录次数', v: history.length + ' 次', d: (history.length - 1) + ' 次阶段', c: 'text-purple-400'},
+        {label: '累计消耗', v: '$' + (latest ? (latest.spend || 0).toFixed(2) : '0.00'), d: '+$' + totalDelta.spend.toFixed(2), c: 'text-amber-400'},
+        {label: '累计收入', v: '$' + (latest ? (latest.revenue || 0).toFixed(2) : '0.00'), d: '+$' + totalDelta.revenue.toFixed(2), c: 'text-emerald-400'},
+        {label: '累计展示', v: (latest ? (latest.impressions || 0).toLocaleString() : '0'), d: '+' + totalDelta.impressions.toLocaleString(), c: 'text-blue-400'},
+        {label: '累计点击', v: (latest ? (latest.clicks || 0).toLocaleString() : '0'), d: '+' + totalDelta.clicks.toLocaleString(), c: 'text-indigo-400'},
+        {label: '总记录数', v: total + ' 条', d: '第' + page + '/' + totalPages + ' 页', c: 'text-purple-400'},
       ];
       var html = '';
       cards.forEach(function(c) {
@@ -4838,12 +4849,12 @@
         '</tr></thead><tbody>';
       history.forEach(function(h, i) {
         var t = h.snapshot_at ? h.snapshot_at.substring(0, 16).replace('T', ' ') : '-';
-        var isFirst = (i === history.length - 1);
-        var dS = !isFirst && h.delta_spend != null ? '<span class="text-amber-400">+$' + h.delta_spend.toFixed(2) + '</span>' : (isFirst ? '<span class="text-slate-600 text-[10px]">基线</span>' : '');
-        var dR = !isFirst && h.delta_revenue != null ? '<span class="text-emerald-400">+$' + (h.delta_revenue || 0).toFixed(2) + '</span>' : '';
-        var dI = !isFirst && h.delta_impressions != null ? '<span class="text-blue-400">+' + (h.delta_impressions || 0).toLocaleString() + '</span>' : '';
-        var dC = !isFirst && h.delta_clicks != null ? '<span class="text-indigo-400">+' + (h.delta_clicks || 0).toLocaleString() + '</span>' : '';
-        var dCPM = !isFirst && h.delta_cpm != null ? '<span class="text-cyan-400">' + (h.delta_cpm >= 0 ? '+' : '') + '$' + (h.delta_cpm || 0).toFixed(2) + '</span>' : '';
+        var isVeryFirst = (page === totalPages) && (i === history.length - 1);
+        var dS = !isVeryFirst && h.delta_spend != null ? '<span class="text-amber-400">+$' + h.delta_spend.toFixed(2) + '</span>' : (isVeryFirst ? '<span class="text-slate-600 text-[10px]">基线</span>' : '');
+        var dR = !isVeryFirst && h.delta_revenue != null ? '<span class="text-emerald-400">+$' + (h.delta_revenue || 0).toFixed(2) + '</span>' : '';
+        var dI = !isVeryFirst && h.delta_impressions != null ? '<span class="text-blue-400">+' + (h.delta_impressions || 0).toLocaleString() + '</span>' : '';
+        var dC = !isVeryFirst && h.delta_clicks != null ? '<span class="text-indigo-400">+' + (h.delta_clicks || 0).toLocaleString() + '</span>' : '';
+        var dCPM = !isVeryFirst && h.delta_cpm != null ? '<span class="text-cyan-400">' + (h.delta_cpm >= 0 ? '+' : '') + '$' + (h.delta_cpm || 0).toFixed(2) + '</span>' : '';
         th += '<tr class="border-b border-slate-800 ' + (i === 0 ? 'text-slate-200' : 'text-slate-400') + '">' +
           '<td class="py-1">' + t + (i === 0 ? ' <span class="text-[9px] text-indigo-400">最新</span>' : '') + '</td>' +
           '<td class="py-1 text-right">$' + (h.spend || 0).toFixed(2) + '</td><td class="py-1 text-right">' + dS + '</td>' +
@@ -4855,6 +4866,20 @@
           '</tr>';
       });
       th += '</tbody></table>';
+
+      // 翻页
+      if (totalPages > 1) {
+        th += '<div class="flex justify-center items-center gap-2 mt-3 text-[11px]">';
+        if (page > 1) {
+          th += '<button class="rounded bg-slate-700 px-2 py-1 text-slate-300 hover:bg-slate-600 cursor-pointer border-0" onclick="_campStagePage=' + (page-1) + ';loadCampStagePage()">◀ 上一页</button>';
+        }
+        th += '<span class="text-slate-500">' + page + ' / ' + totalPages + '</span>';
+        if (page < totalPages) {
+          th += '<button class="rounded bg-slate-700 px-2 py-1 text-slate-300 hover:bg-slate-600 cursor-pointer border-0" onclick="_campStagePage=' + (page+1) + ';loadCampStagePage()">下一页 ▶</button>';
+        }
+        th += '</div>';
+      }
+
       document.getElementById('campStageBody').innerHTML = th;
     }
 
