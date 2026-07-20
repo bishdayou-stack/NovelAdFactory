@@ -320,7 +320,7 @@ if hasattr(scraper, 'sync_all_meta_insights'):
                 if not u.get("is_active"):
                     continue
                 try:
-                    scraper.sync_all_meta_insights(u["id"], concurrency=5)
+                    scraper.sync_all_meta_insights(u["id"], concurrency=2)
                 except Exception as e:
                     print(f"[Scheduler] Meta同步 user={u['id']} 失败: {e}")
         _scheduler.add_job(
