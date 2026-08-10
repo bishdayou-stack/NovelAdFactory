@@ -4449,7 +4449,10 @@ def _bm_discover(body: BmDiscoverRequest, user: dict = Depends(get_current_user)
             biz = acct.get("business", {}) or {}
             bm_id = biz.get("id", "")
             bm_name = acct.get("business_name", "")
-            # 如果有 BM 信息，也创建 BM 配置
+            # 如果有 BM id 则用它，否则用 business_name 作为 BM 标识
+            if not bm_id and bm_name:
+                bm_id = bm_name  # 用 business_name 作为 BM 的标识
+            # 创建 BM 配置（如果还不存在）
             if bm_id and bm_id not in [b["id"] for b in businesses]:
                 database.upsert_bm_config(bm_id, bm_name or bm_id, body.access_token, "", uid)
                 bm_count += 1
