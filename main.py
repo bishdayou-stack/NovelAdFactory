@@ -4442,6 +4442,7 @@ def _bm_discover(body: BmDiscoverRequest, user: dict = Depends(get_current_user)
             acct_count += 1
     # 第三步：如果没有 BM，也导入直接关联的广告账户（广告账户 Token 场景）
     if bm_count == 0:
+        created_bms = set()  # 本次已创建的 BM，避免重复计数
         for acct in result.get("ad_accounts", []):
             act_id = acct.get("id") or acct.get("account_id", "")
             if not act_id:
@@ -4451,10 +4452,11 @@ def _bm_discover(body: BmDiscoverRequest, user: dict = Depends(get_current_user)
             bm_name = acct.get("business_name", "")
             # 如果有 BM id 则用它，否则用 business_name 作为 BM 标识
             if not bm_id and bm_name:
-                bm_id = bm_name  # 用 business_name 作为 BM 的标识
+                bm_id = bm_name
             # 创建 BM 配置（如果还不存在）
-            if bm_id and bm_id not in [b["id"] for b in businesses]:
+            if bm_id and bm_id not in created_bms:
                 database.upsert_bm_config(bm_id, bm_name or bm_id, body.access_token, "", uid)
+                created_bms.add(bm_id)
                 bm_count += 1
             database.upsert_meta_account(
                 act_id=act_id, act_name=acct.get("name", ""),
