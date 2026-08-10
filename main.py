@@ -5305,6 +5305,9 @@ def _import_meta_accounts(body: ImportAccountBody,
             status = "active"
         bm_id = acct.get("bm_id", "")
         bm_name = acct.get("business_name", "")
+        # 没有 bm_id 但有 business_name 时，用 business_name 作为 bm_id
+        if not bm_id and bm_name and bm_name != "未归类":
+            bm_id = bm_name
         # 自动创建 BM 配置（如果 bm_id 有值且尚未存在）
         if bm_id and bm_id not in created_bms:
             existing = database.get_bm_configs(None)

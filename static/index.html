@@ -4706,7 +4706,8 @@
       var html = '<div id="discoverOverlay" class="fixed inset-0 z-[140] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeDiscoverPanel()">' +
         '<div class="bg-slate-800 rounded-2xl p-5 w-[480px] max-h-[80vh] overflow-y-auto border border-slate-700 shadow-2xl">' +
         '<h3 class="text-sm font-bold text-white mb-3">发现账户</h3>' +
-        '<input id="discoverTokenInput" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white placeholder-slate-400 mb-3" placeholder="输入 System User Token">' +
+        '<input id="discoverTokenInput" type="password" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white placeholder-slate-400 mb-2" placeholder="输入 System User Token 或广告账户 Token">' +
+        '<input id="discoverBmNameInput" type="text" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white placeholder-slate-500 mb-3" placeholder="BM 名称（可选，填写后导入的账户归入此 BM）">' +
         '<button onclick="doDiscoverAccounts()" class="w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-500 mb-3 cursor-pointer">发现账户</button>' +
         '<div id="discoverResultList" class="max-h-60 overflow-y-auto text-xs"></div>' +
         '<div id="discoverImportArea" class="mt-2 flex gap-2" hidden>' +
@@ -4733,11 +4734,17 @@
       _discoveredMetaAccounts = result.ad_accounts || [];
       document.getElementById('discoverImportArea').hidden = _discoveredMetaAccounts.length === 0;
       list.innerHTML = _discoveredMetaAccounts.map(function(a, i) {
+        var bmLabel = '';
+        if (a.business_name && a.business_name !== '未归类') {
+          bmLabel = '<span class="text-indigo-400">BM: ' + a.business_name + '</span>';
+        } else {
+          bmLabel = '<span class="text-amber-500">BM: 未识别</span>';
+        }
         return '<label class="flex items-center gap-2 py-1.5 px-2 hover:bg-slate-700 rounded cursor-pointer text-xs text-slate-300">' +
           '<input type="checkbox" class="discover-meta-cb" data-idx="' + i + '" ' + (a.status === 'active' ? 'checked' : '') + '>' +
           '<span class="font-mono">' + (a.id || '') + '</span>' +
           '<span>' + (a.name || '') + '</span>' +
-          (a.business_name ? '<span class="text-indigo-400">BM:' + a.business_name + '</span>' : '') +
+          bmLabel +
           '</label>';
       }).join('') || '<div class="text-xs text-slate-500 py-4 text-center">未发现账户</div>';
     }
@@ -4759,6 +4766,11 @@
       });
       if (!selected.length) { alert('请勾选账户'); return; }
       var token = document.getElementById('discoverTokenInput').value.trim();
+      var bmName = (document.getElementById('discoverBmNameInput') || {}).value || '';
+      // 手动填的 BM 名称覆盖空的 business_name
+      if (bmName) {
+        selected.forEach(function(a) { if (!a.business_name || a.business_name === '未归类') a.business_name = bmName; });
+      }
       var resp = await fetch('/api/meta/accounts/import', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({accounts: selected, access_token: token})
