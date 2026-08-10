@@ -5224,6 +5224,16 @@ def _discover_meta_assets(body: DiscoverBody, user: dict = Depends(get_current_u
                            101: "closed"}
 
     result = meta_api.discover_all_assets(token)
+    # 预加载本地 BM 配置，用于补全 Meta API 没返回的 BM 名称
+    local_bm_map = {}
+    for bm in database.get_bm_configs(None):
+        local_bm_map[bm["bm_id"]] = bm.get("bm_name", "")
+    local_acct_map = {}
+    for a in database.get_meta_accounts(None):
+        bm_id = a.get("bm_id", "")
+        if bm_id:
+            local_acct_map[a["act_id"]] = {"bm_id": bm_id, "bm_name": local_bm_map.get(bm_id, "")}
+
     all_accounts = []
     seen = set()
     for acct in result.get("ad_accounts", []):
@@ -5232,12 +5242,21 @@ def _discover_meta_assets(body: DiscoverBody, user: dict = Depends(get_current_u
             seen.add(aid)
             raw_status = acct.get("account_status", 1)
             biz = acct.get("business", {}) or {}
+            bm_name = acct.get("business_name", "")
+            bm_id = biz.get("id", "")
+            # 如果 Meta 没返回 BM 名称，从本地数据库补全
+            if not bm_name and aid in local_acct_map:
+                bm_name = local_acct_map[aid].get("bm_name", "")
+                if not bm_id:
+                    bm_id = local_acct_map[aid].get("bm_id", "")
+            if not bm_name:
+                bm_name = "未归类"
             all_accounts.append({
                 "id": aid, "name": acct.get("name", ""),
                 "status": _ACCOUNT_STATUS_MAP.get(raw_status, f"unknown_{raw_status}"),
                 "raw_status": raw_status, "currency": acct.get("currency", ""),
-                "business_name": acct.get("business_name", ""),
-                "bm_id": biz.get("id", ""),
+                "business_name": bm_name,
+                "bm_id": bm_id,
                 "disable_reason": acct.get("disable_reason", ""),
             })
     for bm_id, bm_data in result.get("bm_ad_accounts", {}).items():
