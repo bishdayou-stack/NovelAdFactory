@@ -5121,8 +5121,8 @@ def _meta_gallery(account: str = Query(default=None), start: str = Query(default
 def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=None),
                       user_id: int = Query(default=None),
                       user: dict = Depends(get_current_user)):
-    """按 BM 聚合 Meta 账户 KPI（使用 bm_config 真实 BM 名称）"""
-    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
+    """按 BM 聚合 Meta 账户 KPI（使用 bm_config 真实 BM 名称，全员可见）"""
+    uid = user_id if (user_id and user.get("role") == "admin") else None
     with database.get_conn() as conn:
         where = ["source = 'meta'"]
         params = []
@@ -5168,8 +5168,8 @@ def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=
 @app.get("/api/meta/user-summary")
 def _meta_user_summary(start: str = Query(default=None), end: str = Query(default=None),
                         user: dict = Depends(get_current_user)):
-    """按用户聚合 Meta 账户 KPI"""
-    uid = _opt_user_id(user)
+    """按用户聚合 Meta 账户 KPI（全员可见）"""
+    uid = None
     with database.get_conn() as conn:
         where = ["ads.source = 'meta'"]
         params = []
