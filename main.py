@@ -4415,7 +4415,7 @@ def _bm_update_owner(bm_id: str, body: BmOwnerBody, user: dict = Depends(get_cur
 
 @app.post("/api/bm/discover")
 def _bm_discover(body: BmDiscoverRequest, user: dict = Depends(get_current_user)):
-    """用 System User Token 发现 BM 并自动保存，同时自动导入 BM 下所有广告账户"""
+    """用 Token 发现 BM + 账户并自动保存（支持 System User Token 和广告账户 Token）"""
     uid = user["id"]
     result = meta_api.discover_all_assets(body.access_token)
     businesses = result.get("businesses", [])
@@ -4435,13 +4435,28 @@ def _bm_discover(body: BmDiscoverRequest, user: dict = Depends(get_current_user)
             if not act_id:
                 continue
             database.upsert_meta_account(
-                act_id=act_id,
-                act_name=acct.get("name", ""),
-                access_token=body.access_token,
-                pingykj_account=bm_name,
-                status="active",
-                user_id=uid,
-                bm_id=bm_id
+                act_id=act_id, act_name=acct.get("name", ""),
+                access_token=body.access_token, pingykj_account=bm_name,
+                status="active", user_id=uid, bm_id=bm_id
+            )
+            acct_count += 1
+    # 第三步：如果没有 BM，也导入直接关联的广告账户（广告账户 Token 场景）
+    if bm_count == 0:
+        for acct in result.get("ad_accounts", []):
+            act_id = acct.get("id") or acct.get("account_id", "")
+            if not act_id:
+                continue
+            biz = acct.get("business", {}) or {}
+            bm_id = biz.get("id", "")
+            bm_name = acct.get("business_name", "")
+            # 如果有 BM 信息，也创建 BM 配置
+            if bm_id and bm_id not in [b["id"] for b in businesses]:
+                database.upsert_bm_config(bm_id, bm_name or bm_id, body.access_token, "", uid)
+                bm_count += 1
+            database.upsert_meta_account(
+                act_id=act_id, act_name=acct.get("name", ""),
+                access_token=body.access_token, pingykj_account=bm_name,
+                status="active", user_id=uid, bm_id=bm_id
             )
             acct_count += 1
     return {
