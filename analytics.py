@@ -763,7 +763,9 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
                     COALESCE(SUM(impressions),0) AS impressions,
                     COALESCE(SUM(clicks),0) AS clicks,
                     COALESCE(SUM(purchases),0) AS purchases,
-                    COALESCE(SUM(purchase_value),0) AS purchase_value
+                    COALESCE(SUM(purchase_value),0) AS purchase_value,
+                    COALESCE(SUM(add_to_cart),0) AS add_to_cart,
+                    COALESCE(SUM(subscribe_count),0) AS subscribe_count
                 FROM meta_adset_stats
                 WHERE {' AND '.join(where)}
                 GROUP BY adset_id
@@ -786,6 +788,8 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
             m["campaign_name"] = r["campaign_name"] or ""
             m["effective_status"] = r["effective_status"] if "effective_status" in r.keys() else None
             m["status"] = r["status"] if "status" in r.keys() else None
+            m["add_to_cart"] = r["add_to_cart"] if "add_to_cart" in r.keys() else 0
+            m["subscribe_count"] = r["subscribe_count"] if "subscribe_count" in r.keys() else 0
             out.append(m)
         return out
 
@@ -815,6 +819,8 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
                     COALESCE(SUM(s.clicks),0) AS clicks,
                     COALESCE(SUM(s.purchases),0) AS purchases,
                     COALESCE(SUM(s.purchase_value),0) AS purchase_value,
+                    COALESCE(SUM(s.add_to_cart),0) AS add_to_cart,
+                    COALESCE(SUM(s.subscribe_count),0) AS subscribe_count,
                     MAX(c.local_path) AS local_path,
                     MAX(c.thumbnail_url) AS thumbnail_url,
                     MAX(c.video_id) AS video_id
@@ -839,6 +845,8 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
             m["ad_name"] = r["ad_name"] or r["ad_id"] or "(未命名广告)"
             m["adset_id"] = r["adset_id"]
             m["campaign_name"] = r["campaign_name"] or ""
+            m["add_to_cart"] = r["add_to_cart"] if "add_to_cart" in r.keys() else 0
+            m["subscribe_count"] = r["subscribe_count"] if "subscribe_count" in r.keys() else 0
             m["thumb"] = ("/static/" + r["local_path"]) if r["local_path"] else (r["thumbnail_url"] or "")
             m["video_id"] = r["video_id"] or ""
             m["effective_status"] = r["effective_status"] if "effective_status" in r.keys() else None
