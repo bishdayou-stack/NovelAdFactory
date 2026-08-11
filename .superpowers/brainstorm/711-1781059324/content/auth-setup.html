@@ -1,0 +1,40 @@
+<h2>Facebook 认证与账户</h2>
+<p class="subtitle">Meta Marketing API 需要 OAuth 认证，这与现有 pingykj 的账号密码登录完全不同</p>
+
+<div class="section">
+  <h3>Meta API 接入前提</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:14px">
+    <tr style="background:#f0f4f8"><td style="padding:8px;font-weight:600;width:200px">Facebook App</td><td style="padding:8px">需要在 <a href="https://developers.facebook.com/">developers.facebook.com</a> 创建应用，获取 App ID + App Secret</td></tr>
+    <tr><td style="padding:8px;font-weight:600">权限</td><td style="padding:8px"><code>ads_management</code>（创建/管理广告）+ <code>ads_read</code>（读取数据）</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px;font-weight:600">Access Token</td><td style="padding:8px">通过 OAuth 流程获取，分为短期(2小时)和长期(60天)两种</td></tr>
+    <tr><td style="padding:8px;font-weight:600">Ad Account</td><td style="padding:8px">每个广告账户有独立的 <code>act_XXXXX</code> ID，API 需指定账户操作</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>核心问题：你有没有 Facebook 开发者资源？</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="have-app" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>已就绪</h3>
+      <p>已有 Facebook App + 广告账户，能拿到 access token，直接用 API 对接即可</p>
+    </div>
+  </div>
+  <div class="option" data-choice="need-app" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>还没有，但能搞定</h3>
+      <p>目前没有 Facebook App，但我可以去创建。先把系统对接逻辑做好，到时候配置进去就能用</p>
+    </div>
+  </div>
+  <div class="option" data-choice="dont-know" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>不太清楚</h3>
+      <p>对 Facebook 开发者体系不熟悉，需要你帮我梳理需要准备什么，我按清单去申请</p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,26 @@
+<h2>Meta 广告数据与现有数据看板的关系</h2>
+<p class="subtitle">系统已有 pingykj.com 的广告消耗/订单数据。Meta 数据是替代、补充、还是独立并存？</p>
+
+<div class="options">
+  <div class="option" data-choice="merge" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>合并到统一看板</h3>
+      <p>Meta 数据和 pingykj 数据合并到同一套数据看板中。两边数据可能按日期+账户去重合并，形成单一数据视图。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="separate" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>独立并存，分别查看</h3>
+      <p>Meta 和 pingykj 各自独立存储，前端切换数据源。保持两套数据互不干扰，方便对账和数据溯源。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="meta-primary" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Meta 为主，pingykj 为补充</h3>
+      <p>Meta 是核心投放平台，数据以 Meta 为准。pingykj 的订单数据作为转化回传的参考，辅助 ROI 计算。</p>
+    </div>
+  </div>
+</div>

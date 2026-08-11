@@ -502,6 +502,7 @@ def meta_summary(start_date=None, end_date=None, account=None, keyword=None,
                    COALESCE(SUM(ad_count),0) AS ads, COALESCE(SUM(impressions),0) AS impressions,
                    COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(inline_link_clicks),0) AS link_clicks,
                    COALESCE(SUM(purchases),0) AS purchases, COALESCE(SUM(add_to_cart),0) AS add_to_cart,
+                   COALESCE(SUM(subscribe_count),0) AS subscribe_count,
                    COALESCE(SUM(purchase_value),0) AS purchase_value
             FROM ad_daily_stats WHERE {' AND '.join(where)}
         """, params).fetchone()
@@ -516,7 +517,8 @@ def meta_summary(start_date=None, end_date=None, account=None, keyword=None,
                 "roi": roi, "cpa": cpa, "cpm": cpm, "ctr": ctr,
                 "impressions": row["impressions"] or 0, "clicks": row["clicks"] or 0,
                 "link_clicks": row["link_clicks"] or 0, "purchases": purchases,
-                "add_to_cart": row["add_to_cart"] or 0, "purchase_value": round(row["purchase_value"] or 0, 2),
+                "add_to_cart": row["add_to_cart"] or 0, "subscribe_count": row["subscribe_count"] or 0,
+                "purchase_value": round(row["purchase_value"] or 0, 2),
                 "active_days": row["days"] or 0, "account_count": row["accounts"] or 0,
                 "total_ads": row["ads"] or 0}
 

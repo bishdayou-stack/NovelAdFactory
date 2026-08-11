@@ -1,0 +1,33 @@
+<h2>Meta 数据同步 — 更新：补充指标字段</h2>
+<p class="subtitle">用户指定需要增加的字段已补充</p>
+
+<div class="section">
+  <h3>完整同步字段（从 Meta Ads Insights API）</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tr style="background:#1a1a2e;color:#fff"><td style="padding:8px;font-weight:600">业务名称</td><td style="padding:8px;font-weight:600">Meta API 字段</td><td style="padding:8px;font-weight:600">说明</td></tr>
+    <tr><td style="padding:8px">日期</td><td style="padding:8px"><code>date_start</code></td><td style="padding:8px">投放日期</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">消耗</td><td style="padding:8px"><code>spend</code></td><td style="padding:8px">广告花费</td></tr>
+    <tr><td style="padding:8px">展示</td><td style="padding:8px"><code>impressions</code></td><td style="padding:8px">广告曝光次数</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">千展 CPM</td><td style="padding:8px"><code>cpm</code></td><td style="padding:8px">千次展示成本</td></tr>
+    <tr><td style="padding:8px">点击（全部）</td><td style="padding:8px"><code>clicks</code></td><td style="padding:8px">所有点击数</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">CTR（全部）</td><td style="padding:8px"><code>ctr</code></td><td style="padding:8px">全部点击率</td></tr>
+    <tr><td style="padding:8px;background:#fff3e0"><strong>链接点击</strong></td><td style="padding:8px;background:#fff3e0"><code>inline_link_clicks</code></td><td style="padding:8px;background:#fff3e0">链接点击次数（排除点赞/评论等互动点击）</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px;background:#fff3e0"><strong>链接点击率</strong></td><td style="padding:8px;background:#fff3e0"><code>inline_link_click_ctr</code></td><td style="padding:8px;background:#fff3e0">链接点击 / 展示</td></tr>
+    <tr><td style="padding:8px">CPC（单次链接点击成本）</td><td style="padding:8px"><code>cost_per_inline_link_click</code></td><td style="padding:8px">摊到每次链接点击的花费</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px;background:#fff3e0"><strong>加购次数</strong></td><td style="padding:8px;background:#fff3e0"><code>actions{add_to_cart}</code></td><td style="padding:8px;background:#fff3e0">加入购物车事件数</td></tr>
+    <tr><td style="padding:8px">加购成本</td><td style="padding:8px"><code>cost_per_action_type{add_to_cart}</code></td><td style="padding:8px">每次加购的花费</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px;background:#fff3e0"><strong>成效（转化数）</strong></td><td style="padding:8px;background:#fff3e0"><code>actions{purchase}</code></td><td style="padding:8px;background:#fff3e0">购买事件数（或按优化目标自动取对应事件）</td></tr>
+    <tr><td style="padding:8px;background:#fff3e0"><strong>成效成本</strong></td><td style="padding:8px;background:#fff3e0"><code>cost_per_action_type{purchase}</code> / <code>cost_per_result</code></td><td style="padding:8px;background:#fff3e0">每次转化的成本</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px;background:#fff3e0"><strong>成效价值</strong></td><td style="padding:8px;background:#fff3e0"><code>action_values{purchase}</code> / <code>conversion_values</code></td><td style="padding:8px;background:#fff3e0">转化带来的销售额（Meta 归因口径）</td></tr>
+  </table>
+  <p style="color:#888;font-size:11px;margin-top:8px">🟠 橙色底色 = 用户指定新增字段</p>
+</div>
+
+<div class="section">
+  <h3>其它设计不变</h3>
+  <ul style="font-size:13px;color:#555;line-height:1.8">
+    <li>数据统一写入 ad_daily_stats，source 字段区分 "meta" / "pingykj"</li>
+    <li>Meta 专有字段（CPM、CTR、链接点击率、加购次数等）存在新列中，pingykj 行这些列留 NULL</li>
+    <li>APScheduler 定时同步 + 增量更新 + 多账户并行</li>
+  </ul>
+</div>

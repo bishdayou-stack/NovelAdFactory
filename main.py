@@ -5196,7 +5196,9 @@ def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=
                      THEN ROUND(SUM(ads.clicks) * 100.0 / SUM(ads.impressions), 2)
                      ELSE NULL END AS ctr,
                 COALESCE(SUM(ads.impressions), 0) AS impressions,
-                COALESCE(SUM(ads.clicks), 0) AS clicks
+                COALESCE(SUM(ads.clicks), 0) AS clicks,
+                COALESCE(SUM(ads.add_to_cart), 0) AS add_to_cart,
+                COALESCE(SUM(ads.subscribe_count), 0) AS subscribe_count
             FROM ad_daily_stats ads
             LEFT JOIN meta_accounts ma ON ads.ad_account = ma.act_id AND ads.user_id = ma.user_id
             LEFT JOIN bm_config bc ON ma.bm_id = bc.bm_id
@@ -5231,6 +5233,8 @@ def _meta_user_summary(start: str = Query(default=None), end: str = Query(defaul
                 COALESCE(SUM(ads.total_spend), 0) AS spend,
                 COALESCE(SUM(ads.purchases), 0) AS purchases,
                 COALESCE(SUM(ads.purchase_value), 0) AS revenue,
+                COALESCE(SUM(ads.add_to_cart), 0) AS add_to_cart,
+                COALESCE(SUM(ads.subscribe_count), 0) AS subscribe_count,
                 CASE WHEN SUM(ads.total_spend) > 0
                      THEN ROUND(COALESCE(SUM(ads.purchase_value), 0) / SUM(ads.total_spend), 2)
                      ELSE NULL END AS roi,

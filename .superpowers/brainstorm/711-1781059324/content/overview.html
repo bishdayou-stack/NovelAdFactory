@@ -1,0 +1,57 @@
+<h2>Meta 广告集成 — 功能范围概览</h2>
+<p class="subtitle">基于现有系统，需要新增 Meta (Facebook) 广告投放能力和数据回传能力</p>
+
+<div class="section">
+  <h3>现有系统架构</h3>
+  <div class="mockup">
+    <div class="mockup-header">Current: Novel Ad Factory</div>
+    <div class="mockup-body" style="font-size:13px;line-height:1.6">
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px;background:#f0f4f8;border-radius:8px;padding:12px">
+          <strong>素材工厂</strong><br>
+          小说 → LLM → 图片/视频<br>
+          <span style="color:#666;font-size:11px">生成 → 本地存储</span>
+        </div>
+        <div style="flex:1;min-width:200px;background:#f0f4f8;border-radius:8px;padding:12px">
+          <strong>数据看板</strong><br>
+          requests 爬虫 → SQLite<br>
+          <span style="color:#666;font-size:11px">pingykj.com → 消耗/订单数据</span>
+        </div>
+        <div style="flex:1;min-width:200px;background:#f0f4f8;border-radius:8px;padding:12px">
+          <strong>小说管理</strong><br>
+          小说库同步 → 章节存储<br>
+          <span style="color:#666;font-size:11px">pingykj.com → 本地库</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>我们这次要加的 Meta 广告能力</h3>
+  <p style="color:#555">下面三个方向，权重不一定相同。请在终端回答以下优先级问题：</p>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="both" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>投放 + 数据 同等重要</h3>
+      <p>既要能创建广告推送到 Facebook，也要能把投放效果数据拉回来分析。两条线一起做。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="delivery-first" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>优先数据拉取，投放为辅助</h3>
+      <p>核心是把 Facebook 广告数据（消耗/展示/点击/转化）同步到现有看板。创建广告是锦上添花。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="data-first" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>优先投放创建，数据为辅助</h3>
+      <p>核心是把系统生成的素材直接推送到 Facebook 投放。数据拉取只是为了验证投放效果。</p>
+    </div>
+  </div>
+</div>

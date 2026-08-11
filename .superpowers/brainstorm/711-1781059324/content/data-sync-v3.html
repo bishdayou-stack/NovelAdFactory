@@ -1,0 +1,35 @@
+<h2>Meta 数据同步 — 最终字段顺序</h2>
+<p class="subtitle">用户指定：成效（转化数）紧接在消耗下方</p>
+
+<div class="mockup">
+  <div class="mockup-header">同步字段（最终顺序）</div>
+  <div class="mockup-body" style="font-size:13px;line-height:1.8">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr style="background:#1a1a2e;color:#fff">
+        <td style="padding:8px;width:30px">#</td><td style="padding:8px">业务名称</td><td style="padding:8px">Meta API 字段</td><td style="padding:8px">说明</td>
+      </tr>
+      <tr><td style="padding:8px">1</td><td style="padding:8px">日期</td><td style="padding:8px"><code>date_start</code></td><td style="padding:8px">投放日期</td></tr>
+      <tr style="background:#f0f4f8"><td style="padding:8px">2</td><td style="padding:8px">消耗</td><td style="padding:8px"><code>spend</code></td><td style="padding:8px">广告花费</td></tr>
+      <tr style="background:#e8f5e9"><td style="padding:8px">3</td><td style="padding:8px"><strong>成效（转化数）</strong></td><td style="padding:8px"><code>actions{purchase}</code></td><td style="padding:8px">购买事件数</td></tr>
+      <tr><td style="padding:8px">4</td><td style="padding:8px">展示</td><td style="padding:8px"><code>impressions</code></td><td style="padding:8px">广告曝光次数</td></tr>
+      <tr style="background:#f0f4f8"><td style="padding:8px">5</td><td style="padding:8px">千展 CPM</td><td style="padding:8px"><code>cpm</code></td><td style="padding:8px">千次展示成本</td></tr>
+      <tr><td style="padding:8px">6</td><td style="padding:8px">点击（全部）</td><td style="padding:8px"><code>clicks</code></td><td style="padding:8px">所有点击数</td></tr>
+      <tr style="background:#f0f4f8"><td style="padding:8px">7</td><td style="padding:8px">CTR（全部）</td><td style="padding:8px"><code>ctr</code></td><td style="padding:8px">全部点击率</td></tr>
+      <tr style="background:#fff3e0"><td style="padding:8px">8</td><td style="padding:8px">链接点击</td><td style="padding:8px"><code>inline_link_clicks</code></td><td style="padding:8px">链接点击次数</td></tr>
+      <tr style="background:#fff3e0"><td style="padding:8px">9</td><td style="padding:8px">链接点击率</td><td style="padding:8px"><code>inline_link_click_ctr</code></td><td style="padding:8px">链接点击 / 展示</td></tr>
+      <tr style="background:#f0f4f8"><td style="padding:8px">10</td><td style="padding:8px">CPC</td><td style="padding:8px"><code>cost_per_inline_link_click</code></td><td style="padding:8px">单次链接点击成本</td></tr>
+      <tr style="background:#fff3e0"><td style="padding:8px">11</td><td style="padding:8px">加购次数</td><td style="padding:8px"><code>actions{add_to_cart}</code></td><td style="padding:8px">加入购物车事件数</td></tr>
+      <tr><td style="padding:8px">12</td><td style="padding:8px">加购成本</td><td style="padding:8px"><code>cost_per_action_type{add_to_cart}</code></td><td style="padding:8px">每次加购的花费</td></tr>
+      <tr style="background:#f0f4f8"><td style="padding:8px">13</td><td style="padding:8px">成效成本</td><td style="padding:8px"><code>cost_per_action_type{purchase}</code></td><td style="padding:8px">每次转化的成本</td></tr>
+      <tr style="background:#e8f5e9"><td style="padding:8px">14</td><td style="padding:8px">成效价值</td><td style="padding:8px"><code>action_values{purchase}</code></td><td style="padding:8px">转化带来的销售额</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px">
+  <p style="font-size:13px;color:#555">🟢 成效（转化数）已移到消耗下方 · 🟠 用户指定字段 · 其余架构不变</p>
+</div>
+
+<div class="section">
+  <h3>字段顺序确认 OK？</h3>
+</div>

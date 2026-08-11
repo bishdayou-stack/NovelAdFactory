@@ -1,0 +1,26 @@
+<h2>素材 → 投放 衔接方式</h2>
+<p class="subtitle">系统已经能生成小说广告素材（图片+视频）。生成的素材如何流入 Meta 广告创建流程？</p>
+
+<div class="options">
+  <div class="option" data-choice="direct-pipeline" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>一键推送（全自动）</h3>
+      <p>素材生成完成后，在历史记录中勾选 → 选择投放模板 → 一键推送到 Meta。系统自动完成：上传创意到 FB → 创建 Campaign/AdSet/Ad → 设为 PAUSED 等待审核。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="batch-approve" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>半自动审核流程</h3>
+      <p>素材生成 → 进入"待投放"队列 → 人工审核勾选 → 批量设置投放参数（每个/每组可不同） → 批量推送。关键节点人工确认。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="independent" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>独立管理，手动关联</h3>
+      <p>投放模块完全独立，可以上传本地素材或从历史记录中选取。每次创建广告时手动选择素材，不自动关联。灵活但效率较低。</p>
+    </div>
+  </div>
+</div>

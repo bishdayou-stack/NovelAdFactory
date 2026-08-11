@@ -1,0 +1,47 @@
+<h2>投放引擎 — 更新：从 FB 账户拉取模板</h2>
+<p class="subtitle">新增功能：导入 Facebook 广告账户已有的 Campaign/AdSet 配置为系统模板</p>
+
+<div class="section">
+  <h3>模板来源（两种方式）</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tr style="background:#f0f4f8">
+      <td style="padding:10px;font-weight:600;width:140px">手动创建</td>
+      <td style="padding:10px">在系统内新建模板，填写受众/预算/排期等参数（前面已设计的）</td>
+    </tr>
+    <tr>
+      <td style="padding:10px;font-weight:600;background:#e8f5e9">从 FB 导入</td>
+      <td style="padding:10px;background:#e8f5e9">选择广告账户 → 拉取该账户下已有的 AdSet 列表 → 预览其配置（受众/预算/出价/版位） → 一键存为模板 → 可复用到其他账户</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>"从 FB 导入" 流程</h3>
+  <div class="mockup">
+    <div class="mockup-header">导入流程</div>
+    <div class="mockup-body" style="font-size:13px;line-height:1.9">
+      <p>① 在模板管理页 → 点击<strong>"从 FB 导入"</strong></p>
+      <p>② 选择一个已绑定的广告账户 → 系统调用 Meta API 拉取该账户下所有 AdSet</p>
+      <p>③ 展示列表：<strong>AdSet 名称 + Campaign 名称 + 受众摘要 + 日预算 + 出价策略 + 状态</strong></p>
+      <p>④ 勾选想导入的 AdSet → 系统解析其完整配置（详细定位、排除条件、版位、转化事件）</p>
+      <p>⑤ 存为模板，可改名、可微调参数 → 之后其他账户也能用这个模板</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>拉取的数据字段</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tr style="background:#f0f4f8"><td style="padding:8px;font-weight:600">字段</td><td style="padding:8px">来源</td></tr>
+    <tr><td style="padding:8px">受众定位</td><td style="padding:8px"><code>targeting</code> — 地区、年龄、性别、语言、详细定位、自定义受众、排除受众</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">版位</td><td style="padding:8px"><code>targeting{device_platforms,publisher_platforms,facebook_positions,instagram_positions}</code></td></tr>
+    <tr><td style="padding:8px">预算</td><td style="padding:8px"><code>daily_budget</code> / <code>lifetime_budget</code></td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">出价策略</td><td style="padding:8px"><code>bid_strategy</code> / <code>billing_event</code> / <code>optimization_goal</code></td></tr>
+    <tr><td style="padding:8px">转化事件</td><td style="padding:8px"><code>promoted_object</code> — pixel 事件、应用安装等</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">排期</td><td style="padding:8px"><code>start_time</code> / <code>end_time</code></td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>这样补上导入功能后，模板设计 OK 了吗？</h3>
+</div>

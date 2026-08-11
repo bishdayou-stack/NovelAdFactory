@@ -1,0 +1,58 @@
+<h2>投放规模</h2>
+<p class="subtitle">这决定了架构是"简单直连"还是"需要批量调度的生产系统"</p>
+
+<div class="section">
+  <h3>需要管理多少个 Meta 广告账户？</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="few" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>少量（1-5 个）</h3>
+      <p>只管理几个主要账户，人工审核每个投放操作即可</p>
+    </div>
+  </div>
+  <div class="option" data-choice="many" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>中等（5-20 个）</h3>
+      <p>有一定规模，需要模板化批量操作，避免逐一手动</p>
+    </div>
+  </div>
+  <div class="option" data-choice="large" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>大范围（20+ 个）</h3>
+      <p>批量管理大量账户，需要任务队列、失败重试、速率限制管理等生产级能力</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <h3>每天大约创建多少条广告？</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="few-ads" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>少量（< 50 条/天）</h3>
+      <p>精挑细选，每条都人工确认。系统做辅助 + 记录。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="mid-ads" onclick="toggleSelect(this)">
+    <div class="letter">E</div>
+    <div class="content">
+      <h3>中等（50-200 条/天）</h3>
+      <p>批量生成素材 + 批量创建广告。需要自动化但可接受人工抽查。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="many-ads" onclick="toggleSelect(this)">
+    <div class="letter">F</div>
+    <div class="content">
+      <h3>大量（200+ 条/天）</h3>
+      <p>全自动流水线：小说 → 素材 → 投放 → 数据回传。人去审核异常，不审核每条广告。</p>
+    </div>
+  </div>
+</div>

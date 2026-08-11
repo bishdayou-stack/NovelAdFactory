@@ -1,0 +1,51 @@
+<h2>Meta 数据同步 & 统一看板设计</h2>
+<p class="subtitle">Ads Insights API → SQLite → 合并到现有 ad_daily_stats 统一展示</p>
+
+<div class="section">
+  <h3>同步数据字段（从 Meta Ads Insights API）</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tr style="background:#f0f4f8"><td style="padding:8px;font-weight:600">字段</td><td style="padding:8px;font-weight:600">Meta API 字段</td><td style="padding:8px">说明</td></tr>
+    <tr><td style="padding:8px">日期</td><td style="padding:8px"><code>date_start</code></td><td style="padding:8px">投放日期</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">消耗</td><td style="padding:8px"><code>spend</code></td><td style="padding:8px">广告花费</td></tr>
+    <tr><td style="padding:8px">收入</td><td style="padding:8px"><code>actions{purchase_roas}</code> × spend + <code>website_purchase_roas</code></td><td style="padding:8px">Meta 内部归因收入</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">展示</td><td style="padding:8px"><code>impressions</code></td><td style="padding:8px">广告曝光次数</td></tr>
+    <tr><td style="padding:8px">点击</td><td style="padding:8px"><code>clicks</code></td><td style="padding:8px">点击次数</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">CTR</td><td style="padding:8px"><code>ctr</code></td><td style="padding:8px">点击率</td></tr>
+    <tr><td style="padding:8px">CPM</td><td style="padding:8px"><code>cpm</code></td><td style="padding:8px">千次展示成本</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">CPC</td><td style="padding:8px"><code>cpc</code></td><td style="padding:8px">单次点击成本</td></tr>
+    <tr><td style="padding:8px">转化</td><td style="padding:8px"><code>actions{purchase}</code></td><td style="padding:8px">购买转化数</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">CPA</td><td style="padding:8px"><code>cost_per_action_type{purchase}</code></td><td style="padding:8px">单次转化成本</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>数据合并策略</h3>
+  <div class="mockup">
+    <div class="mockup-header">ad_daily_stats 表扩展</div>
+    <div class="mockup-body" style="font-size:13px;line-height:1.8">
+      <p>现有唯一约束 <code>UNIQUE(date, ad_account)</code> → 扩展为 <strong><code>UNIQUE(date, ad_account, source)</code></strong></p>
+      <p>新增列 <strong><code>source</code></strong>：<code>"pingykj"</code> | <code>"meta"</code></p>
+      <p>新增列 <strong><code>account_id</code></strong>：Meta 的实际 act_id（用于与 meta_accounts 表关联）</p>
+      <p>新增列指标：<strong>CTR, CPM, CPC, conversions, CPA</strong>（pingykj 行这些字段为 NULL）</p>
+    </div>
+  </div>
+  <br>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tr style="background:#f0f4f8"><td style="padding:8px;font-weight:600">同步策略</td><td style="padding:8px">说明</td></tr>
+    <tr><td style="padding:8px">定时全量</td><td style="padding:8px">APScheduler 每 5 分钟同步一次（可配置），拉取近 90 天数据，按天+账户去重覆盖</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">增量更新</td><td style="padding:8px">记录 last_sync_date → 每次只拉取增量 → 避免全量重复</td></tr>
+    <tr><td style="padding:8px">多账户并行</td><td style="padding:8px">ThreadPoolExecutor 并行拉取所有账户 → 单个账户失败不影响其他</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">速率控制</td><td style="padding:8px">每个 ad account 每秒 < 4 次 API 调用（Meta 标准限制），全局并发控制</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>账户映射（Meta ↔ pingykj）</h3>
+  <p style="color:#555;font-size:13px">如果同一个业务在两边都有账户（如 Meta act_12345 = pingykj adAccountId=67890），可能需要在 meta_accounts 表中手动建立映射关系，以便看板跨数据源做关联分析</p>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tr style="background:#f0f4f8"><td style="padding:8px;font-weight:600">选项</td><td style="padding:8px">描述</td></tr>
+    <tr><td style="padding:8px">自动映射</td><td style="padding:8px">按账户名称模糊匹配 → 匹配不上的手动绑定</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px">手动绑定</td><td style="padding:8px">在"账户配置"页面手动将 Meta 账户关联到 pingykj 账户 ID</td></tr>
+    <tr><td style="padding:8px">不映射</td><td style="padding:8px">两个数据源在统一看板中分别显示，不做关联</td></tr>
+  </table>
+</div>

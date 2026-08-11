@@ -1,0 +1,62 @@
+<h2>整体架构设计</h2>
+<p class="subtitle">基于已确认的需求：全流程管控 · 统一数据看板 · 20+账户/200+条/天 · 半自动审核</p>
+
+<div class="section">
+  <h3>新增两大模块</h3>
+  <div style="display:flex;gap:16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:220px;background:#1a1a2e;color:#e0e0e0;border-radius:10px;padding:16px">
+      <strong style="color:#64b5f6">Meta 投放引擎</strong>
+      <p style="font-size:13px;margin:8px 0;color:#ccc">
+        素材审核队列 → 投放模板选择 → 批量上传创意 → 批量创建广告<br>
+        后台异步执行，SSE 实时推送进度
+      </p>
+      <span style="font-size:11px;color:#888">新增: scraper.py 同级 delivery.py</span>
+    </div>
+    <div style="flex:1;min-width:220px;background:#1a1a2e;color:#e0e0e0;border-radius:10px;padding:16px">
+      <strong style="color:#64b5f6">Meta 数据同步</strong>
+      <p style="font-size:13px;margin:8px 0;color:#ccc">
+        Ads Insights API → 定时拉取 → 合并到统一看板<br>
+        支持多账户并行同步 + 增量更新
+      </p>
+      <span style="font-size:11px;color:#888">扩展现有: scraper.py / database.py</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>数据流</h3>
+  <div class="mockup">
+    <div class="mockup-header">Meta 集成数据流</div>
+    <div class="mockup-body" style="font-size:13px;line-height:1.8">
+      <p><strong>投放线：</strong>素材历史 → <span style="background:#fff3cd;padding:1px 4px">审核队列</span> → 选择模板 → 上传 FB 创意 → 创建 Ad → 本地记录</p>
+      <p><strong>数据线：</strong>Meta Insights API → 定时拉取 → <span style="background:#fff3cd;padding:1px 4px">合并到 ad_daily_stats</span> → 统一看板</p>
+      <p><strong>账户线：</strong>FB Access Token 管理 → 多账户轮换 → 速率限制控制</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>数据库扩展</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tr style="background:#f0f4f8"><td style="padding:8px;font-weight:600">新表</td><td style="padding:8px">用途</td></tr>
+    <tr><td style="padding:8px"><code>meta_accounts</code></td><td style="padding:8px">Meta 广告账户（act_id, name, token, status, pingykj_account 映射）</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px"><code>meta_campaigns</code></td><td style="padding:8px">投放记录（campaign_id, adset_id, ad_id, 关联素材 batch_id, 状态）</td></tr>
+    <tr><td style="padding:8px"><code>delivery_queue</code></td><td style="padding:8px">投放审核队列（素材 ID, 状态, 审核人, 投放参数）</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px"><code>delivery_templates</code></td><td style="padding:8px">投放模板（受众包、预算、出价策略、排期预设）</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>前端新增区域（独立 Tab）</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <tr style="background:#f0f4f8"><td style="padding:8px;font-weight:600">Tab</td><td style="padding:8px">功能</td></tr>
+    <tr><td style="padding:8px"><strong>投放管理</strong></td><td style="padding:8px">审核队列 + 投放模板管理 + 批量创建广告 + 投放状态跟踪</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:8px"><strong>Meta 数据</strong></td><td style="padding:8px">统一看板增强（数据源标注 Meta/pingykj）+ 账户映射配置 + 同步日志</td></tr>
+    <tr><td style="padding:8px"><strong>账户配置</strong></td><td style="padding:8px">Meta 账户管理 + Token 管理 + 速率限制监控</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>这个方向对吗？有需要调整的地方吗？</h3>
+  <p style="color:#888;font-size:13px">请在终端回复确认或修改意见</p>
+</div>
