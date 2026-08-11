@@ -1254,11 +1254,10 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
                 c += int(float(action.get("value", 0) or 0))
         return c
 
-    # 加入购物车相关 action_type
-    _ATC_TYPES = {"add_to_cart", "offsite_conversion.fb_pixel_add_to_cart",
-                  "onsite_web_add_to_cart", "omni_add_to_cart"}
-    # 订阅相关
-    _SUB_TYPES = {"subscribe", "offsite_conversion.fb_pixel_subscribe"}
+    # 加入购物车：只用 omni_add_to_cart（Meta 去重后的值），避免同一事件多名称重复计数
+    _ATC_TYPES = {"omni_add_to_cart"}
+    # 订阅
+    _SUB_TYPES = {"subscribe"}
 
     adset_agg = defaultdict(lambda: {"spend": 0.0, "impressions": 0, "clicks": 0,
                                       "purchases": 0, "purchase_value": 0.0,
