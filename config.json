@@ -8,7 +8,7 @@
   "meta": {
     "app_id": "1690094688936920",
     "api_version": "v25.0",
-    "sync_interval_seconds": 1200,
+    "sync_interval_seconds": 1800,
     "rate_limit_per_second": 4,
     "proxy": "http://127.0.0.1:10808"
   }
