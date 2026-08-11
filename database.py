@@ -2204,7 +2204,7 @@ def upsert_meta_insights(act_id: str, insights_rows: List[Dict[str, Any]],
                     add_to_cart, add_to_cart_cost,
                     purchases, cost_per_purchase, purchase_value,
                     subscribe_count, user_id)
-                VALUES (?, ?, 'meta', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, 'meta', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(date, ad_account, source, user_id) DO UPDATE SET
                     total_spend=excluded.total_spend,
                     total_revenue=excluded.total_revenue,
