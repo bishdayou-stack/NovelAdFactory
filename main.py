@@ -290,6 +290,17 @@ _scheduler.add_job(
 )
 _scheduler.start()
 
+# 首次启动：回填 link_id 并建立书籍映射
+try:
+    filled = database.backfill_link_ids()
+    if filled > 0:
+        print(f"[启动] 回填 ad_daily_stats.link_id: {filled} 条")
+    mapped = database.build_link_novel_map_from_orders()
+    if mapped > 0:
+        print(f"[启动] 建立 link_novel_map 映射: {mapped} 条")
+except Exception as e:
+    print(f"[启动] link_id 回填/映射忽略: {e}")
+
 # 章节补缺定时同步（每3小时一次，低频独立任务）
 def _auto_chapter_sync():
     users = database.list_active_users_with_credentials()
@@ -3871,6 +3882,23 @@ def api_dashboard_user_ranking(
     return analytics.get_user_ranking(start_date=start, end_date=end)
 
 
+@app.get("/api/dashboard/link-stats")
+def api_dashboard_link_stats(
+    start: str = Query(default=None),
+    end: str = Query(default=None),
+    sort_by: str = Query(default="spend"),
+    page: int = Query(default=1),
+    page_size: int = Query(default=20),
+    user: dict = Depends(get_current_user),
+):
+    """书籍消耗汇总：按推广链接维度聚合广告消耗数据（用户数据隔离）"""
+    uid = _opt_user_id(user)
+    return database.get_novel_daily_stats(
+        start_date=start, end_date=end, user_id=uid,
+        sort_by=sort_by, page=page, page_size=page_size
+    )
+
+
 @app.get("/api/dashboard/novel-stats")
 def api_dashboard_novel_stats(
     start: str = Query(default=None),
@@ -3887,6 +3915,21 @@ def api_dashboard_novel_stats(
     return analytics.get_novel_stats(start_date=start, end_date=end, keyword=keyword,
                                       user_id=uid, sort_by=sort_by,
                                       page=page, page_size=page_size)
+
+
+@app.get("/api/dashboard/book-stats")
+def api_dashboard_book_stats(
+    start: str = Query(default=None),
+    end: str = Query(default=None),
+    sort_by: str = Query(default="total_spend"),
+    page: int = Query(default=1),
+    page_size: int = Query(default=20),
+    user: dict = Depends(get_current_user),
+):
+    """按书籍聚合：消耗 + 订单数 + 订单金额（全员可见，按 user_id 隔离数据）"""
+    uid = _opt_user_id(user)  # 管理员看全部，普通用户看自己
+    return database.get_book_stats(user_id=uid, start_date=start, end_date=end,
+                                    sort_by=sort_by, page=page, page_size=page_size)
 
 
 app.mount("/static/output", StaticFiles(directory=str(OUTPUT_ROOT)), name="novel_output")

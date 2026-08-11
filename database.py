@@ -830,6 +830,34 @@ def init_db() -> None:
         if 'cpm' not in camp_snap_cols:
             c.execute("ALTER TABLE meta_campaign_snapshots ADD COLUMN cpm REAL DEFAULT 0")
 
+        # 迁移：推广链接→书籍映射 + 书籍每日消耗统计
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS promotion_link_map (
+                link_id TEXT PRIMARY KEY,
+                novel_id TEXT,
+                novel_name TEXT,
+                user_id INTEGER DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS novel_daily_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date DATE NOT NULL,
+                novel_id TEXT NOT NULL,
+                novel_name TEXT,
+                spend REAL DEFAULT 0,
+                revenue REAL DEFAULT 0,
+                impressions INTEGER DEFAULT 0,
+                clicks INTEGER DEFAULT 0,
+                purchases INTEGER DEFAULT 0,
+                order_count INTEGER DEFAULT 0,
+                order_amount REAL DEFAULT 0,
+                user_id INTEGER DEFAULT 1,
+                UNIQUE(date, novel_id, user_id)
+            )
+        """)
+
 # ====== 用户管理 CRUD ======
 
 def create_user(username: str, password: str, role: str = "user",
@@ -1806,6 +1834,104 @@ def get_campaign_snapshot_history(campaign_id: str, page: int = 1,
                 d["delta_spend"] = None
             result.append(d)
         return {"history": result, "total": total, "page": page, "page_size": page_size}
+
+
+# ====== 推广链接 → 书籍消耗统计 ======
+
+def upsert_promotion_link_map(link_id: str, novel_id: str, novel_name: str,
+                               user_id: int = None) -> None:
+    """缓存 linkId → novel 映射"""
+    uid = user_id or 1
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO promotion_link_map (link_id, novel_id, novel_name, user_id)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(link_id) DO UPDATE SET
+                novel_id = excluded.novel_id,
+                novel_name = excluded.novel_name,
+                updated_at = CURRENT_TIMESTAMP
+        """, (link_id, novel_id, novel_name, uid))
+
+
+def get_novel_id_by_link(link_id: str) -> Optional[str]:
+    """根据 linkId 查 novel_id"""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT novel_id FROM promotion_link_map WHERE link_id = ?", (link_id,)
+        ).fetchone()
+        return row[0] if row else None
+
+
+def upsert_novel_daily_stats(date: str, novel_id: str, novel_name: str,
+                              spend: float, revenue: float, impressions: int,
+                              clicks: int, purchases: int,
+                              order_count: int, order_amount: float,
+                              user_id: int = None) -> None:
+    """按日期 + novel_id 聚合写入"""
+    uid = user_id or 1
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO novel_daily_stats (date, novel_id, novel_name, spend, revenue,
+                impressions, clicks, purchases, order_count, order_amount, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(date, novel_id, user_id) DO UPDATE SET
+                spend = excluded.spend,
+                revenue = excluded.revenue,
+                impressions = excluded.impressions,
+                clicks = excluded.clicks,
+                purchases = excluded.purchases,
+                order_count = excluded.order_count,
+                order_amount = excluded.order_amount,
+                novel_name = excluded.novel_name
+        """, (date, novel_id, novel_name, spend, revenue, impressions, clicks,
+              purchases, order_count, order_amount, uid))
+
+
+def get_novel_daily_stats(start_date: str = None, end_date: str = None,
+                           user_id: int = None, sort_by: str = "spend",
+                           page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+    """分页查询书籍消耗汇总"""
+    uid = user_id
+    allowed_sort = {"spend": "spend", "revenue": "revenue", "impressions": "impressions",
+                    "clicks": "clicks", "purchases": "purchases",
+                    "order_count": "order_count", "order_amount": "order_amount"}
+    sort_col = allowed_sort.get(sort_by, "spend")
+
+    with get_conn() as conn:
+        where = ["1=1"]
+        params: List = []
+        if start_date:
+            where.append("date >= ?"); params.append(start_date)
+        if end_date:
+            where.append("date <= ?"); params.append(end_date)
+        if uid is not None:
+            where.append("user_id = ?"); params.append(uid)
+
+        base = f"""
+            FROM novel_daily_stats
+            WHERE {' AND '.join(where)}
+            GROUP BY novel_id
+        """
+        total = conn.execute(
+            f"SELECT COUNT(DISTINCT novel_id) AS n {base}", params
+        ).fetchone()["n"]
+
+        sql = f"""
+            SELECT novel_id, MAX(novel_name) AS novel_name,
+                COALESCE(SUM(spend), 0) AS spend,
+                COALESCE(SUM(revenue), 0) AS revenue,
+                COALESCE(SUM(impressions), 0) AS impressions,
+                COALESCE(SUM(clicks), 0) AS clicks,
+                COALESCE(SUM(purchases), 0) AS purchases,
+                COALESCE(SUM(order_count), 0) AS order_count,
+                COALESCE(SUM(order_amount), 0) AS order_amount
+            {base}
+            ORDER BY {sort_col} DESC
+            LIMIT ? OFFSET ?
+        """
+        items = conn.execute(sql, params + [page_size, (page - 1) * page_size]).fetchall()
+        return {"data": [dict(r) for r in items], "total": total,
+                "page": page, "page_size": page_size}
 
 
 # ====== Delivery Templates CRUD ======

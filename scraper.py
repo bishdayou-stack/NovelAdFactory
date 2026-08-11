@@ -468,20 +468,77 @@ def _aggregate_ad_rows(raw_rows: List[Dict[str, str]]) -> List[Dict[str, Any]]:
             clicks = int(float(row.get("clicks") or row.get("点击量") or row.get("点击") or 0))
         except (ValueError, TypeError):
             clicks = 0
+        try:
+            purchases = int(float(row.get("purchase") or row.get("purchases") or row.get("转化数") or 0))
+        except (ValueError, TypeError):
+            purchases = 0
 
         key = (date, account)
         if key not in groups:
             groups[key] = {"date": date, "ad_account": account, "total_spend": 0, "total_revenue": 0,
-                           "ad_count": 0, "impressions": 0, "clicks": 0, "extra_data": {}}
+                           "ad_count": 0, "impressions": 0, "clicks": 0, "purchases": 0,
+                           "extra_data": {}, "link_ids": set()}
         g = groups[key]
         g["total_spend"] += spend
         g["total_revenue"] += revenue
         g["ad_count"] += 1
         g["impressions"] += impressions
         g["clicks"] += clicks
+        g["purchases"] += purchases
+        # 收集推广链接 ID
+        lid = str(row.get("linkId") or "")
+        if lid:
+            g["link_ids"].add(lid)
         if not g["extra_data"]:
             g["extra_data"] = {k: v for k, v in row.items()}
 
+    # 把 set 转成逗号分隔字符串存到 extra_data
+    for g in groups.values():
+        if g["link_ids"]:
+            g["extra_data"]["link_ids"] = ",".join(g["link_ids"])
+        del g["link_ids"]
+
+    return list(groups.values())
+
+
+def _aggregate_novel_from_ads(raw_rows: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+    """按 (日期, linkId) 聚合广告数据，用于书籍维度统计"""
+    groups: Dict[Tuple[str, str], Dict] = {}
+    for row in raw_rows:
+        date = str(row.get("statDate") or row.get("日期") or row.get("date") or row.get("时间") or "")
+        link_id = str(row.get("linkId") or "")
+        if not date or not link_id:
+            continue
+        try:
+            spend = float(row.get("spend") or row.get("广告消耗") or row.get("消耗") or 0)
+        except (ValueError, TypeError):
+            spend = 0.0
+        try:
+            revenue = float(row.get("purchaseValues") or row.get("revenue") or row.get("收入金额") or row.get("收入") or 0)
+        except (ValueError, TypeError):
+            revenue = 0.0
+        try:
+            impressions = int(float(row.get("impressions") or row.get("展示量") or row.get("曝光") or 0))
+        except (ValueError, TypeError):
+            impressions = 0
+        try:
+            clicks = int(float(row.get("clicks") or row.get("点击量") or row.get("点击") or 0))
+        except (ValueError, TypeError):
+            clicks = 0
+        try:
+            purchases = int(float(row.get("purchase") or row.get("purchases") or row.get("转化数") or 0))
+        except (ValueError, TypeError):
+            purchases = 0
+        key = (date, link_id)
+        if key not in groups:
+            groups[key] = {"date": date, "link_id": link_id, "spend": 0.0, "revenue": 0.0,
+                           "impressions": 0, "clicks": 0, "purchases": 0}
+        g = groups[key]
+        g["spend"] += spend
+        g["revenue"] += revenue
+        g["impressions"] += impressions
+        g["clicks"] += clicks
+        g["purchases"] += purchases
     return list(groups.values())
 
 
@@ -528,6 +585,28 @@ def sync_ads(user_id: int) -> Tuple[int, str]:
 
         aggregated = _aggregate_ad_rows(unique)
         count = database.upsert_ad_stats(aggregated, user_id)
+
+        # 按推广链接聚合小说维度统计（不影响主流程）
+        try:
+            novel_rows = _aggregate_novel_from_ads(unique)
+            novel_count = 0
+            for nr in novel_rows:
+                nid = nr["link_id"]
+                real_nid = database.get_novel_id_by_link(nid)
+                database.upsert_novel_daily_stats(
+                    date=nr["date"], novel_id=real_nid or nid,
+                    novel_name="",
+                    spend=nr["spend"], revenue=nr["revenue"],
+                    impressions=nr["impressions"], clicks=nr["clicks"],
+                    purchases=nr["purchases"],
+                    order_count=0, order_amount=0,
+                    user_id=user_id
+                )
+                novel_count += 1
+            if novel_count:
+                print(f"[Scraper] 书籍维度聚合: {novel_count} 条")
+        except Exception as _e:
+            print(f"[Scraper] 书籍维度聚合失败(不影响主流程): {_e}")
 
         if count > 0:
             database.set_last_sync_date("ads", today, user_id)
