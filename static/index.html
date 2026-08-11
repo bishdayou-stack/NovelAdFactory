@@ -5365,7 +5365,9 @@
         '<td class="text-right">$' + ((d.cpm || 0).toFixed(2)) + '</td>' +
         '<td class="text-right">' + ((d.ctr || 0).toFixed(2)) + '%</td>' +
         '<td class="text-right">' + ((d.impressions || 0).toLocaleString()) + '</td>' +
-        '<td class="text-right">' + ((d.clicks || 0).toLocaleString()) + '</td>';
+        '<td class="text-right">' + ((d.clicks || 0).toLocaleString()) + '</td>' +
+        '<td class="text-right">' + ((d.add_to_cart || 0).toLocaleString()) + '</td>' +
+        '<td class="text-right">' + ((d.subscribe_count || 0).toLocaleString()) + '</td>';
     }
 
     // ====== 广告系列 独立页面（左账户树 + 右数据，暗色，与 Meta 一致）======
@@ -5549,6 +5551,7 @@
           '<th class="text-left">广告系列</th><th class="text-right">消耗</th><th class="text-right">转化</th>' +
           '<th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th>' +
           '<th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th>' +
+          '<th class="text-right">加购</th><th class="text-right">订阅</th>' +
           '</tr></thead><tbody>';
         var isMulti = (_campPageAccount || '').indexOf(',') >= 0;
         rows.forEach(function(c) {
@@ -5562,9 +5565,9 @@
             ' <button class="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-2" onclick="event.stopPropagation();openCampStageStats(\'' + encodeURIComponent(cid) + '\',\'' + encodeURIComponent(escapeHtml(c.campaign_name || cid).replace(/'/g,'')) + '\',\'' + cacct + '\')" title="阶段消耗">📈 阶段</button>' +
             '</td>' +
             metaMetricCells(c) + '</tr>';
-          html += '<tr class="camp-adsets" hidden><td colspan="11" class="p-0"><div class="adset-slot"></div></td></tr>';
+          html += '<tr class="camp-adsets" hidden><td colspan="13" class="p-0"><div class="adset-slot"></div></td></tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="11" class="text-center text-slate-500 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="13" class="text-center text-slate-500 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
         html += '</tbody></table>';
         el.innerHTML = html;
         applyCampStatusFilter();
@@ -5614,9 +5617,9 @@
             renderStatusBadge(a.effective_status, a.status) +
             '<td class="text-left pl-6"><span class="aset-arrow inline-block w-3 text-slate-500">▶</span> ' + escapeHtml(a.adset_name || '(未命名组)') + '</td>' +
             metaMetricCells(a) + '</tr>';
-          html += '<tr class="aset-ads" hidden><td colspan="11" class="p-0"><div class="ad-slot"></div></td></tr>';
+          html += '<tr class="aset-ads" hidden><td colspan="13" class="p-0"><div class="ad-slot"></div></td></tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="11" class="text-center text-slate-500 py-2 text-[10px]">无广告组数据</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="13" class="text-center text-slate-500 py-2 text-[10px]">无广告组数据</td></tr>';
         html += '</tbody></table>';
         slot.innerHTML = html;
         slot.setAttribute('data-loaded', '1');
@@ -5647,7 +5650,7 @@
             '<td class="text-left pl-8">' + thumb + escapeHtml(a.ad_name || '(未命名广告)') + '</td>' +
             metaMetricCells(a) + '</tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="11" class="text-center text-slate-500 py-2 text-[10px]">无广告数据</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="13" class="text-center text-slate-500 py-2 text-[10px]">无广告数据</td></tr>';
         html += '</tbody></table>';
         slot.innerHTML = html;
         slot.setAttribute('data-loaded', '1');

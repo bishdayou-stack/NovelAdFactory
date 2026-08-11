@@ -709,7 +709,9 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
                     COALESCE(SUM(impressions),0) AS impressions,
                     COALESCE(SUM(clicks),0) AS clicks,
                     COALESCE(SUM(purchases),0) AS purchases,
-                    COALESCE(SUM(purchase_value),0) AS purchase_value
+                    COALESCE(SUM(purchase_value),0) AS purchase_value,
+                    COALESCE(SUM(add_to_cart),0) AS add_to_cart,
+                    COALESCE(SUM(subscribe_count),0) AS subscribe_count
                 FROM meta_adset_stats
                 WHERE {' AND '.join(where)}
                 GROUP BY campaign_id
@@ -731,6 +733,8 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
             m["ad_account"] = r["ad_account"]
             m["effective_status"] = r["effective_status"] if "effective_status" in r.keys() else None
             m["status"] = r["status"] if "status" in r.keys() else None
+            m["add_to_cart"] = r["add_to_cart"] if "add_to_cart" in r.keys() else 0
+            m["subscribe_count"] = r["subscribe_count"] if "subscribe_count" in r.keys() else 0
             out.append(m)
         return out
 

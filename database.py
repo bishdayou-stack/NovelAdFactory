@@ -830,6 +830,15 @@ def init_db() -> None:
         if 'cpm' not in camp_snap_cols:
             c.execute("ALTER TABLE meta_campaign_snapshots ADD COLUMN cpm REAL DEFAULT 0")
 
+        # 迁移：meta_adset_stats / meta_ad_stats 加 add_to_cart + subscribe 列
+        for tbl in ("meta_adset_stats", "meta_ad_stats"):
+            c.execute(f"PRAGMA table_info('{tbl}')")
+            cols = [r[1] for r in c.fetchall()]
+            if "add_to_cart" not in cols:
+                c.execute(f"ALTER TABLE {tbl} ADD COLUMN add_to_cart INTEGER DEFAULT 0")
+            if "subscribe_count" not in cols:
+                c.execute(f"ALTER TABLE {tbl} ADD COLUMN subscribe_count INTEGER DEFAULT 0")
+
         # 迁移：推广链接→书籍映射 + 书籍每日消耗统计
         c.execute("""
             CREATE TABLE IF NOT EXISTS promotion_link_map (
@@ -2238,8 +2247,9 @@ def upsert_meta_adset_stats(act_id: str, rows: List[Dict[str, Any]],
                 continue
             conn.execute("""
                 INSERT INTO meta_adset_stats (date, ad_account, campaign_id, campaign_name,
-                    adset_id, adset_name, spend, impressions, clicks, purchases, purchase_value, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    adset_id, adset_name, spend, impressions, clicks, purchases, purchase_value,
+                    add_to_cart, subscribe_count, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(date, ad_account, adset_id, user_id) DO UPDATE SET
                     campaign_id=excluded.campaign_id,
                     campaign_name=excluded.campaign_name,
@@ -2249,13 +2259,17 @@ def upsert_meta_adset_stats(act_id: str, rows: List[Dict[str, Any]],
                     clicks=excluded.clicks,
                     purchases=excluded.purchases,
                     purchase_value=excluded.purchase_value,
+                    add_to_cart=excluded.add_to_cart,
+                    subscribe_count=excluded.subscribe_count,
                     synced_at=CURRENT_TIMESTAMP
             """, (
                 date, act_id, r.get("campaign_id", ""), r.get("campaign_name", ""),
                 adset_id, r.get("adset_name", ""),
                 _safe_float(r.get("spend")), _safe_int(r.get("impressions")),
                 _safe_int(r.get("clicks")), _safe_int(r.get("purchases")),
-                _safe_float(r.get("purchase_value")), uid,
+                _safe_float(r.get("purchase_value")),
+                _safe_int(r.get("add_to_cart")), _safe_int(r.get("subscribe_count")),
+                uid,
             ))
             count += 1
         return count
@@ -2276,14 +2290,16 @@ def upsert_meta_ad_stats(act_id: str, rows: List[Dict[str, Any]],
             conn.execute("""
                 INSERT INTO meta_ad_stats (date, ad_account, campaign_id, campaign_name,
                     adset_id, adset_name, ad_id, ad_name,
-                    spend, impressions, clicks, purchases, purchase_value, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    spend, impressions, clicks, purchases, purchase_value,
+                    add_to_cart, subscribe_count, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(date, ad_account, ad_id, user_id) DO UPDATE SET
                     campaign_id=excluded.campaign_id, campaign_name=excluded.campaign_name,
                     adset_id=excluded.adset_id, adset_name=excluded.adset_name,
                     ad_name=excluded.ad_name, spend=excluded.spend,
                     impressions=excluded.impressions, clicks=excluded.clicks,
                     purchases=excluded.purchases, purchase_value=excluded.purchase_value,
+                    add_to_cart=excluded.add_to_cart, subscribe_count=excluded.subscribe_count,
                     synced_at=CURRENT_TIMESTAMP
             """, (
                 date, act_id, r.get("campaign_id", ""), r.get("campaign_name", ""),
@@ -2291,7 +2307,9 @@ def upsert_meta_ad_stats(act_id: str, rows: List[Dict[str, Any]],
                 ad_id, r.get("ad_name", ""),
                 _safe_float(r.get("spend")), _safe_int(r.get("impressions")),
                 _safe_int(r.get("clicks")), _safe_int(r.get("purchases")),
-                _safe_float(r.get("purchase_value")), uid,
+                _safe_float(r.get("purchase_value")),
+                _safe_int(r.get("add_to_cart")), _safe_int(r.get("subscribe_count")),
+                uid,
             ))
             count += 1
         return count

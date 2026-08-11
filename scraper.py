@@ -1246,8 +1246,26 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
                 v += float(av.get("value", 0) or 0)
         return v
 
-    adset_agg = defaultdict(lambda: {"spend": 0.0, "impressions": 0, "clicks": 0, "purchases": 0, "purchase_value": 0.0})
-    ad_agg = defaultdict(lambda: {"spend": 0.0, "impressions": 0, "clicks": 0, "purchases": 0, "purchase_value": 0.0})
+    def _count_action(r, action_types):
+        """统计指定 action_type 的 actions 总数"""
+        c = 0
+        for action in (r.get("actions") or []):
+            if action.get("action_type") in action_types:
+                c += int(float(action.get("value", 0) or 0))
+        return c
+
+    # 加入购物车相关 action_type
+    _ATC_TYPES = {"add_to_cart", "offsite_conversion.fb_pixel_add_to_cart",
+                  "onsite_web_add_to_cart", "omni_add_to_cart"}
+    # 订阅相关
+    _SUB_TYPES = {"subscribe", "offsite_conversion.fb_pixel_subscribe"}
+
+    adset_agg = defaultdict(lambda: {"spend": 0.0, "impressions": 0, "clicks": 0,
+                                      "purchases": 0, "purchase_value": 0.0,
+                                      "add_to_cart": 0, "subscribe_count": 0})
+    ad_agg = defaultdict(lambda: {"spend": 0.0, "impressions": 0, "clicks": 0,
+                                   "purchases": 0, "purchase_value": 0.0,
+                                   "add_to_cart": 0, "subscribe_count": 0})
     for r in rows:
         d = r.get("date_start", "")
         if not d:
@@ -1257,6 +1275,8 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
         clk = int(float(r.get("clicks", 0) or 0))
         pur = _purchases(r)
         pv = _purchase_value(r)
+        atc = _count_action(r, _ATC_TYPES)
+        sub = _count_action(r, _SUB_TYPES)
         adset_id = r.get("adset_id", "")
         if adset_id:
             a = adset_agg[(d, adset_id)]
@@ -1265,6 +1285,7 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
             a["campaign_id"] = r.get("campaign_id", ""); a["campaign_name"] = r.get("campaign_name", "")
             a["spend"] += spend; a["impressions"] += impr; a["clicks"] += clk
             a["purchases"] += pur; a["purchase_value"] += pv
+            a["add_to_cart"] += atc; a["subscribe_count"] += sub
         ad_id = r.get("ad_id", "")
         if ad_id:
             b = ad_agg[(d, ad_id)]
@@ -1273,6 +1294,7 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
             b["campaign_id"] = r.get("campaign_id", ""); b["campaign_name"] = r.get("campaign_name", "")
             b["spend"] += spend; b["impressions"] += impr; b["clicks"] += clk
             b["purchases"] += pur; b["purchase_value"] += pv
+            b["add_to_cart"] += atc; b["subscribe_count"] += sub
 
     database.upsert_meta_adset_stats(act_id, [dict(v) for v in adset_agg.values()], user_id)
     return database.upsert_meta_ad_stats(act_id, [dict(v) for v in ad_agg.values()], user_id)
