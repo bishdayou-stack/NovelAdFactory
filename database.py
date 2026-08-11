@@ -832,8 +832,13 @@ def init_db() -> None:
 
         # 迁移：ad_daily_stats 加 subscribe_count 列
         c.execute("PRAGMA table_info('ad_daily_stats')")
-        if "subscribe_count" not in [r[1] for r in c.fetchall()]:
+        ads_cols = [r[1] for r in c.fetchall()]
+        if "subscribe_count" not in ads_cols:
             c.execute("ALTER TABLE ad_daily_stats ADD COLUMN subscribe_count INTEGER DEFAULT 0")
+        # 迁移：ad_daily_stats 加 add_to_cart 列（早期版本可能缺失）
+        if "add_to_cart" not in ads_cols:
+            c.execute("ALTER TABLE ad_daily_stats ADD COLUMN add_to_cart INTEGER DEFAULT 0")
+            c.execute("ALTER TABLE ad_daily_stats ADD COLUMN add_to_cart_cost REAL DEFAULT 0")
 
         # 迁移：meta_adset_stats / meta_ad_stats 加 add_to_cart + subscribe 列
         for tbl in ("meta_adset_stats", "meta_ad_stats"):
