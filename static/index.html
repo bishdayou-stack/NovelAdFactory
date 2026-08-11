@@ -5147,10 +5147,10 @@
         { id: 'purchases', label: '转化', value: summary.purchases || 0, prev: 0, format: '', digits: 0 },
         { id: 'revenue', label: '转化金额', value: summary.total_revenue || 0, prev: 0, format: '$', digits: 2 },
         { id: 'roi', label: 'ROI', value: summary.roi || 0, prev: 0, format: '', digits: 2, suffix: 'x', positive: true },
+        { id: 'add_to_cart', label: '加购', value: summary.add_to_cart || 0, prev: 0, format: '', digits: 0 },
         { id: 'cpa', label: '转化成本', value: summary.cpa || 0, prev: 0, format: '$', digits: 2, inverse: true },
         { id: 'cpm', label: '千展成本', value: summary.cpm || 0, prev: 0, format: '$', digits: 2 },
         { id: 'ctr', label: '点击率', value: summary.ctr || 0, prev: 0, format: '', digits: 2, suffix: '%' },
-        { id: 'impressions', label: '展示', value: summary.impressions || 0, prev: 0, format: '', digits: 0, compact: true },
         { id: 'clicks', label: '点击', value: summary.clicks || 0, prev: 0, format: '', digits: 0, compact: true },
       ];
       var html = '';
