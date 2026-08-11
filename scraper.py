@@ -1286,14 +1286,15 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
             a["purchases"] += pur; a["purchase_value"] += pv
             a["add_to_cart"] += atc; a["subscribe_count"] += sub
         ad_id = r.get("ad_id", "")
-        if ad_id:
-            b = ad_agg[(d, ad_id)]
-            b["date_start"] = d; b["ad_id"] = ad_id; b["ad_name"] = r.get("ad_name", "")
-            b["adset_id"] = adset_id; b["adset_name"] = r.get("adset_name", "")
-            b["campaign_id"] = r.get("campaign_id", ""); b["campaign_name"] = r.get("campaign_name", "")
-            b["spend"] += spend; b["impressions"] += impr; b["clicks"] += clk
-            b["purchases"] += pur; b["purchase_value"] += pv
-            b["add_to_cart"] += atc; b["subscribe_count"] += sub
+        if not ad_id:
+            ad_id = f"_missing_ad_{adset_id}_{d}"  # 兜底：无 ad_id 也保留，确保数据完整
+        b = ad_agg[(d, ad_id)]
+        b["date_start"] = d; b["ad_id"] = ad_id; b["ad_name"] = r.get("ad_name", "") or ad_id
+        b["adset_id"] = adset_id; b["adset_name"] = r.get("adset_name", "")
+        b["campaign_id"] = r.get("campaign_id", ""); b["campaign_name"] = r.get("campaign_name", "")
+        b["spend"] += spend; b["impressions"] += impr; b["clicks"] += clk
+        b["purchases"] += pur; b["purchase_value"] += pv
+        b["add_to_cart"] += atc; b["subscribe_count"] += sub
 
     database.upsert_meta_adset_stats(act_id, [dict(v) for v in adset_agg.values()], user_id)
     return database.upsert_meta_ad_stats(act_id, [dict(v) for v in ad_agg.values()], user_id)

@@ -827,6 +827,7 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
                 FROM meta_ad_stats s
                 LEFT JOIN meta_ad_creatives c ON c.ad_id = s.ad_id AND c.user_id = s.user_id
                 WHERE {' AND '.join(where)}
+                AND s.ad_id NOT LIKE '_missing_ad_%'
                 GROUP BY s.ad_id
             ) agg
             LEFT JOIN meta_entity_status es ON agg.ad_id = es.entity_id
