@@ -101,6 +101,7 @@ _ORDER_API_PATH = "/jeecgboot/wallet/financeOrder/list"
 _ORDER_API_PARAMS = "column=createTime&order=desc"
 _NOVEL_BOOK_PATH = "/jeecgboot/novel/novel/list"
 _NOVEL_BOOK_PATH_ALT = "/jeecgboot/novel/bookList"
+_PROMOTION_LINK_PATH = "/jeecgboot/novel/promotionLink/list"
 
 # ====== 多用户 session 缓存 ======
 _user_sessions: Dict[int, "ScraperSession"] = {}
@@ -542,6 +543,34 @@ def _aggregate_novel_from_ads(raw_rows: List[Dict[str, str]]) -> List[Dict[str, 
     return list(groups.values())
 
 
+def resolve_promotion_links(session: "ScraperSession", link_ids: set) -> Dict[str, Dict[str, str]]:
+    """通过 pingykj API 解析推广链接 → novel_id + novel_name"""
+    result = {}
+    if not link_ids:
+        return result
+    for link_id in link_ids:
+        if not link_id:
+            continue
+        try:
+            records, err = session._fetch_with_token(
+                _PROMOTION_LINK_PATH,
+                f"linkId={link_id}",
+                page_size=5
+            )
+            if err or not records:
+                continue
+            for rec in records:
+                nid = str(rec.get("novelId") or rec.get("novel_id") or rec.get("bookId") or "")
+                name = str(rec.get("novelName") or rec.get("novel_name") or rec.get("bookName") or
+                           rec.get("name") or rec.get("title") or "")
+                if nid:
+                    result[link_id] = {"novel_id": nid, "novel_name": name}
+                    break
+        except Exception:
+            continue
+    return result
+
+
 def sync_ads(user_id: int) -> Tuple[int, str]:
     session, err = _get_or_create_session(user_id)
     if not session:
@@ -589,6 +618,15 @@ def sync_ads(user_id: int) -> Tuple[int, str]:
         # 按推广链接聚合小说维度统计（不影响主流程）
         try:
             novel_rows = _aggregate_novel_from_ads(unique)
+            # 收集未知 linkId，尝试解析
+            all_link_ids = set(nr["link_id"] for nr in novel_rows if nr["link_id"])
+            unknown_links = {lid for lid in all_link_ids if not database.get_novel_id_by_link(lid)}
+            if unknown_links:
+                resolved = resolve_promotion_links(session, unknown_links)
+                for lid, info in resolved.items():
+                    database.upsert_promotion_link_map(lid, info["novel_id"], info["novel_name"], user_id)
+                    if resolved:
+                        print(f"[Scraper] 解析到 {len(resolved)} 个推广链接→书籍映射")
             novel_count = 0
             for nr in novel_rows:
                 nid = nr["link_id"]
