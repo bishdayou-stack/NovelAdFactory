@@ -547,6 +547,21 @@ def init_db() -> None:
                 UNIQUE(level, entity_id, user_id)
             );
 
+            CREATE TABLE IF NOT EXISTS meta_scheduled_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_id TEXT NOT NULL,
+                entity_name TEXT DEFAULT '',
+                entity_level TEXT NOT NULL,
+                ad_account TEXT NOT NULL,
+                pause_time TEXT NOT NULL,
+                resume_time TEXT NOT NULL,
+                days_of_week TEXT DEFAULT '0,1,2,3,4,5,6',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                user_id INTEGER NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 order_id TEXT UNIQUE NOT NULL,
@@ -2383,6 +2398,19 @@ def upsert_meta_entity_statuses(level: str, rows: List[Dict[str, Any]],
             n += 1
     return n
 
+def update_entity_status_locally(entity_id: str, effective_status: str,
+                                  status: str, user_id: int = None) -> bool:
+    """立即更新本地 meta_entity_status 表的实体状态（Meta API 操作后同步）。
+    Meta 实体 ID 全局唯一，不限制 user_id 以兼容多用户共享同一实体的场景。"""
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE meta_entity_status
+               SET effective_status = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+               WHERE entity_id = ?""",
+            (effective_status, status, entity_id)
+        )
+        return conn.total_changes > 0
+
 def get_meta_status_last_sync(act_id: str, user_id: int = None) -> Optional[str]:
     """返回该账户状态数据最近同步时间（用于判断是否需重新同步）"""
     with get_conn() as conn:
@@ -2397,6 +2425,99 @@ def get_meta_status_last_sync(act_id: str, user_id: int = None) -> Optional[str]
                 (act_id,)
             ).fetchone()
         return row[0] if row else None
+
+
+# ---- 定时开关规则 ----
+
+def get_scheduled_rules(entity_id: str = None, ad_account: str = None,
+                         user_id: int = None) -> List[Dict[str, Any]]:
+    """查询定时规则，可按 entity_id / ad_account / user_id 筛选"""
+    with get_conn() as conn:
+        conditions = []
+        params = []
+        if entity_id:
+            conditions.append("entity_id = ?")
+            params.append(entity_id)
+        if ad_account:
+            conditions.append("ad_account = ?")
+            params.append(ad_account)
+        if user_id is not None:
+            conditions.append("user_id = ?")
+            params.append(user_id)
+        where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+        rows = conn.execute(
+            f"SELECT * FROM meta_scheduled_rules{where} ORDER BY created_at DESC",
+            tuple(params)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_all_enabled_scheduled_rules() -> List[Dict[str, Any]]:
+    """获取所有启用的定时规则（启动恢复用）"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM meta_scheduled_rules WHERE enabled = 1"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def create_scheduled_rule(entity_id: str, entity_name: str, entity_level: str,
+                           ad_account: str, pause_time: str, resume_time: str,
+                           days_of_week: str, user_id: int) -> int:
+    """创建定时规则，返回新规则 ID"""
+    with get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO meta_scheduled_rules
+               (entity_id, entity_name, entity_level, ad_account, pause_time, resume_time,
+                days_of_week, enabled, user_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)""",
+            (entity_id, entity_name, entity_level, ad_account, pause_time,
+             resume_time, days_of_week, user_id)
+        )
+        return cur.lastrowid
+
+
+def update_scheduled_rule(rule_id: int, pause_time: str = None,
+                           resume_time: str = None, days_of_week: str = None,
+                           enabled: int = None, user_id: int = None) -> bool:
+    """更新定时规则字段，仅更新传入的非 None 字段"""
+    with get_conn() as conn:
+        sets = []
+        params = []
+        if pause_time is not None:
+            sets.append("pause_time = ?"); params.append(pause_time)
+        if resume_time is not None:
+            sets.append("resume_time = ?"); params.append(resume_time)
+        if days_of_week is not None:
+            sets.append("days_of_week = ?"); params.append(days_of_week)
+        if enabled is not None:
+            sets.append("enabled = ?"); params.append(enabled)
+        if not sets:
+            return False
+        sets.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(rule_id)
+        params.append(user_id)
+        conn.execute(
+            f"UPDATE meta_scheduled_rules SET {', '.join(sets)} WHERE id = ? AND user_id = ?",
+            tuple(params)
+        )
+        return conn.total_changes > 0
+
+
+def delete_scheduled_rule(rule_id: int, user_id: int = None) -> bool:
+    """删除定时规则"""
+    with get_conn() as conn:
+        params = [rule_id]
+        if user_id is not None:
+            params.append(user_id)
+            conn.execute(
+                "DELETE FROM meta_scheduled_rules WHERE id = ? AND user_id = ?",
+                tuple(params)
+            )
+        else:
+            conn.execute("DELETE FROM meta_scheduled_rules WHERE id = ?", tuple(params))
+        return conn.total_changes > 0
+
 
 def get_meta_ad_ids_with_stats(act_id: str, user_id: int = None,
                                since_date: str = None) -> List[str]:

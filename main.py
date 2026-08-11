@@ -344,6 +344,105 @@ if hasattr(scraper, 'sync_all_meta_insights'):
     except Exception:
         pass
 
+
+# ---- 定时开关规则调度 ----
+
+def _execute_scheduled_rule_action(rule_id: int, action: str):
+    """由 APScheduler cron job 调用，执行暂停或启用操作"""
+    try:
+        rules = database.get_scheduled_rules()
+        rule = next((r for r in rules if r['id'] == rule_id), None)
+        if not rule or not rule['enabled']:
+            return  # 规则已删除或已禁用
+
+        act_id = rule['ad_account']
+        entity_id = rule['entity_id']
+
+        # Token 三级优先级：BM system_token → 账户 access_token → config.json default
+        account = database.get_meta_account(act_id)
+        if not account:
+            print(f"[ScheduledRule] 账户 {act_id} 不存在，跳过规则 {rule_id}")
+            return
+        bm_id = account.get('bm_id', '')
+        token = (database.get_bm_token(bm_id) if bm_id else '') or \
+                account.get('access_token') or \
+                _load_meta_default_token()
+        if not token:
+            print(f"[ScheduledRule] 账户 {act_id} 无有效 Token，跳过规则 {rule_id}")
+            return
+
+        status = 'PAUSED' if action == 'pause' else 'ACTIVE'
+        ok, err = meta_api.update_ad_status(act_id, token, entity_id, status)
+        if ok:
+            print(f"[ScheduledRule] 规则 {rule_id}: {rule['entity_name']} -> {status} 成功")
+        else:
+            print(f"[ScheduledRule] 规则 {rule_id}: {rule['entity_name']} -> {status} 失败: {err}")
+    except Exception as e:
+        print(f"[ScheduledRule] 规则 {rule_id} 执行异常: {e}")
+
+
+def _register_rule_jobs(rule: dict):
+    """注册暂停+启用的 cron job（幂等，replace_existing=True）"""
+    rule_id = rule['id']
+    pause_h, pause_m = rule['pause_time'].split(':')
+    resume_h, resume_m = rule['resume_time'].split(':')
+    dow = rule.get('days_of_week', '0,1,2,3,4,5,6')
+
+    _scheduler.add_job(
+        _execute_scheduled_rule_action,
+        'cron',
+        args=[rule_id, 'pause'],
+        id=f'rule_{rule_id}_pause',
+        replace_existing=True,
+        hour=pause_h,
+        minute=pause_m,
+        day_of_week=dow,
+        max_instances=1,
+    )
+    _scheduler.add_job(
+        _execute_scheduled_rule_action,
+        'cron',
+        args=[rule_id, 'resume'],
+        id=f'rule_{rule_id}_resume',
+        replace_existing=True,
+        hour=resume_h,
+        minute=resume_m,
+        day_of_week=dow,
+        max_instances=1,
+    )
+
+
+def _unregister_rule_jobs(rule_id: int):
+    """移除规则的 pause + resume cron job"""
+    for suffix in ('_pause', '_resume'):
+        try:
+            _scheduler.remove_job(f'rule_{rule_id}{suffix}')
+        except Exception:
+            pass
+
+
+def _restore_all_scheduled_rules():
+    """启动时从数据库恢复所有已启用规则"""
+    try:
+        rules = database.get_all_enabled_scheduled_rules()
+        for rule in rules:
+            try:
+                _register_rule_jobs(rule)
+            except Exception as e:
+                print(f"[ScheduledRule] 恢复规则 {rule['id']} 失败: {e}")
+        print(f"[ScheduledRule] 已从数据库恢复 {len(rules)} 条定时规则")
+    except Exception as e:
+        print(f"[ScheduledRule] 恢复定时规则异常: {e}")
+
+
+# 启动时恢复定时规则（必须在 _scheduler.start() 和函数定义之后）
+try:
+    if _scheduler.running:
+        _restore_all_scheduled_rules()
+except Exception as e:
+    print(f"[启动] 恢复定时规则失败: {e}")
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -5427,6 +5526,141 @@ def _save_meta_config(body: MetaConfigBody, user: dict = Depends(get_current_adm
     config["meta"] = meta
     _save_config(config)
     return {"status": "ok", "message": "Meta 配置已保存"}
+
+
+# ---- 定时开关规则 API ----
+
+class EntityStatusBody(BaseModel):
+    status: str                       # 'PAUSED' 或 'ACTIVE'
+    entity_name: str = ""
+    entity_level: str = "campaign"    # 'campaign' / 'adset' / 'ad'
+    ad_account: str = ""
+
+
+@app.post("/api/meta/entity/{entity_id}/status")
+def _set_entity_status(entity_id: str, body: EntityStatusBody,
+                        user: dict = Depends(get_current_user)):
+    """立即修改广告实体状态（暂停/启用）"""
+    if body.status not in ('PAUSED', 'ACTIVE'):
+        return {"ok": False, "error": "status 必须为 PAUSED 或 ACTIVE"}
+
+    act_id = body.ad_account
+    if not act_id:
+        return {"ok": False, "error": "ad_account 为必传字段"}
+
+    account = database.get_meta_account(act_id)
+    if not account:
+        return {"ok": False, "error": f"账户 {act_id} 不存在"}
+
+    # Token 三级优先级
+    bm_id = account.get('bm_id', '')
+    token = (database.get_bm_token(bm_id) if bm_id else '') or \
+            account.get('access_token') or \
+            _load_meta_default_token()
+    if not token:
+        return {"ok": False, "error": "该账户无有效 Token"}
+
+    ok, err = meta_api.update_ad_status(act_id, token, entity_id, body.status)
+    if ok:
+        # 同步更新本地状态表，确保刷新后状态一致
+        uid = _opt_user_id(user)
+        try:
+            database.update_entity_status_locally(entity_id, body.status, body.status, uid)
+        except Exception as e:
+            print(f"[EntityStatus] 更新本地状态失败: {e}")
+        label = "暂停" if body.status == "PAUSED" else "启用"
+        return {"ok": True, "message": f"{body.entity_name or entity_id} 已{label}"}
+    else:
+        return {"ok": False, "error": err or "Meta API 调用失败"}
+
+
+@app.get("/api/meta/scheduled-rules")
+def _list_scheduled_rules(entity_id: str = Query(default=None),
+                           ad_account: str = Query(default=None),
+                           user: dict = Depends(get_current_user)):
+    """查询定时规则列表"""
+    uid = _opt_user_id(user)
+    rules = database.get_scheduled_rules(entity_id=entity_id, ad_account=ad_account, user_id=uid)
+    return {"ok": True, "rules": rules}
+
+
+class CreateRuleBody(BaseModel):
+    entity_id: str
+    entity_name: str = ""
+    entity_level: str           # 'campaign' / 'adset' / 'ad'
+    ad_account: str
+    pause_time: str             # 'HH:MM'
+    resume_time: str            # 'HH:MM'
+    days_of_week: str = '0,1,2,3,4,5,6'
+
+
+@app.post("/api/meta/scheduled-rules")
+def _create_scheduled_rule(body: CreateRuleBody,
+                            user: dict = Depends(get_current_user)):
+    """创建定时规则并注册 cron job"""
+    uid = user['id']
+    rid = database.create_scheduled_rule(
+        body.entity_id, body.entity_name, body.entity_level, body.ad_account,
+        body.pause_time, body.resume_time, body.days_of_week, uid
+    )
+    # 注册到调度器
+    rule = {
+        "id": rid,
+        "pause_time": body.pause_time,
+        "resume_time": body.resume_time,
+        "days_of_week": body.days_of_week,
+    }
+    _register_rule_jobs(rule)
+    return {"ok": True, "id": rid}
+
+
+class UpdateRuleBody(BaseModel):
+    pause_time: str = None
+    resume_time: str = None
+    days_of_week: str = None
+    enabled: bool = None
+
+
+@app.put("/api/meta/scheduled-rules/{rule_id}")
+def _update_scheduled_rule(rule_id: int, body: UpdateRuleBody,
+                            user: dict = Depends(get_current_user)):
+    """更新/启用/禁用定时规则"""
+    uid = user['id']
+    ok = database.update_scheduled_rule(
+        rule_id,
+        pause_time=body.pause_time,
+        resume_time=body.resume_time,
+        days_of_week=body.days_of_week,
+        enabled=1 if body.enabled else 0 if body.enabled is False else None,
+        user_id=uid
+    )
+    if not ok:
+        return {"ok": False, "error": "规则不存在或无权修改"}
+
+    if body.enabled is False:
+        _unregister_rule_jobs(rule_id)
+    else:
+        # 重新读取规则并注册
+        rules = database.get_scheduled_rules()
+        rule = next((r for r in rules if r['id'] == rule_id), None)
+        if rule:
+            _unregister_rule_jobs(rule_id)
+            _register_rule_jobs(rule)
+
+    return {"ok": True}
+
+
+@app.delete("/api/meta/scheduled-rules/{rule_id}")
+def _delete_scheduled_rule(rule_id: int,
+                            user: dict = Depends(get_current_user)):
+    """删除定时规则"""
+    uid = user['id']
+    ok = database.delete_scheduled_rule(rule_id, uid)
+    if ok:
+        _unregister_rule_jobs(rule_id)
+        return {"ok": True}
+    else:
+        return {"ok": False, "error": "规则不存在或无权删除"}
 
 
 if __name__ == "__main__":

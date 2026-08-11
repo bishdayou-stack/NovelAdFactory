@@ -1379,6 +1379,42 @@
       </div>
     </div>
 
+    <!-- 定时规则弹窗 -->
+    <div id="scheduleModal" hidden class="fixed inset-0 z-[138] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeScheduleModal()">
+      <div class="bg-slate-800 rounded-2xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">
+        <div class="px-5 py-3 border-b border-slate-700 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-white">🕐 定时开关规则 — <span id="scheduleEntityName" class="text-indigo-400"></span></h3>
+          <button onclick="closeScheduleModal()" class="w-7 h-7 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-400 cursor-pointer border-0 bg-transparent text-lg">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-3 space-y-3 text-[11px]">
+          <div>
+            <h4 class="text-slate-400 font-medium mb-1.5">已有规则</h4>
+            <div id="scheduleRulesList" class="space-y-1.5">
+              <div class="text-slate-500 text-center py-4">加载中...</div>
+            </div>
+          </div>
+          <div class="border-t border-slate-700 pt-3">
+            <h4 class="text-slate-400 font-medium mb-1.5">添加规则</h4>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-slate-500 text-[10px]">暂停时间</label>
+                <input id="newPauseTime" type="time" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-2 py-1.5 text-white focus:border-indigo-500 focus:outline-none text-[11px]">
+              </div>
+              <div>
+                <label class="text-slate-500 text-[10px]">启用时间</label>
+                <input id="newResumeTime" type="time" class="w-full rounded-lg border border-slate-600 bg-slate-700 px-2 py-1.5 text-white focus:border-indigo-500 focus:outline-none text-[11px]">
+              </div>
+            </div>
+            <div class="mt-2">
+              <label class="text-slate-500 text-[10px]">重复日期</label>
+              <div id="dayCheckboxes" class="flex flex-wrap gap-1 mt-0.5"></div>
+            </div>
+            <button id="addRuleBtn" class="mt-2.5 w-full rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer" onclick="addScheduleRule()">添加规则</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <script>
@@ -1646,10 +1682,10 @@
             (u.pingykj_username ? (
               u.pingykj_online
                 ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-medium mr-2">● 在线</span>'
-                : '<button class="text-amber-400 hover:text-amber-300 mr-2 font-medium text-[10px] border border-amber-600 rounded-lg px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer" onclick="reconnectPingykj(' + u.id + ',\'' + htmlEscape(u.username) + '\')">🔐 重新登录</button>'
+                : '<button class="text-amber-400 hover:text-amber-300 mr-2 font-medium text-[10px] border border-amber-600 rounded-lg px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer" onclick="reconnectPingykj(' + u.id + ',\'' + escapeHtml(u.username) + '\',this)">🔐 重新登录</button>'
             ) : '') +
             '<button class="text-indigo-400 hover:text-indigo-300 mr-2 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="editUser(' + u.id + ')">编辑</button>' +
-            (u.id !== 1 ? '<button class="text-red-400 hover:text-red-300 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="deleteUser(' + u.id + ',\'' + htmlEscape(u.username) + '\')">删除</button>' : '<span class="text-slate-600 text-[11px]">—</span>') +
+            (u.id !== 1 ? '<button class="text-red-400 hover:text-red-300 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="deleteUser(' + u.id + ',\'' + escapeHtml(u.username) + '\')">删除</button>' : '<span class="text-slate-600 text-[11px]">—</span>') +
             '</td></tr>';
         }).join('');
       }).catch(function(e) {
@@ -1665,9 +1701,8 @@
       });
     }
 
-    function reconnectPingykj(uid, uname) {
+    function reconnectPingykj(uid, uname, btn) {
       if (!confirm('将为 "' + uname + '" 登录书城，确定吗？')) return;
-      var btn = event.target;
       var origText = btn.textContent;
       btn.textContent = '登录中...';
       btn.disabled = true;
@@ -4875,6 +4910,177 @@
       document.getElementById('campStageModal').hidden = true;
     }
 
+    // ====== 定时开关规则 ======
+
+    var _scheduleEntityId = '', _scheduleEntityName = '', _scheduleEntityLevel = '', _scheduleEntityAccount = '';
+
+    function openScheduleModal(entityId, entityName, entityLevel, adAccount) {
+      _scheduleEntityId = decodeURIComponent(entityId);
+      _scheduleEntityName = decodeURIComponent(entityName);
+      _scheduleEntityLevel = entityLevel;
+      _scheduleEntityAccount = decodeURIComponent(adAccount);
+
+      document.getElementById('scheduleEntityName').textContent = _scheduleEntityName;
+      document.getElementById('scheduleModal').hidden = false;
+
+      // 构建日期复选框
+      var days = ['周一','周二','周三','周四','周五','周六','周日'];
+      var dayVals = ['0','1','2','3','4','5','6'];
+      var html = '';
+      for (var i = 0; i < 7; i++) {
+        html += '<label class="flex items-center gap-1 bg-slate-700 rounded px-1.5 py-0.5 cursor-pointer text-[10px] text-slate-300"><input type="checkbox" class="day-cb" value="' + dayVals[i] + '" checked> ' + days[i] + '</label>';
+      }
+      document.getElementById('dayCheckboxes').innerHTML = html;
+      document.getElementById('scheduleRulesList').innerHTML = '<div class="text-slate-500 text-center py-4">加载中...</div>';
+
+      loadScheduleRules();
+    }
+
+    function closeScheduleModal() {
+      document.getElementById('scheduleModal').hidden = true;
+    }
+
+    function loadScheduleRules() {
+      fetch('/api/meta/scheduled-rules?entity_id=' + encodeURIComponent(_scheduleEntityId))
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          var rules = res.rules || [];
+          var html = '';
+          if (!rules.length) {
+            html = '<div class="text-slate-500 text-center py-2">暂无规则</div>';
+          }
+          rules.forEach(function(r) {
+            html += '<div class="flex items-center justify-between bg-slate-700/50 rounded-lg px-2.5 py-1.5">' +
+              '<div><span class="text-amber-400">⏸ ' + r.pause_time + '</span>' +
+              ' <span class="text-slate-600">→</span> ' +
+              '<span class="text-emerald-400">▶ ' + r.resume_time + '</span>' +
+              '<span class="text-slate-500 ml-2">(' + r.days_of_week + ')</span></div>' +
+              '<button class="text-[10px] text-slate-400 hover:text-red-400 cursor-pointer border-0 bg-transparent" onclick="event.stopPropagation();deleteScheduleRule(' + r.id + ')">✕</button>' +
+              '</div>';
+          });
+          document.getElementById('scheduleRulesList').innerHTML = html;
+        })
+        .catch(function() {
+          document.getElementById('scheduleRulesList').innerHTML = '<div class="text-red-400 text-center py-2">加载失败</div>';
+        });
+    }
+
+    function addScheduleRule() {
+      var pauseTime = document.getElementById('newPauseTime').value;
+      var resumeTime = document.getElementById('newResumeTime').value;
+      if (!pauseTime || !resumeTime) { alert('请填写暂停和启用时间'); return; }
+
+      var days = [];
+      document.querySelectorAll('#dayCheckboxes .day-cb:checked').forEach(function(cb) { days.push(cb.value); });
+      if (!days.length) { alert('请至少选择一天'); return; }
+
+      fetch('/api/meta/scheduled-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entity_id: _scheduleEntityId,
+          entity_name: _scheduleEntityName,
+          entity_level: _scheduleEntityLevel,
+          ad_account: _scheduleEntityAccount,
+          pause_time: pauseTime,
+          resume_time: resumeTime,
+          days_of_week: days.join(',')
+        })
+      }).then(function(r) { return r.json(); }).then(function(res) {
+        if (res.ok) {
+          alert('✅ 规则已添加');
+          loadScheduleRules();
+        } else {
+          alert('❌ ' + (res.error || '添加失败'));
+        }
+      }).catch(function(e) { alert('❌ 网络错误'); });
+    }
+
+    function deleteScheduleRule(ruleId) {
+      if (!confirm('确认删除此定时规则？')) return;
+      fetch('/api/meta/scheduled-rules/' + ruleId, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.ok) { alert('✅ 已删除'); loadScheduleRules(); }
+          else { alert('❌ ' + (res.error || '删除失败')); }
+        })
+        .catch(function(e) { alert('❌ 网络错误'); });
+    }
+
+    function toggleEntityStatus(entityId, newStatus, entityName, entityLevel, adAccount, btnEl) {
+      if (!confirm('确认' + (newStatus === 'PAUSED' ? '暂停' : '启用') + '「' + decodeURIComponent(entityName) + '」吗？')) return;
+
+      btnEl.disabled = true;
+      btnEl.textContent = '...';
+
+      fetch('/api/meta/entity/' + entityId + '/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: newStatus,
+          entity_name: decodeURIComponent(entityName),
+          entity_level: entityLevel,
+          ad_account: decodeURIComponent(adAccount)
+        })
+      }).then(function(r) { return r.json(); }).then(function(res) {
+        if (res.ok) {
+          alert('✅ ' + res.message);
+          // 仅更新当前行 UI，不重载整表
+          var rowEl = btnEl.closest('tr');
+          if (!rowEl) { campLoadTable(); return; }
+          updateRowStatusUI(rowEl, newStatus);
+        } else {
+          alert('❌ 操作失败: ' + (res.error || '未知错误'));
+          btnEl.disabled = false;
+          btnEl.textContent = newStatus === 'PAUSED' ? '⏸' : '▶';
+        }
+      }).catch(function(e) {
+        alert('❌ 网络错误: ' + (e.message || e));
+        btnEl.disabled = false;
+        btnEl.textContent = newStatus === 'PAUSED' ? '⏸' : '▶';
+      });
+    }
+
+    function updateRowStatusUI(rowEl, newStatus) {
+      // 更新 data 属性（状态筛选依赖此属性）
+      rowEl.setAttribute('data-eff-status', newStatus);
+
+      // 替换状态 badge（第一个 td）
+      var statusTd = rowEl.querySelector('td');
+      if (statusTd) {
+        var newBadge = renderStatusBadge(newStatus, newStatus);
+        // renderStatusBadge 返回完整的 <td>...</td>
+        var tmp = document.createElement('tr');
+        tmp.innerHTML = newBadge;
+        var newTd = tmp.querySelector('td');
+        if (newTd) {
+          statusTd.parentNode.replaceChild(newTd, statusTd);
+        }
+      }
+
+      // 切换暂停/启用按钮显示（第二个 td 内）
+      var nameTd = rowEl.querySelectorAll('td')[1];
+      if (nameTd) {
+        var pauseBtn = nameTd.querySelector('button[title="暂停"]');
+        var resumeBtn = nameTd.querySelector('button[title="启用"]');
+        var isActive = newStatus === 'ACTIVE';
+        var isPaused = newStatus === 'PAUSED' || newStatus === 'CAMPAIGN_PAUSED' || newStatus === 'ADSET_PAUSED';
+
+        if (pauseBtn) { pauseBtn.style.display = isActive ? '' : 'none'; pauseBtn.disabled = false; pauseBtn.textContent = '⏸'; }
+        if (resumeBtn) { resumeBtn.style.display = isPaused ? '' : 'none'; resumeBtn.disabled = false; resumeBtn.textContent = '▶'; }
+
+        // 如果当前状态筛选器隐藏了这行，需要应用筛选
+        if (typeof _campStatusFilter !== 'undefined' && _campStatusFilter) {
+          var eff = rowEl.getAttribute('data-eff-status') || '';
+          if (_campStatusFilter === 'ACTIVE' && eff !== 'ACTIVE') rowEl.style.display = 'none';
+          else if (_campStatusFilter === 'PAUSED' && eff.indexOf('PAUSED') < 0) rowEl.style.display = 'none';
+          else if (_campStatusFilter === 'ARCHIVED' && eff !== 'ARCHIVED') rowEl.style.display = 'none';
+          else if (_campStatusFilter === 'IN_REVIEW' && eff.indexOf('REVIEW') < 0) rowEl.style.display = 'none';
+          else rowEl.style.display = '';
+        }
+      }
+    }
+
     function renderCampStageHistory(history, total, page, pageSize) {
       if (!history || !history.length) {
         document.getElementById('campStageBody').innerHTML = '<div class="text-slate-500 text-center py-8 text-xs">暂无阶段数据</div>';
@@ -5572,6 +5778,9 @@
             renderStatusBadge(c.effective_status, c.status) +
             '<td class="text-left"><span class="camp-arrow inline-block w-3 text-slate-500">▶</span> ' + acctBadge + escapeHtml(c.campaign_name || '(未命名)') +
             ' <button class="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-2" onclick="event.stopPropagation();openCampStageStats(\'' + encodeURIComponent(cid) + '\',\'' + encodeURIComponent(escapeHtml(c.campaign_name || cid).replace(/'/g,'')) + '\',\'' + cacct + '\')" title="阶段消耗">📈 阶段</button>' +
+            (eff === 'ACTIVE' ? ' <button class="text-xs text-amber-400 hover:text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();toggleEntityStatus(\'' + encodeURIComponent(cid) + '\',\'PAUSED\',\'' + encodeURIComponent(escapeHtml(c.campaign_name || cid).replace(/'/g,' ')) + '\',\'campaign\',\'' + cacct + '\',this)" title="暂停">⏸</button>' : '') +
+            (eff === 'PAUSED' || eff === 'CAMPAIGN_PAUSED' || eff === 'ADSET_PAUSED' ? ' <button class="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();toggleEntityStatus(\'' + encodeURIComponent(cid) + '\',\'ACTIVE\',\'' + encodeURIComponent(escapeHtml(c.campaign_name || cid).replace(/'/g,' ')) + '\',\'campaign\',\'' + cacct + '\',this)" title="启用">▶</button>' : '') +
+            ' <button class="text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();openScheduleModal(\'' + encodeURIComponent(cid) + '\',\'' + encodeURIComponent(escapeHtml(c.campaign_name || cid).replace(/'/g,' ')) + '\',\'campaign\',\'' + cacct + '\')" title="定时规则">🕐</button>' +
             '</td>' +
             metaMetricCells(c) + '</tr>';
           html += '<tr class="camp-adsets" hidden><td colspan="13" class="p-0"><div class="adset-slot"></div></td></tr>';
@@ -5624,7 +5833,11 @@
           var aeff = (a.effective_status || '').toString().toUpperCase();
           html += '<tr class="text-slate-300 cursor-pointer hover:bg-white/5" data-eff-status="' + aeff + '" onclick="campAdsetToggle(this,\'' + encodeURIComponent(aid) + '\',\'' + acct + '\')">' +
             renderStatusBadge(a.effective_status, a.status) +
-            '<td class="text-left pl-6"><span class="aset-arrow inline-block w-3 text-slate-500">▶</span> ' + escapeHtml(a.adset_name || '(未命名组)') + '</td>' +
+            '<td class="text-left pl-6"><span class="aset-arrow inline-block w-3 text-slate-500">▶</span> ' + escapeHtml(a.adset_name || '(未命名组)') +
+            (aeff === 'ACTIVE' ? ' <button class="text-xs text-amber-400 hover:text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();toggleEntityStatus(\'' + encodeURIComponent(aid) + '\',\'PAUSED\',\'' + encodeURIComponent(escapeHtml(a.adset_name || aid).replace(/'/g,' ')) + '\',\'adset\',\'' + acct + '\',this)" title="暂停">⏸</button>' : '') +
+            (aeff === 'PAUSED' || aeff === 'ADSET_PAUSED' ? ' <button class="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();toggleEntityStatus(\'' + encodeURIComponent(aid) + '\',\'ACTIVE\',\'' + encodeURIComponent(escapeHtml(a.adset_name || aid).replace(/'/g,' ')) + '\',\'adset\',\'' + acct + '\',this)" title="启用">▶</button>' : '') +
+            ' <button class="text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();openScheduleModal(\'' + encodeURIComponent(aid) + '\',\'' + encodeURIComponent(escapeHtml(a.adset_name || aid).replace(/'/g,' ')) + '\',\'adset\',\'' + acct + '\')" title="定时规则">🕐</button>' +
+            '</td>' +
             metaMetricCells(a) + '</tr>';
           html += '<tr class="aset-ads" hidden><td colspan="13" class="p-0"><div class="ad-slot"></div></td></tr>';
         });
@@ -5656,7 +5869,11 @@
           var aeff = (a.effective_status || '').toString().toUpperCase();
           html += '<tr class="text-slate-400" data-eff-status="' + aeff + '">' +
             renderStatusBadge(a.effective_status, a.status) +
-            '<td class="text-left pl-8">' + thumb + escapeHtml(a.ad_name || '(未命名广告)') + '</td>' +
+            '<td class="text-left pl-8">' + thumb + escapeHtml(a.ad_name || '(未命名广告)') +
+            (aeff === 'ACTIVE' ? ' <button class="text-xs text-amber-400 hover:text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();toggleEntityStatus(\'' + encodeURIComponent(a.ad_id || '') + '\',\'PAUSED\',\'' + encodeURIComponent(escapeHtml(a.ad_name || a.ad_id || '').replace(/'/g,' ')) + '\',\'ad\',\'' + (acctEnc || encodeURIComponent(_campPageAccount)) + '\',this)" title="暂停">⏸</button>' : '') +
+            (aeff === 'PAUSED' ? ' <button class="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();toggleEntityStatus(\'' + encodeURIComponent(a.ad_id || '') + '\',\'ACTIVE\',\'' + encodeURIComponent(escapeHtml(a.ad_name || a.ad_id || '').replace(/'/g,' ')) + '\',\'ad\',\'' + (acctEnc || encodeURIComponent(_campPageAccount)) + '\',this)" title="启用">▶</button>' : '') +
+            ' <button class="text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();openScheduleModal(\'' + encodeURIComponent(a.ad_id || '') + '\',\'' + encodeURIComponent(escapeHtml(a.ad_name || a.ad_id || '').replace(/'/g,' ')) + '\',\'ad\',\'' + (acctEnc || encodeURIComponent(_campPageAccount)) + '\')" title="定时规则">🕐</button>' +
+            '</td>' +
             metaMetricCells(a) + '</tr>';
         });
         if (!rows.length) html += '<tr><td colspan="13" class="text-center text-slate-500 py-2 text-[10px]">无广告数据</td></tr>';

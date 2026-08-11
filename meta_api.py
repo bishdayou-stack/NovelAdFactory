@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
+from urllib.parse import urlencode
 
 GRAPH_API_BASE = "https://graph.facebook.com"
 API_VERSION = "v25.0"
@@ -45,8 +46,7 @@ def _http_request(method: str, url: str, params: dict = None, data: dict = None,
 
     # 添加 query 参数
     if params:
-        from urllib.parse import urlencode
-        url = url + "?" + urlencode(params)
+            url = url + "?" + urlencode(params)
 
     cmd.append(url)
 
