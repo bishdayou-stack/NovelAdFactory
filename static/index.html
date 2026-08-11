@@ -856,7 +856,6 @@
             <span id="metaLastSync" class="text-[11px] text-slate-400"></span>
           </div>
         </div>
-        <div class="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 mb-4" id="metaKpiRow"></div>
         <div class="grid grid-cols-2 gap-4 mb-4">
           <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">用户汇总</h3><div id="metaUserSummary" class="text-[11px]"></div></div>
           <div class="card-dark p-4"><h3 class="text-xs font-semibold text-slate-300 mb-2">BM 汇总</h3><div id="metaBmTable" class="text-[11px]"></div></div>
@@ -5141,39 +5140,6 @@
         document.getElementById('btnMetaSync').addEventListener('click', triggerMetaSync);
 
     // ---- KPI 卡片 ----
-    function renderMetaKpis(summary) {
-      var kpis = [
-        { id: 'spend', label: '消耗', value: summary.total_spend || 0, prev: 0, format: '$', digits: 2 },
-        { id: 'purchases', label: '转化', value: summary.purchases || 0, prev: 0, format: '', digits: 0 },
-        { id: 'revenue', label: '转化金额', value: summary.total_revenue || 0, prev: 0, format: '$', digits: 2 },
-        { id: 'roi', label: 'ROI', value: summary.roi || 0, prev: 0, format: '', digits: 2, suffix: 'x', positive: true },
-        { id: 'add_to_cart', label: '加购', value: summary.add_to_cart || 0, prev: 0, format: '', digits: 0 },
-        { id: 'cpa', label: '转化成本', value: summary.cpa || 0, prev: 0, format: '$', digits: 2, inverse: true },
-        { id: 'cpm', label: '千展成本', value: summary.cpm || 0, prev: 0, format: '$', digits: 2 },
-        { id: 'ctr', label: '点击率', value: summary.ctr || 0, prev: 0, format: '', digits: 2, suffix: '%' },
-        { id: 'impressions', label: '展示', value: summary.impressions || 0, prev: 0, format: '', digits: 0, compact: true },
-        { id: 'clicks', label: '点击', value: summary.clicks || 0, prev: 0, format: '', digits: 0, compact: true },
-      ];
-      var html = '';
-      kpis.forEach(function(k) {
-        var change = k.prev > 0 ? ((k.value - k.prev) / k.prev * 100) : 0;
-        var changeClass = change >= 0 ? 'meta-kpi-up' : 'meta-kpi-down';
-        if (k.inverse) changeClass = change <= 0 ? 'meta-kpi-up' : 'meta-kpi-down';
-        var arrow = change >= 0 ? '▲' : '▼';
-        var valStr = k.format + (k.compact ?
-          (k.value >= 1000 ? (k.value/1000).toFixed(1)+'K' : k.value.toLocaleString()) :
-          k.value.toLocaleString(undefined, {minimumFractionDigits: k.digits, maximumFractionDigits: k.digits}))
-          + (k.suffix || '');
-        html += '<div class="meta-kpi-card">' +
-          '<div class="meta-kpi-label">' + k.label + '</div>' +
-          '<div class="meta-kpi-value">' + valStr + '</div>' +
-          '<div class="meta-kpi-change ' + changeClass + '">' + arrow + ' ' + Math.abs(change).toFixed(1) + '%</div>' +
-          '</div>';
-      });
-      document.getElementById('metaKpiRow').innerHTML = html;
-    }
-
-
     // ---- 用户汇总 ----
     function renderUserSummary(data) {
       var html = '<table class="w-full"><thead><tr><th>用户</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">加购</th><th class="text-right">订阅</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th></tr></thead><tbody>';
@@ -5330,7 +5296,6 @@
           fetch('/api/meta/daily-stats' + params + '&page=' + _metaDailyPage + '&page_size=15').then(function(r) { return r.json(); }),
           fetch('/api/meta/account-ranking' + params + '&page=' + _metaRankPage + '&page_size=20').then(function(r) { return r.json(); }),
         ]);
-        renderMetaKpis(summaryRes);
         renderUserSummary(userRes.user_summary || []);
         renderBmSummary(bmRes.bm_summary || []);
         renderAccountRank(rankRes);
