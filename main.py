@@ -5539,6 +5539,53 @@ def _import_meta_accounts(body: ImportAccountBody,
     return {"success": True, "count": count, "new_bms": len(created_bms)}
 
 
+class ManualAddAccountBody(BaseModel):
+    act_id: str            # 已带 act_ 前缀
+    access_token: str
+    bm_name: str = ""
+
+
+@app.post("/api/meta/accounts/add-manual")
+def _manual_add_account(body: ManualAddAccountBody,
+                         user: dict = Depends(get_current_user)):
+    """手动添加单个广告账户（输入纯数字 ID + Token），自动获取账户名"""
+    uid = _opt_user_id(user)
+    act_id = body.act_id
+    token = body.access_token
+    bm_name = body.bm_name.strip()
+
+    if not act_id.startswith("act_"):
+        act_id = "act_" + act_id
+
+    # 1. 用 token 获取账户名
+    info, err = meta_api.get_ad_account_info(act_id, token)
+    act_name = info.get("name", act_id) if info else act_id
+    if err:
+        act_name = act_id  # 获取失败也不影响添加
+
+    # 2. BM 处理
+    bm_id = ""
+    if bm_name:
+        # 确保 BM 存在
+        existing = database.get_bm_configs(None)
+        existing_ids = {b["bm_id"] for b in existing}
+        if bm_name not in existing_ids:
+            database.upsert_bm_config(
+                bm_id=bm_name, bm_name=bm_name,
+                system_token=token, user_id=uid
+            )
+        bm_id = bm_name
+
+    # 3. 添加账户
+    database.upsert_meta_account(
+        act_id=act_id, act_name=act_name,
+        access_token=token, status="active",
+        user_id=uid, bm_id=bm_id
+    )
+
+    return {"ok": True, "act_id": act_id, "act_name": act_name}
+
+
 # ---- Meta 配置管理 API ----
 
 class MetaConfigBody(BaseModel):
