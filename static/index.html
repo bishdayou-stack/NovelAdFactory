@@ -852,7 +852,13 @@
           </div>
           <div class="flex items-center gap-3">
             <button id="btnMetaSync" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer">手动同步</button>
-            <button id="btnExport" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-500 transition-all cursor-pointer" onclick="exportMetaCSV()" title="导出CSV数据">📥 导出</button>
+            <div class="relative inline-block">
+              <button id="btnExport" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-500 transition-all cursor-pointer" onclick="event.stopPropagation();toggleExportMenu()">📥 导出 ▾</button>
+              <div id="exportMenu" hidden class="absolute top-full right-0 mt-1 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 min-w-[140px]" onclick="event.stopPropagation()">
+                <button class="block w-full text-left px-3 py-2 text-[11px] text-white hover:bg-slate-600 rounded-t-lg cursor-pointer border-0 bg-transparent" onclick="doExport('daily-stats')">📊 日报明细</button>
+                <button class="block w-full text-left px-3 py-2 text-[11px] text-white hover:bg-slate-600 rounded-b-lg cursor-pointer border-0 bg-transparent" onclick="doExport('account-ranking')">🏆 账户排行</button>
+              </div>
+            </div>
             <span id="metaSyncStatus" class="text-[11px] text-slate-500"></span>
             <span id="metaLastSync" class="text-[11px] text-slate-400"></span>
           </div>
@@ -5535,11 +5541,24 @@
       return params;
     }
 
-    function exportMetaCSV() {
-      var type = confirm('导出日报明细？\n\n"确定"=日报明细  "取消"=账户排行') ? 'daily-stats' : 'account-ranking';
+    function toggleExportMenu() {
+      var menu = document.getElementById('exportMenu');
+      menu.hidden = !menu.hidden;
+    }
+
+    function doExport(type) {
+      document.getElementById('exportMenu').hidden = true;
       var url = '/api/meta/export/' + type + buildMetaParams();
       window.open(url, '_blank');
     }
+
+    // 点击其他地方关闭导出菜单
+    document.addEventListener('click', function(e) {
+      var menu = document.getElementById('exportMenu');
+      if (menu && !menu.hidden && !e.target.closest('#btnExport') && !e.target.closest('#exportMenu')) {
+        menu.hidden = true;
+      }
+    });
 
     async function refreshMetaDashboard() {
       var params = buildMetaParams();
