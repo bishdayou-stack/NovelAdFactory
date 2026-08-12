@@ -1,5 +1,7 @@
 import sys
 import os
+import io
+import csv
 import json
 import base64
 import shutil
@@ -102,7 +104,7 @@ def _get_proxy_url_from_config():
 from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel, Field, model_validator
@@ -5146,6 +5148,61 @@ def _meta_account_ranking(start: str = Query(default=None), end: str = Query(def
                           user: dict = Depends(get_current_user)):
     uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
     return analytics.meta_account_ranking(start_date=start, end_date=end, account=account, page=page, page_size=page_size, user_id=uid)
+
+
+# ---- Meta 数据 CSV 导出 ----
+
+def _dicts_to_csv(rows: list, columns: list, col_names: list) -> str:
+    """将字典列表转为 CSV 字符串（BOM + UTF-8，Excel 兼容）"""
+    output = io.StringIO()
+    output.write('﻿')  # BOM for Excel UTF-8 compatibility
+    writer = csv.writer(output)
+    writer.writerow(col_names)
+    for r in rows:
+        writer.writerow([r.get(c, '') for c in columns])
+    return output.getvalue()
+
+
+@app.get("/api/meta/export/daily-stats")
+def _export_meta_daily_stats(start: str = Query(default=None), end: str = Query(default=None),
+                              account: str = Query(default=None), keyword: str = Query(default=None),
+                              user_id: int = Query(default=None),
+                              user: dict = Depends(get_current_user)):
+    """导出日报明细为 CSV（全部数据，不分页）"""
+    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
+    data = analytics.meta_daily_stats(start_date=start, end_date=end, account=account,
+                                       keyword=keyword, page=1, page_size=100000, user_id=uid)
+    rows = data.get("data", [])
+    columns = ["date", "ad_account", "act_name", "user_name", "total_spend", "total_revenue",
+               "impressions", "clicks", "link_clicks", "purchases", "purchase_value",
+               "ad_count", "roi", "cpa", "cpm", "ctr"]
+    col_names = ["日期", "广告账户", "账户名称", "用户", "消耗", "收入",
+                 "展示", "点击", "链接点击", "转化", "转化金额",
+                 "广告数", "ROI", "CPA", "CPM", "CTR"]
+    csv_str = _dicts_to_csv(rows, columns, col_names)
+    filename = f"meta_daily_stats_{start or 'all'}_{end or 'all'}.csv"
+    return Response(content=csv_str, media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@app.get("/api/meta/export/account-ranking")
+def _export_meta_account_ranking(start: str = Query(default=None), end: str = Query(default=None),
+                                  account: str = Query(default=None),
+                                  user_id: int = Query(default=None),
+                                  user: dict = Depends(get_current_user)):
+    """导出账户消耗排行为 CSV（全部数据，不分页）"""
+    uid = user_id if user_id and user.get("role") == "admin" else _opt_user_id(user)
+    data = analytics.meta_account_ranking(start_date=start, end_date=end, account=account,
+                                           page=1, page_size=100000, user_id=uid)
+    rows = data.get("data", [])
+    columns = ["ad_account", "act_name", "user_name", "spend", "revenue", "purchases",
+               "impressions", "clicks", "roi", "cpa", "cpm", "ctr"]
+    col_names = ["广告账户", "账户名称", "用户", "消耗", "收入", "转化",
+                 "展示", "点击", "ROI", "CPA", "CPM", "CTR"]
+    csv_str = _dicts_to_csv(rows, columns, col_names)
+    filename = f"meta_account_ranking_{start or 'all'}_{end or 'all'}.csv"
+    return Response(content=csv_str, media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @app.get("/api/meta/stage-stats")

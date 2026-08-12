@@ -852,6 +852,8 @@
           </div>
           <div class="flex items-center gap-3">
             <button id="btnMetaSync" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer">手动同步</button>
+            <button id="btnExportDaily" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-500 transition-all cursor-pointer" onclick="exportMetaCSV('daily-stats')" title="导出日报明细CSV">📥 日报</button>
+            <button id="btnExportRank" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-500 transition-all cursor-pointer" onclick="exportMetaCSV('account-ranking')" title="导出账户排行CSV">📥 排行</button>
             <span id="metaSyncStatus" class="text-[11px] text-slate-500"></span>
             <span id="metaLastSync" class="text-[11px] text-slate-400"></span>
           </div>
@@ -5506,7 +5508,7 @@
     }
 
     // ---- 主刷新函数 ----
-    async function refreshMetaDashboard() {
+    function buildMetaParams() {
       var range = getMetaDateRange();
       var params = '?start=' + range.start + '&end=' + range.end;
       if (_metaSelectedAccount && _metaSelectedAccount !== '__all__') {
@@ -5514,7 +5516,7 @@
           var uid = _metaSelectedAccount.slice(5);
           params += '&user_id=' + uid;
         } else if (_metaSelectedAccount.indexOf('bm:') === 0) {
-          var rest = _metaSelectedAccount.slice(3);   // "uid:name"(管理员) 或 "name"(普通用户)
+          var rest = _metaSelectedAccount.slice(3);
           var parts = rest.split(':');
           var bmAccts;
           if (parts.length >= 2) {
@@ -5531,6 +5533,16 @@
           params += '&account=' + _metaSelectedAccount;
         }
       }
+      return params;
+    }
+
+    function exportMetaCSV(type) {
+      var url = '/api/meta/export/' + type + buildMetaParams();
+      window.open(url, '_blank');
+    }
+
+    async function refreshMetaDashboard() {
+      var params = buildMetaParams();
       try {
         var [summaryRes, bmRes, userRes, dailyRes, rankRes] = await Promise.all([
           fetch('/api/meta/summary' + params).then(function(r) { return r.json(); }),
