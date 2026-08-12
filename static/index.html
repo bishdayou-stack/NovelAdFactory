@@ -250,7 +250,7 @@
             <div class="border-t border-slate-100 pt-3">
               <div class="text-[11px] font-medium text-slate-500 mb-2">视频产出</div>
               <div class="grid grid-cols-2 gap-3">
-                <div><label class="mb-1 block text-[11px] text-slate-500">弹屏视频</label><input id="popupCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="1" /></div>
+                <div><label class="mb-1 block text-[11px] text-slate-500">弹屏视频</label><input id="popupCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
                 <div><label class="mb-1 block text-[11px] text-slate-500">滚屏视频</label><input id="scrollCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
                 <div><label class="mb-1 block text-[11px] text-slate-500">AI 滚屏</label><input id="aiScrollCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
                 <div><label class="mb-1 block text-[11px] text-slate-500">AI 弹屏</label><input id="aiPopupCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
@@ -1682,10 +1682,10 @@
             (u.pingykj_username ? (
               u.pingykj_online
                 ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-medium mr-2">● 在线</span>'
-                : '<button class="text-amber-400 hover:text-amber-300 mr-2 font-medium text-[10px] border border-amber-600 rounded-lg px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer" onclick="reconnectPingykj(' + u.id + ',\'' + escapeHtml(u.username) + '\',this)">🔐 重新登录</button>'
+                : '<button class="text-amber-400 hover:text-amber-300 mr-2 font-medium text-[10px] border border-amber-600 rounded-lg px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer" onclick="reconnectPingykj(' + u.id + ',\'' + escapeHtml(u.username).replace(/'/g, "\\'") + '\',this)">🔐 重新登录</button>'
             ) : '') +
             '<button class="text-indigo-400 hover:text-indigo-300 mr-2 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="editUser(' + u.id + ')">编辑</button>' +
-            (u.id !== 1 ? '<button class="text-red-400 hover:text-red-300 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="deleteUser(' + u.id + ',\'' + escapeHtml(u.username) + '\')">删除</button>' : '<span class="text-slate-600 text-[11px]">—</span>') +
+            (u.id !== 1 ? '<button class="text-red-400 hover:text-red-300 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="deleteUser(' + u.id + ',\'' + escapeHtml(u.username).replace(/'/g, "\\'") + '\')">删除</button>' : '<span class="text-slate-600 text-[11px]">—</span>') +
             '</td></tr>';
         }).join('');
       }).catch(function(e) {
