@@ -1076,7 +1076,7 @@
           <button id="hitGalleryRefresh" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-700 text-amber-400 hover:bg-amber-500/10 transition-all bg-slate-800 cursor-pointer">刷新</button>
         </div>
       </div>
-      <div id="hitGalleryGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
+      <div id="hitGalleryGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 mb-4">
         <div class="text-center text-slate-500 text-xs col-span-full py-12">加载中...</div>
       </div>
       <div id="hitGalleryPager" class="flex justify-center gap-1"></div>
@@ -6459,18 +6459,18 @@
             var roiColor = (h.roi || 0) >= 1 ? 'text-emerald-600' : 'text-red-500';
             return '<div class="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm hover:shadow-md transition-all group relative">' +
               imgHtml +
-              '<div class="p-2.5">' +
-                '<div class="text-[10px] text-slate-400 truncate mb-0.5">' + (h.label || '素材') + ' · ' + (h.novel_name || '-') + '</div>' +
-                '<div class="text-[9px] text-slate-400 mb-1.5">👤 ' + escapeHtml(h.user_name || ('ID:' + h.user_id)) + '</div>' +
+              '<div class="p-1.5">' +
+                '<div class="text-[9px] text-slate-400 truncate mb-0.5">' + (h.label || '素材') + ' · ' + (h.novel_name || '-') + '</div>' +
+                '<div class="text-[8px] text-slate-400 mb-1">👤 ' + escapeHtml(h.user_name || ('ID:' + h.user_id)) + '</div>' +
                 '<div class="flex items-center justify-between mb-0.5">' +
-                  '<span class="text-sm font-bold text-amber-600">$' + ((h.spend || 0).toFixed(0)) + '</span>' +
-                  '<span class="text-sm font-bold ' + ((h.order_count || 0) >= 3 ? 'text-emerald-600' : (h.order_count || 0) >= 1 ? 'text-amber-600' : 'text-slate-400') + '">' + (h.order_count || 0) + '单</span>' +
+                  '<span class="text-xs font-bold text-amber-600">$' + ((h.spend || 0).toFixed(0)) + '</span>' +
+                  '<span class="text-xs font-bold ' + ((h.order_count || 0) >= 3 ? 'text-emerald-600' : (h.order_count || 0) >= 1 ? 'text-amber-600' : 'text-slate-400') + '">' + (h.order_count || 0) + '单</span>' +
                 '</div>' +
                 '<div class="flex items-center justify-between">' +
-                  '<span class="text-xs font-semibold ' + roiColor + '">ROI ' + ((h.roi || 0).toFixed(2)) + '</span>' +
-                  '<span class="text-[10px] text-amber-500">' + stars + '</span>' +
+                  '<span class="text-[10px] font-semibold ' + roiColor + '">ROI ' + ((h.roi || 0).toFixed(2)) + '</span>' +
+                  '<span class="text-[9px] text-amber-500">' + stars + '</span>' +
                 '</div>' +
-                '<div class="flex items-center justify-between mt-0.5 text-[9px] text-slate-400">' +
+                '<div class="flex items-center justify-between mt-0.5 text-[8px] text-slate-400">' +
                   '<span>' + (h.registered_at || '').slice(0,10) + '</span>' +
                   '<span>收入 $' + ((h.revenue || 0).toFixed(0)) + '</span>' +
                 '</div>' +
