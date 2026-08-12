@@ -852,8 +852,13 @@
           </div>
           <div class="flex items-center gap-3">
             <button id="btnMetaSync" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer">手动同步</button>
-            <button id="btnExportDaily" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-500 transition-all cursor-pointer" onclick="exportMetaCSV('daily-stats')" title="导出日报明细CSV">📥 日报</button>
-            <button id="btnExportRank" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-500 transition-all cursor-pointer" onclick="exportMetaCSV('account-ranking')" title="导出账户排行CSV">📥 排行</button>
+            <div class="relative">
+              <button id="btnExportMeta" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-500 transition-all cursor-pointer" onclick="toggleExportMenu()">📥 导出 ▾</button>
+              <div id="exportMenu" class="absolute top-full right-0 mt-1 bg-slate-700 rounded-lg border border-slate-600 shadow-xl py-1 z-50 hidden" style="min-width:140px">
+                <button class="block w-full text-left px-3 py-1.5 text-[11px] text-slate-200 hover:bg-slate-600 cursor-pointer border-0 bg-transparent" onclick="exportMetaCSV('daily-stats');toggleExportMenu()">📊 日报明细</button>
+                <button class="block w-full text-left px-3 py-1.5 text-[11px] text-slate-200 hover:bg-slate-600 cursor-pointer border-0 bg-transparent" onclick="exportMetaCSV('account-ranking');toggleExportMenu()">🏆 账户排行</button>
+              </div>
+            </div>
             <span id="metaSyncStatus" class="text-[11px] text-slate-500"></span>
             <span id="metaLastSync" class="text-[11px] text-slate-400"></span>
           </div>
@@ -1381,6 +1386,19 @@
       </div>
     </div>
 
+    <!-- 通用确认弹窗（替代浏览器 confirm，解决 Edge 兼容问题） -->
+    <div id="confirmModal" hidden class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60">
+      <div class="bg-slate-800 rounded-2xl w-full max-w-sm mx-4 border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">
+        <div class="px-5 py-4">
+          <p id="confirmMsg" class="text-sm text-white whitespace-pre-wrap"></p>
+        </div>
+        <div class="px-5 py-3 border-t border-slate-700 flex justify-end gap-2">
+          <button id="confirmCancelBtn" class="rounded-lg bg-slate-700 px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-600 cursor-pointer border-0">取消</button>
+          <button id="confirmOkBtn" class="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 cursor-pointer border-0">确认</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 定时规则弹窗 -->
     <div id="scheduleModal" hidden class="fixed inset-0 z-[138] flex items-center justify-center bg-black/60" onclick="if(event.target===this)closeScheduleModal()">
       <div class="bg-slate-800 rounded-2xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">
@@ -1420,6 +1438,24 @@
   </main>
 
   <script>
+    // ====== 通用确认弹窗（替代浏览器 confirm） ======
+    var _confirmCallback = null;
+
+    function showConfirm(msg, onConfirm, onCancel) {
+      document.getElementById('confirmMsg').textContent = msg;
+      document.getElementById('confirmModal').hidden = false;
+      _confirmCallback = onConfirm;
+      document.getElementById('confirmOkBtn').onclick = function() {
+        document.getElementById('confirmModal').hidden = true;
+        if (_confirmCallback) { _confirmCallback(); _confirmCallback = null; }
+      };
+      document.getElementById('confirmCancelBtn').onclick = function() {
+        document.getElementById('confirmModal').hidden = true;
+        _confirmCallback = null;
+        if (onCancel) onCancel();
+      };
+    }
+
     // ====== 认证系统 ======
 
     var authToken = localStorage.getItem('auth_token') || '';
@@ -1704,31 +1740,32 @@
     }
 
     function reconnectPingykj(uid, uname, btn) {
-      if (!confirm('将为 "' + uname + '" 登录书城，确定吗？')) return;
-      var origText = btn.textContent;
-      btn.textContent = '登录中...';
-      btn.disabled = true;
-      // 第一步：尝试无验证码快速登录
-      fetch('/api/users/' + uid + '/reconnect-pingykj', { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-          if (d.status === 'ok') {
-            alert('✅ ' + d.message);
-            btn.textContent = origText;
-            btn.disabled = false;
-            loadUserList();  // 刷新在线状态
-          } else {
-            // 快速登录失败 → 自动弹出验证码窗口
+      showConfirm('将为 "' + uname + '" 登录书城，确定吗？', function() {
+        var origText = btn.textContent;
+        btn.textContent = '登录中...';
+        btn.disabled = true;
+        // 第一步：尝试无验证码快速登录
+        fetch('/api/users/' + uid + '/reconnect-pingykj', { method: 'POST' })
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d.status === 'ok') {
+              alert('✅ ' + d.message);
+              btn.textContent = origText;
+              btn.disabled = false;
+              loadUserList();  // 刷新在线状态
+            } else {
+              // 快速登录失败 → 自动弹出验证码窗口
+              btn.textContent = origText;
+              btn.disabled = false;
+              showCaptchaLogin(uid, uname);
+            }
+          }).catch(function() {
+            // 网络错误也弹出验证码窗口
             btn.textContent = origText;
             btn.disabled = false;
             showCaptchaLogin(uid, uname);
-          }
-        }).catch(function() {
-          // 网络错误也弹出验证码窗口
-          btn.textContent = origText;
-          btn.disabled = false;
-          showCaptchaLogin(uid, uname);
-        });
+          });
+      });
     }
 
     // ====== 管理员验证码登录书城 ======
@@ -1814,13 +1851,14 @@
     }
 
     function deleteUser(uid, uname) {
-      if (!confirm('确定要删除用户 "' + uname + '" 吗？此操作不可撤销。')) return;
-      fetch('/api/users/' + uid, { method: 'DELETE' })
-        .then(function(r) { return r.json().then(function(d) { return {status:r.status, data:d}; }); })
-        .then(function(r) {
-          if (r.status === 200) loadUserList();
-          else alert(r.data.detail || '删除失败');
-        }).catch(function(e) { alert('网络错误'); });
+      showConfirm('确定要删除用户 "' + uname + '" 吗？此操作不可撤销。', function() {
+        fetch('/api/users/' + uid, { method: 'DELETE' })
+          .then(function(r) { return r.json().then(function(d) { return {status:r.status, data:d}; }); })
+          .then(function(r) {
+            if (r.status === 200) loadUserList();
+            else alert(r.data.detail || '删除失败');
+          }).catch(function(e) { alert('网络错误'); });
+      });
     }
 
     function htmlEscape(s) {
@@ -5003,21 +5041,21 @@
     }
 
     function deleteScheduleRule(ruleId) {
-      if (!confirm('确认删除此定时规则？')) return;
-      fetch('/api/meta/scheduled-rules/' + ruleId, { method: 'DELETE' })
-        .then(function(r) { return r.json(); })
-        .then(function(res) {
-          if (res.ok) { alert('✅ 已删除'); loadScheduleRules(); }
-          else { alert('❌ ' + (res.error || '删除失败')); }
-        })
-        .catch(function(e) { alert('❌ 网络错误'); });
+      showConfirm('确认删除此定时规则？', function() {
+        fetch('/api/meta/scheduled-rules/' + ruleId, { method: 'DELETE' })
+          .then(function(r) { return r.json(); })
+          .then(function(res) {
+            if (res.ok) { alert('✅ 已删除'); loadScheduleRules(); }
+            else { alert('❌ ' + (res.error || '删除失败')); }
+          })
+          .catch(function(e) { alert('❌ 网络错误'); });
+      });
     }
 
     function toggleEntityStatus(entityId, newStatus, entityName, entityLevel, adAccount, btnEl) {
-      if (!confirm('确认' + (newStatus === 'PAUSED' ? '暂停' : '启用') + '「' + decodeURIComponent(entityName) + '」吗？')) return;
-
-      btnEl.disabled = true;
-      btnEl.textContent = '...';
+      showConfirm('确认' + (newStatus === 'PAUSED' ? '暂停' : '启用') + '「' + decodeURIComponent(entityName) + '」吗？', function() {
+        btnEl.disabled = true;
+        btnEl.textContent = '...';
 
       fetch('/api/meta/entity/' + entityId + '/status', {
         method: 'POST',
@@ -5045,6 +5083,7 @@
         btnEl.disabled = false;
         btnEl.textContent = newStatus === 'PAUSED' ? '⏸' : '▶';
       });
+      });  // 关闭 showConfirm 回调
     }
 
     function updateRowStatusUI(rowEl, newStatus) {
@@ -5535,6 +5574,19 @@
       }
       return params;
     }
+
+    function toggleExportMenu() {
+      var menu = document.getElementById('exportMenu');
+      menu.classList.toggle('hidden');
+    }
+    // 点击其他地方关闭导出菜单
+    document.addEventListener('click', function(e) {
+      var menu = document.getElementById('exportMenu');
+      var btn = document.getElementById('btnExportMeta');
+      if (menu && btn && !btn.contains(e.target) && !menu.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
 
     function exportMetaCSV(type) {
       var url = '/api/meta/export/' + type + buildMetaParams();
@@ -6804,11 +6856,12 @@
     }
 
     function deleteApp(id) {
-      if (!confirm('确定要删除这个 App 配置吗？')) return;
-      fetch('/api/app/' + id, { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function(d) {
-        if (d.success) loadAppTable();
-        else alert('删除失败: ' + (d.detail || '未知错误'));
-      }).catch(function(e) { alert('删除失败: ' + e); });
+      showConfirm('确定要删除这个 App 配置吗？', function() {
+        fetch('/api/app/' + id, { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function(d) {
+          if (d.success) loadAppTable();
+          else alert('删除失败: ' + (d.detail || '未知错误'));
+        }).catch(function(e) { alert('删除失败: ' + e); });
+      });
     }
 
     // ---- BM 管理 ----
@@ -6951,11 +7004,12 @@
     }
 
     function deleteBm(bmId) {
-      if (!confirm('确定要删除这个 BM 配置吗？')) return;
-      fetch('/api/bm/' + encodeURIComponent(bmId), { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function(d) {
-        if (d.success) loadBmTable();
-        else alert('删除失败: ' + (d.detail || '未知错误'));
-      }).catch(function(e) { alert('删除失败: ' + e); });
+      showConfirm('确定要删除这个 BM 配置吗？', function() {
+        fetch('/api/bm/' + encodeURIComponent(bmId), { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function(d) {
+          if (d.success) loadBmTable();
+          else alert('删除失败: ' + (d.detail || '未知错误'));
+        }).catch(function(e) { alert('删除失败: ' + e); });
+      });
     }
 
     function addBm() {
