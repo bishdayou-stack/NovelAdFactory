@@ -2841,7 +2841,9 @@
 
           pollBatchProgress(batchId);
         } else {
-          statusNotice.textContent = "提交失败: " + (data.message || data.detail || "未知错误");
+          var errMsg = data.message || data.detail || '未知错误';
+          if (typeof errMsg === 'object') errMsg = JSON.stringify(errMsg);
+          statusNotice.textContent = "提交失败: " + errMsg;
           statusNotice.hidden = false;
         }
       } catch (error) {
@@ -3452,7 +3454,9 @@
           });
           startSSEStream(data.batch_id);
         } else {
-          content.innerHTML = '<div class="text-red-500 text-sm">提交失败: ' + (data.error || data.detail || '未知错误') + '</div>';
+          var errMsg2 = data.error || data.detail || '未知错误';
+          if (typeof errMsg2 === 'object') errMsg2 = JSON.stringify(errMsg2);
+          content.innerHTML = '<div class="text-red-500 text-sm">提交失败: ' + errMsg2 + '</div>';
         }
       }).catch(function(e) {
         content.innerHTML = '<div class="text-red-500 text-sm">请求异常: ' + e.message + '</div>';
