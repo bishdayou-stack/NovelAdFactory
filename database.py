@@ -2321,7 +2321,7 @@ def upsert_meta_ad_stats(act_id: str, rows: List[Dict[str, Any]],
                     adset_id, adset_name, ad_id, ad_name,
                     spend, impressions, clicks, purchases, purchase_value,
                     add_to_cart, subscribe_count, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(date, ad_account, ad_id, user_id) DO UPDATE SET
                     campaign_id=excluded.campaign_id, campaign_name=excluded.campaign_name,
                     adset_id=excluded.adset_id, adset_name=excluded.adset_name,
