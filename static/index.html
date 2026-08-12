@@ -2823,7 +2823,7 @@
       saveStyleLibrary();
 
       try {
-        var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        var r = await fetch("/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         var data = await r.json();
 
         if (data.status === "submitted" && data.batch_id) {
