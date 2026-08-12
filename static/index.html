@@ -5549,7 +5549,19 @@
     function doExport(type) {
       document.getElementById('exportMenu').hidden = true;
       var url = '/api/meta/export/' + type + buildMetaParams();
-      window.open(url, '_blank');
+      fetch(url, { headers: { 'Authorization': 'Bearer ' + (authToken || '') } })
+        .then(function(r) {
+          if (!r.ok) return r.json().then(function(e) { throw new Error(e.detail || '导出失败'); });
+          return r.blob();
+        })
+        .then(function(blob) {
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'meta_' + type + '.csv';
+          a.click();
+          URL.revokeObjectURL(a.href);
+        })
+        .catch(function(e) { alert('导出失败: ' + e.message); });
     }
 
     // 点击其他地方关闭导出菜单
