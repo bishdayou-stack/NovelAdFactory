@@ -1944,30 +1944,32 @@ def get_novel_daily_stats(start_date: str = None, end_date: str = None,
         where = ["1=1"]
         params: List = []
         if start_date:
-            where.append("date >= ?"); params.append(start_date)
+            where.append("nd.date >= ?"); params.append(start_date)
         if end_date:
-            where.append("date <= ?"); params.append(end_date)
+            where.append("nd.date <= ?"); params.append(end_date)
         if uid is not None:
-            where.append("user_id = ?"); params.append(uid)
+            where.append("nd.user_id = ?"); params.append(uid)
 
         base = f"""
-            FROM novel_daily_stats
+            FROM novel_daily_stats nd
+            LEFT JOIN novel_books nb ON nb.novel_id = nd.novel_id
             WHERE {' AND '.join(where)}
-            GROUP BY novel_id
+            GROUP BY nd.novel_id
         """
         total = conn.execute(
-            f"SELECT COUNT(DISTINCT novel_id) AS n {base}", params
+            f"SELECT COUNT(DISTINCT nd.novel_id) AS n {base}", params
         ).fetchone()["n"]
 
         sql = f"""
-            SELECT novel_id, MAX(novel_name) AS novel_name,
-                COALESCE(SUM(spend), 0) AS spend,
-                COALESCE(SUM(revenue), 0) AS revenue,
-                COALESCE(SUM(impressions), 0) AS impressions,
-                COALESCE(SUM(clicks), 0) AS clicks,
-                COALESCE(SUM(purchases), 0) AS purchases,
-                COALESCE(SUM(order_count), 0) AS order_count,
-                COALESCE(SUM(order_amount), 0) AS order_amount
+            SELECT nd.novel_id,
+                COALESCE(NULLIF(MAX(nd.novel_name), ''), MAX(nb.novel_name), nd.novel_id) AS novel_name,
+                COALESCE(SUM(nd.spend), 0) AS spend,
+                COALESCE(SUM(nd.revenue), 0) AS revenue,
+                COALESCE(SUM(nd.impressions), 0) AS impressions,
+                COALESCE(SUM(nd.clicks), 0) AS clicks,
+                COALESCE(SUM(nd.purchases), 0) AS purchases,
+                COALESCE(SUM(nd.order_count), 0) AS order_count,
+                COALESCE(SUM(nd.order_amount), 0) AS order_amount
             {base}
             ORDER BY {sort_col} DESC
             LIMIT ? OFFSET ?

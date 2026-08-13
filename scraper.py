@@ -309,7 +309,8 @@ class ScraperSession:
     def _fetch_with_token(self, api_path: str, api_params: str,
                           page_size: int = 500,
                           date_start: str = None, date_end: str = None,
-                          _retry_on_auth: bool = True) -> Tuple[List[Dict], str]:
+                          _retry_on_auth: bool = True,
+                          silent: bool = False) -> Tuple[List[Dict], str]:
         """使用 API token 分页获取数据（token 过期时自动续期并重试一次）"""
         if not self._token:
             return [], "未找到登录 token，请先登录"
@@ -375,7 +376,7 @@ class ScraperSession:
             total = res.get("total", 0)
             all_records.extend(records)
 
-            if page_no == 1:
+            if page_no == 1 and not silent:
                 print(f"[Scraper] 第1页: {len(records)} 条 (总计 {total})")
 
             total_pages = (total + page_size - 1) // page_size
@@ -551,29 +552,26 @@ def resolve_promotion_links(session: "ScraperSession", link_ids: set) -> Dict[st
     for link_id in link_ids:
         if not link_id:
             continue
-        # 尝试多种查询参数：campaignLink 实体主键可能是 id，也可能是 linkId
-        for param in (f"id={link_id}", f"linkId={link_id}"):
-            try:
-                records, err = session._fetch_with_token(
-                    _PROMOTION_LINK_PATH,
-                    param,
-                    page_size=5
-                )
-                if err or not records:
-                    continue
-                for rec in records:
-                    nid = str(rec.get("novelId") or rec.get("novel_id") or rec.get("bookId") or
-                              rec.get("subjectId") or rec.get("book_id") or "")
-                    name = str(rec.get("novelName") or rec.get("novel_name") or rec.get("bookName") or
-                               rec.get("book_name") or rec.get("subjectName") or
-                               rec.get("name") or rec.get("title") or "")
-                    if nid:
-                        result[link_id] = {"novel_id": nid, "novel_name": name}
-                        break
-                if link_id in result:
-                    break
-            except Exception:
+        try:
+            records, err = session._fetch_with_token(
+                _PROMOTION_LINK_PATH,
+                f"id={link_id}",
+                page_size=5,
+                silent=True
+            )
+            if err or not records:
                 continue
+            for rec in records:
+                nid = str(rec.get("novelId") or rec.get("novel_id") or rec.get("bookId") or
+                          rec.get("subjectId") or rec.get("book_id") or "")
+                name = str(rec.get("novelName") or rec.get("novel_name") or rec.get("bookName") or
+                           rec.get("book_name") or rec.get("subjectName") or
+                           rec.get("name") or rec.get("title") or "")
+                if nid:
+                    result[link_id] = {"novel_id": nid, "novel_name": name}
+                    break
+        except Exception:
+            continue
     return result
 
 
