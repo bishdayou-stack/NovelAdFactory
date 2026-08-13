@@ -1925,9 +1925,57 @@ def upsert_novel_daily_stats(date: str, novel_id: str, novel_name: str,
                 purchases = excluded.purchases,
                 order_count = excluded.order_count,
                 order_amount = excluded.order_amount,
-                novel_name = excluded.novel_name
+                novel_name = CASE WHEN excluded.novel_name != ''
+                    THEN excluded.novel_name ELSE novel_daily_stats.novel_name END
         """, (date, novel_id, novel_name, spend, revenue, impressions, clicks,
               purchases, order_count, order_amount, uid))
+
+
+def update_novel_order_stats(date: str, novel_id: str, order_count: int,
+                              order_amount: float, novel_name: str,
+                              user_id: int = None) -> None:
+    """只更新 novel_daily_stats 的订单字段（不动广告消耗字段），行不存在则插入"""
+    uid = user_id or 1
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO novel_daily_stats (date, novel_id, novel_name, spend, revenue,
+                impressions, clicks, purchases, order_count, order_amount, user_id)
+            VALUES (?, ?, ?, 0, 0, 0, 0, 0, ?, ?, ?)
+            ON CONFLICT(date, novel_id, user_id) DO UPDATE SET
+                order_count = excluded.order_count,
+                order_amount = excluded.order_amount,
+                novel_name = CASE WHEN excluded.novel_name != ''
+                    THEN excluded.novel_name ELSE novel_daily_stats.novel_name END
+        """, (date, novel_id, novel_name, order_count, order_amount, uid))
+
+
+def get_order_agg_by_novel(user_id: int = None) -> Dict[Tuple[str, str], Dict[str, Any]]:
+    """从 orders 表按 (date, novel_id) 聚合订单数量和金额（仅成功订单）。
+    返回 {(date, novel_id): {"order_count": int, "order_amount": float, "novel_name": str}}"""
+    uid = user_id or 1
+    result: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT date(order_date) AS d,
+                   json_extract(customer_info, '$.novelId') AS novel_id,
+                   MAX(json_extract(customer_info, '$.novelName')) AS novel_name,
+                   COUNT(*) AS order_count,
+                   COALESCE(SUM(amount), 0) AS order_amount
+            FROM orders
+            WHERE status = '成功' AND user_id = ?
+              AND json_extract(customer_info, '$.novelId') IS NOT NULL
+            GROUP BY d, novel_id
+        """, (uid,)).fetchall()
+        for r in rows:
+            if not r["novel_id"]:
+                continue
+            key = (str(r["d"]), str(r["novel_id"]))
+            result[key] = {
+                "order_count": r["order_count"],
+                "order_amount": r["order_amount"],
+                "novel_name": r["novel_name"] or "",
+            }
+    return result
 
 
 def get_novel_daily_stats(start_date: str = None, end_date: str = None,
