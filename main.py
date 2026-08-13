@@ -111,6 +111,20 @@ from pydantic import BaseModel, Field, model_validator
 from PIL import Image, ImageDraw, ImageFont
 from datetime import timedelta
 
+# Python 3.14 兼容补丁：SSE 客户端断开后，asyncio 空 buffer 写触发
+# "AssertionError: Data should not be empty" 刷屏。此处跳过空 buffer 写入。
+import asyncio.selector_events as _ase
+
+if hasattr(_ase, "_SelectorSocketTransport") and hasattr(_ase._SelectorSocketTransport, "_write_send"):
+    _orig_write_send = _ase._SelectorSocketTransport._write_send
+
+    def _safe_write_send(self, data):
+        if not self._buffer:
+            return
+        _orig_write_send(self, data)
+
+    _ase._SelectorSocketTransport._write_send = _safe_write_send
+
 try:
     from moviepy.editor import ImageSequenceClip
 except ImportError:
