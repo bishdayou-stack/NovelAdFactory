@@ -5865,7 +5865,7 @@
         var rows = res.data || [];
         var html = '<table class="w-full"><thead><tr>' +
           '<th class="text-center" style="width:72px">投放状态</th>' +
-          '<th class="text-left">广告系列</th><th class="text-right">消耗</th><th class="text-right">转化</th>' +
+          '<th class="text-left">广告系列</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th>' +
           '<th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th>' +
           '<th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th>' +
           '<th class="text-right">加购</th><th class="text-right">订阅</th>' +
@@ -5884,10 +5884,11 @@
             (eff === 'PAUSED' || eff === 'CAMPAIGN_PAUSED' || eff === 'ADSET_PAUSED' ? ' <button class="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();toggleEntityStatus(\'' + encodeURIComponent(cid) + '\',\'ACTIVE\',\'' + encodeURIComponent(escapeHtml(c.campaign_name || cid).replace(/'/g,' ')) + '\',\'campaign\',\'' + cacct + '\',this)" title="启用">▶</button>' : '') +
             ' <button class="text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();openScheduleModal(\'' + encodeURIComponent(cid) + '\',\'' + encodeURIComponent(escapeHtml(c.campaign_name || cid).replace(/'/g,' ')) + '\',\'campaign\',\'' + cacct + '\')" title="定时规则">🕐</button>' +
             '</td>' +
+            '<td class="text-left text-slate-400">' + escapeHtml(c.user_name || '-') + '</td>' +
             metaMetricCells(c) + '</tr>';
-          html += '<tr class="camp-adsets" hidden><td colspan="13" class="p-0"><div class="adset-slot"></div></td></tr>';
+          html += '<tr class="camp-adsets" hidden><td colspan="14" class="p-0"><div class="adset-slot"></div></td></tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="13" class="text-center text-slate-500 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="14" class="text-center text-slate-500 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
         html += '</tbody></table>';
         el.innerHTML = html;
         applyCampStatusFilter();
@@ -5940,10 +5941,11 @@
             (aeff === 'PAUSED' || aeff === 'ADSET_PAUSED' ? ' <button class="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();toggleEntityStatus(\'' + encodeURIComponent(aid) + '\',\'ACTIVE\',\'' + encodeURIComponent(escapeHtml(a.adset_name || aid).replace(/'/g,' ')) + '\',\'adset\',\'' + acct + '\',this)" title="启用">▶</button>' : '') +
             ' <button class="text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();openScheduleModal(\'' + encodeURIComponent(aid) + '\',\'' + encodeURIComponent(escapeHtml(a.adset_name || aid).replace(/'/g,' ')) + '\',\'adset\',\'' + acct + '\')" title="定时规则">🕐</button>' +
             '</td>' +
+            '<td class="text-left text-slate-400 pl-6">' + escapeHtml(a.user_name || '-') + '</td>' +
             metaMetricCells(a) + '</tr>';
-          html += '<tr class="aset-ads" hidden><td colspan="13" class="p-0"><div class="ad-slot"></div></td></tr>';
+          html += '<tr class="aset-ads" hidden><td colspan="14" class="p-0"><div class="ad-slot"></div></td></tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="13" class="text-center text-slate-500 py-2 text-[10px]">无广告组数据</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="14" class="text-center text-slate-500 py-2 text-[10px]">无广告组数据</td></tr>';
         html += '</tbody></table>';
         slot.innerHTML = html;
         slot.setAttribute('data-loaded', '1');
@@ -5976,9 +5978,10 @@
             (aeff === 'PAUSED' ? ' <button class="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();toggleEntityStatus(\'' + encodeURIComponent(a.ad_id || '') + '\',\'ACTIVE\',\'' + encodeURIComponent(escapeHtml(a.ad_name || a.ad_id || '').replace(/'/g,' ')) + '\',\'ad\',\'' + (acctEnc || encodeURIComponent(_campPageAccount)) + '\',this)" title="启用">▶</button>' : '') +
             ' <button class="text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 rounded-md px-1.5 py-0.5 cursor-pointer ml-1" onclick="event.stopPropagation();openScheduleModal(\'' + encodeURIComponent(a.ad_id || '') + '\',\'' + encodeURIComponent(escapeHtml(a.ad_name || a.ad_id || '').replace(/'/g,' ')) + '\',\'ad\',\'' + (acctEnc || encodeURIComponent(_campPageAccount)) + '\')" title="定时规则">🕐</button>' +
             '</td>' +
+            '<td class="text-left text-slate-400 pl-8">' + escapeHtml(a.user_name || '-') + '</td>' +
             metaMetricCells(a) + '</tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="13" class="text-center text-slate-500 py-2 text-[10px]">无广告数据</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="14" class="text-center text-slate-500 py-2 text-[10px]">无广告数据</td></tr>';
         html += '</tbody></table>';
         slot.innerHTML = html;
         slot.setAttribute('data-loaded', '1');

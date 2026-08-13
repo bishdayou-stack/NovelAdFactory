@@ -704,7 +704,8 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
             where.append("date <= ?"); params.append(end_date)
         _add_user_filter(where, params, user_id)
         sql = f"""
-            SELECT agg.*, es.effective_status, es.status, es.created_time
+            SELECT agg.*, es.effective_status, es.status, es.created_time,
+                   COALESCE(u.display_name, u.username, '') AS user_name
             FROM (
                 SELECT campaign_id, MAX(campaign_name) AS campaign_name, MAX(ad_account) AS ad_account,
                     COALESCE(SUM(spend),0) AS spend,
@@ -720,6 +721,8 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
             ) agg
             LEFT JOIN meta_entity_status es ON agg.campaign_id = es.entity_id
                 AND es.level = 'campaign'
+            LEFT JOIN meta_accounts ma ON agg.ad_account = ma.act_id
+            LEFT JOIN users u ON ma.user_id = u.id
         """
         if user_id is not None:
             sql += "\n            AND es.user_id = ?"
@@ -737,6 +740,7 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
             m["status"] = r["status"] if "status" in r.keys() else None
             m["add_to_cart"] = r["add_to_cart"] if "add_to_cart" in r.keys() else 0
             m["subscribe_count"] = r["subscribe_count"] if "subscribe_count" in r.keys() else 0
+            m["user_name"] = r["user_name"] if "user_name" in r.keys() else ""
             out.append(m)
         return out
 
@@ -755,10 +759,12 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
             where.append("date <= ?"); params.append(end_date)
         _add_user_filter(where, params, user_id)
         sql = f"""
-            SELECT agg.*, es.effective_status, es.status
+            SELECT agg.*, es.effective_status, es.status,
+                   COALESCE(u.display_name, u.username, '') AS user_name
             FROM (
                 SELECT adset_id, MAX(adset_name) AS adset_name,
                     campaign_id, MAX(campaign_name) AS campaign_name,
+                    MAX(ad_account) AS ad_account,
                     COALESCE(SUM(spend),0) AS spend,
                     COALESCE(SUM(impressions),0) AS impressions,
                     COALESCE(SUM(clicks),0) AS clicks,
@@ -772,6 +778,8 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
             ) agg
             LEFT JOIN meta_entity_status es ON agg.adset_id = es.entity_id
                 AND es.level = 'adset'
+            LEFT JOIN meta_accounts ma ON agg.ad_account = ma.act_id
+            LEFT JOIN users u ON ma.user_id = u.id
         """
         if user_id is not None:
             sql += "\n            AND es.user_id = ?"
@@ -790,6 +798,7 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
             m["status"] = r["status"] if "status" in r.keys() else None
             m["add_to_cart"] = r["add_to_cart"] if "add_to_cart" in r.keys() else 0
             m["subscribe_count"] = r["subscribe_count"] if "subscribe_count" in r.keys() else 0
+            m["user_name"] = r["user_name"] if "user_name" in r.keys() else ""
             out.append(m)
         return out
 
@@ -809,11 +818,13 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
         if user_id is not None:
             where.append("s.user_id = ?"); params.append(user_id)
         sql = f"""
-            SELECT agg.*, es.effective_status, es.status
+            SELECT agg.*, es.effective_status, es.status,
+                   COALESCE(u.display_name, u.username, '') AS user_name
             FROM (
                 SELECT s.ad_id, MAX(s.ad_name) AS ad_name,
                     s.adset_id, MAX(s.adset_name) AS adset_name,
                     s.campaign_id, MAX(s.campaign_name) AS campaign_name,
+                    MAX(s.ad_account) AS ad_account,
                     COALESCE(SUM(s.spend),0) AS spend,
                     COALESCE(SUM(s.impressions),0) AS impressions,
                     COALESCE(SUM(s.clicks),0) AS clicks,
@@ -832,6 +843,8 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
             ) agg
             LEFT JOIN meta_entity_status es ON agg.ad_id = es.entity_id
                 AND es.level = 'ad'
+            LEFT JOIN meta_accounts ma ON agg.ad_account = ma.act_id
+            LEFT JOIN users u ON ma.user_id = u.id
         """
         if user_id is not None:
             sql += "\n            AND es.user_id = ?"
@@ -852,6 +865,7 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
             m["video_id"] = r["video_id"] or ""
             m["effective_status"] = r["effective_status"] if "effective_status" in r.keys() else None
             m["status"] = r["status"] if "status" in r.keys() else None
+            m["user_name"] = r["user_name"] if "user_name" in r.keys() else ""
             out.append(m)
         return out
 
