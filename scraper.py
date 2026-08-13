@@ -631,38 +631,22 @@ def sync_ads(user_id: int) -> Tuple[int, str]:
                 resolved = resolve_promotion_links(session, unknown_links)
                 for lid, info in resolved.items():
                     database.upsert_promotion_link_map(lid, info["novel_id"], info["novel_name"], user_id)
-                if resolved:
-                    print(f"[Scraper] 解析到 {len(resolved)} 个推广链接→书籍映射")
-
-            # 在内存中按 (date, novel_id) 重新聚合，合并多个推广链接对应同一本书的消耗
-            novel_agg: Dict[Tuple[str, str], Dict] = {}
+                    if resolved:
+                        print(f"[Scraper] 解析到 {len(resolved)} 个推广链接→书籍映射")
+            novel_count = 0
             for nr in novel_rows:
-                novel_info = database.get_novel_by_link(nr["link_id"])
+                nid = nr["link_id"]
+                novel_info = database.get_novel_by_link(nid)
                 if novel_info:
                     real_nid, real_name = novel_info[0], novel_info[1]
                 else:
-                    real_nid, real_name = nr["link_id"], ""
-                key = (nr["date"], real_nid)
-                if key not in novel_agg:
-                    novel_agg[key] = {"novel_name": real_name, "spend": 0.0, "revenue": 0.0,
-                                      "impressions": 0, "clicks": 0, "purchases": 0}
-                g = novel_agg[key]
-                g["spend"] += nr["spend"]
-                g["revenue"] += nr["revenue"]
-                g["impressions"] += nr["impressions"]
-                g["clicks"] += nr["clicks"]
-                g["purchases"] += nr["purchases"]
-                if real_name and not g["novel_name"]:
-                    g["novel_name"] = real_name
-
-            novel_count = 0
-            for (date, nid), g in novel_agg.items():
+                    real_nid, real_name = nid, ""
                 database.upsert_novel_daily_stats(
-                    date=date, novel_id=nid,
-                    novel_name=g["novel_name"],
-                    spend=g["spend"], revenue=g["revenue"],
-                    impressions=g["impressions"], clicks=g["clicks"],
-                    purchases=g["purchases"],
+                    date=nr["date"], novel_id=real_nid,
+                    novel_name=real_name,
+                    spend=nr["spend"], revenue=nr["revenue"],
+                    impressions=nr["impressions"], clicks=nr["clicks"],
+                    purchases=nr["purchases"],
                     order_count=0, order_amount=0,
                     user_id=user_id
                 )
@@ -768,35 +752,12 @@ def sync_orders(user_id: int) -> Tuple[int, str]:
 
         if count > 0:
             database.set_last_sync_date("orders", today, user_id)
-
-        # 订单同步完成后，刷新书籍维度的订单数量和金额
-        _refresh_novel_order_stats(user_id)
         return count, ""
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         return 0, str(e)
-
-
-def _refresh_novel_order_stats(user_id: int) -> int:
-    """从 orders 表聚合订单，刷新 novel_daily_stats 的订单字段（数量/金额/书名）"""
-    try:
-        order_agg = database.get_order_agg_by_novel(user_id)
-        count = 0
-        for (date, novel_id), oa in order_agg.items():
-            database.update_novel_order_stats(
-                date, novel_id,
-                oa["order_count"], oa["order_amount"], oa["novel_name"],
-                user_id
-            )
-            count += 1
-        if count:
-            print(f"[Scraper] 书籍订单聚合刷新: {count} 条")
-        return count
-    except Exception as e:
-        print(f"[Scraper] 书籍订单聚合失败: {e}")
-        return 0
 
 
 # ====== 小说爬取 ======
