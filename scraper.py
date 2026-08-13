@@ -101,7 +101,7 @@ _ORDER_API_PATH = "/jeecgboot/wallet/financeOrder/list"
 _ORDER_API_PARAMS = "column=createTime&order=desc"
 _NOVEL_BOOK_PATH = "/jeecgboot/novel/novel/list"
 _NOVEL_BOOK_PATH_ALT = "/jeecgboot/novel/bookList"
-_PROMOTION_LINK_PATH = "/jeecgboot/novel/promotionLink/list"
+_PROMOTION_LINK_PATH = "/jeecgboot/ad/campaignLink/list"
 
 # ====== 多用户 session 缓存 ======
 _user_sessions: Dict[int, "ScraperSession"] = {}
@@ -551,23 +551,29 @@ def resolve_promotion_links(session: "ScraperSession", link_ids: set) -> Dict[st
     for link_id in link_ids:
         if not link_id:
             continue
-        try:
-            records, err = session._fetch_with_token(
-                _PROMOTION_LINK_PATH,
-                f"linkId={link_id}",
-                page_size=5
-            )
-            if err or not records:
-                continue
-            for rec in records:
-                nid = str(rec.get("novelId") or rec.get("novel_id") or rec.get("bookId") or "")
-                name = str(rec.get("novelName") or rec.get("novel_name") or rec.get("bookName") or
-                           rec.get("name") or rec.get("title") or "")
-                if nid:
-                    result[link_id] = {"novel_id": nid, "novel_name": name}
+        # 尝试多种查询参数：campaignLink 实体主键可能是 id，也可能是 linkId
+        for param in (f"id={link_id}", f"linkId={link_id}"):
+            try:
+                records, err = session._fetch_with_token(
+                    _PROMOTION_LINK_PATH,
+                    param,
+                    page_size=5
+                )
+                if err or not records:
+                    continue
+                for rec in records:
+                    nid = str(rec.get("novelId") or rec.get("novel_id") or rec.get("bookId") or
+                              rec.get("subjectId") or rec.get("book_id") or "")
+                    name = str(rec.get("novelName") or rec.get("novel_name") or rec.get("bookName") or
+                               rec.get("book_name") or rec.get("subjectName") or
+                               rec.get("name") or rec.get("title") or "")
+                    if nid:
+                        result[link_id] = {"novel_id": nid, "novel_name": name}
+                        break
+                if link_id in result:
                     break
-        except Exception:
-            continue
+            except Exception:
+                continue
     return result
 
 
@@ -630,10 +636,14 @@ def sync_ads(user_id: int) -> Tuple[int, str]:
             novel_count = 0
             for nr in novel_rows:
                 nid = nr["link_id"]
-                real_nid = database.get_novel_id_by_link(nid)
+                novel_info = database.get_novel_by_link(nid)
+                if novel_info:
+                    real_nid, real_name = novel_info[0], novel_info[1]
+                else:
+                    real_nid, real_name = nid, ""
                 database.upsert_novel_daily_stats(
-                    date=nr["date"], novel_id=real_nid or nid,
-                    novel_name="",
+                    date=nr["date"], novel_id=real_nid,
+                    novel_name=real_name,
                     spend=nr["spend"], revenue=nr["revenue"],
                     impressions=nr["impressions"], clicks=nr["clicks"],
                     purchases=nr["purchases"],

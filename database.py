@@ -8,7 +8,7 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 # ====== 加密工具 ======
 
@@ -1894,6 +1894,15 @@ def get_novel_id_by_link(link_id: str) -> Optional[str]:
             "SELECT novel_id FROM promotion_link_map WHERE link_id = ?", (link_id,)
         ).fetchone()
         return row[0] if row else None
+
+
+def get_novel_by_link(link_id: str) -> Optional[Tuple[str, str]]:
+    """根据 linkId 查 (novel_id, novel_name)"""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT novel_id, novel_name FROM promotion_link_map WHERE link_id = ?", (link_id,)
+        ).fetchone()
+        return (row[0], row[1]) if row else None
 
 
 def upsert_novel_daily_stats(date: str, novel_id: str, novel_name: str,
