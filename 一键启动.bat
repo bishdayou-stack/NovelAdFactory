@@ -71,6 +71,6 @@ echo  地址: http://127.0.0.1:8000/static/index.html
 echo  按 Ctrl+C 停止服务
 echo ==========================================
 start "" http://127.0.0.1:8000/static/index.html
-python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 pause
