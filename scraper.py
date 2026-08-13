@@ -101,7 +101,6 @@ _ORDER_API_PATH = "/jeecgboot/wallet/financeOrder/list"
 _ORDER_API_PARAMS = "column=createTime&order=desc"
 _NOVEL_BOOK_PATH = "/jeecgboot/novel/novel/list"
 _NOVEL_BOOK_PATH_ALT = "/jeecgboot/novel/bookList"
-_PROMOTION_LINK_PATH = "/jeecgboot/ad/campaignLink/list"
 
 # ====== 多用户 session 缓存 ======
 _user_sessions: Dict[int, "ScraperSession"] = {}
@@ -503,78 +502,6 @@ def _aggregate_ad_rows(raw_rows: List[Dict[str, str]]) -> List[Dict[str, Any]]:
     return list(groups.values())
 
 
-def _aggregate_novel_from_ads(raw_rows: List[Dict[str, str]]) -> List[Dict[str, Any]]:
-    """按 (日期, linkId) 聚合广告数据，用于书籍维度统计"""
-    groups: Dict[Tuple[str, str], Dict] = {}
-    for row in raw_rows:
-        date = str(row.get("statDate") or row.get("日期") or row.get("date") or row.get("时间") or "")
-        link_id = str(row.get("linkId") or "")
-        if not date or not link_id:
-            continue
-        try:
-            spend = float(row.get("spend") or row.get("广告消耗") or row.get("消耗") or 0)
-        except (ValueError, TypeError):
-            spend = 0.0
-        try:
-            revenue = float(row.get("purchaseValues") or row.get("revenue") or row.get("收入金额") or row.get("收入") or 0)
-        except (ValueError, TypeError):
-            revenue = 0.0
-        try:
-            impressions = int(float(row.get("impressions") or row.get("展示量") or row.get("曝光") or 0))
-        except (ValueError, TypeError):
-            impressions = 0
-        try:
-            clicks = int(float(row.get("clicks") or row.get("点击量") or row.get("点击") or 0))
-        except (ValueError, TypeError):
-            clicks = 0
-        try:
-            purchases = int(float(row.get("purchase") or row.get("purchases") or row.get("转化数") or 0))
-        except (ValueError, TypeError):
-            purchases = 0
-        key = (date, link_id)
-        if key not in groups:
-            groups[key] = {"date": date, "link_id": link_id, "spend": 0.0, "revenue": 0.0,
-                           "impressions": 0, "clicks": 0, "purchases": 0}
-        g = groups[key]
-        g["spend"] += spend
-        g["revenue"] += revenue
-        g["impressions"] += impressions
-        g["clicks"] += clicks
-        g["purchases"] += purchases
-    return list(groups.values())
-
-
-def resolve_promotion_links(session: "ScraperSession", link_ids: set) -> Dict[str, Dict[str, str]]:
-    """通过 pingykj API 解析推广链接 → novel_id + novel_name"""
-    result = {}
-    if not link_ids:
-        return result
-    for link_id in link_ids:
-        if not link_id:
-            continue
-        try:
-            records, err = session._fetch_with_token(
-                _PROMOTION_LINK_PATH,
-                f"id={link_id}",
-                page_size=5,
-                silent=True
-            )
-            if err or not records:
-                continue
-            for rec in records:
-                nid = str(rec.get("novelId") or rec.get("novel_id") or rec.get("bookId") or
-                          rec.get("subjectId") or rec.get("book_id") or "")
-                name = str(rec.get("novelName") or rec.get("novel_name") or rec.get("bookName") or
-                           rec.get("book_name") or rec.get("subjectName") or
-                           rec.get("name") or rec.get("title") or "")
-                if nid:
-                    result[link_id] = {"novel_id": nid, "novel_name": name}
-                    break
-        except Exception:
-            continue
-    return result
-
-
 def sync_ads(user_id: int) -> Tuple[int, str]:
     session, err = _get_or_create_session(user_id)
     if not session:
@@ -618,41 +545,6 @@ def sync_ads(user_id: int) -> Tuple[int, str]:
 
         aggregated = _aggregate_ad_rows(unique)
         count = database.upsert_ad_stats(aggregated, user_id)
-
-        # 按推广链接聚合小说维度统计（不影响主流程）
-        try:
-            novel_rows = _aggregate_novel_from_ads(unique)
-            # 收集未知 linkId，尝试解析
-            all_link_ids = set(nr["link_id"] for nr in novel_rows if nr["link_id"])
-            unknown_links = {lid for lid in all_link_ids if not database.get_novel_id_by_link(lid)}
-            if unknown_links:
-                resolved = resolve_promotion_links(session, unknown_links)
-                for lid, info in resolved.items():
-                    database.upsert_promotion_link_map(lid, info["novel_id"], info["novel_name"], user_id)
-                    if resolved:
-                        print(f"[Scraper] 解析到 {len(resolved)} 个推广链接→书籍映射")
-            novel_count = 0
-            for nr in novel_rows:
-                nid = nr["link_id"]
-                novel_info = database.get_novel_by_link(nid)
-                if novel_info:
-                    real_nid, real_name = novel_info[0], novel_info[1]
-                else:
-                    real_nid, real_name = nid, ""
-                database.upsert_novel_daily_stats(
-                    date=nr["date"], novel_id=real_nid,
-                    novel_name=real_name,
-                    spend=nr["spend"], revenue=nr["revenue"],
-                    impressions=nr["impressions"], clicks=nr["clicks"],
-                    purchases=nr["purchases"],
-                    order_count=0, order_amount=0,
-                    user_id=user_id
-                )
-                novel_count += 1
-            if novel_count:
-                print(f"[Scraper] 书籍维度聚合: {novel_count} 条")
-        except Exception as _e:
-            print(f"[Scraper] 书籍维度聚合失败(不影响主流程): {_e}")
 
         if count > 0:
             database.set_last_sync_date("ads", today, user_id)

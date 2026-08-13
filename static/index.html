@@ -728,29 +728,6 @@
           </div>
           <div id="novel7dPager" class="flex justify-center items-center gap-1 mt-3 mb-2"></div>
         </div>
-
-        <!-- 书籍消耗排行（按推广链接关联） -->
-        <div class="card p-4">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-xs font-semibold text-slate-700">书籍消耗排行</h3>
-            <span class="text-[10px] text-slate-400">通过推广链接ID关联广告消耗与订单</span>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-xs">
-              <thead><tr class="border-b-2 border-slate-100 text-left">
-                <th class="pb-2 font-medium text-slate-500">#</th>
-                <th class="pb-2 font-medium text-slate-500">书名</th>
-                <th class="pb-2 font-medium text-right text-indigo-600 cursor-pointer select-none" id="bookSortSpend">总消耗 ▾</th>
-                <th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none" id="bookSortOrders">订单数</th>
-                <th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none" id="bookSortRevenue">转化金额</th>
-                <th class="pb-2 font-medium text-right text-slate-500">ROI</th>
-                <th class="pb-2 font-medium text-right text-slate-500">转化成本</th>
-              </tr></thead>
-              <tbody id="dashBookBody"></tbody>
-            </table>
-          </div>
-          <div id="bookStatsPager" class="flex justify-center items-center gap-1 mt-3"></div>
-        </div>
       </div>
     </div>
 
@@ -4007,40 +3984,6 @@
       }
     });
 
-    // ---- 书籍消耗排行 ----
-    var bookStatsPage = 1, bookSortBy = 'spend';
-    function loadBookStats() {
-      var dp = getDashboardParams();  // 返回 ?start=xxx&end=yyy
-      dp = dp || '';
-      var req = '/api/dashboard/link-stats?page=' + bookStatsPage + '&page_size=20&sort_by=' + bookSortBy + dp.replace('?', '&');
-      fetch(req).then(function(r) { return r.json(); }).then(function(res) {
-        var data = res.data || [];
-        var tbody = document.getElementById('dashBookBody');
-        tbody.innerHTML = data.map(function(r, i) {
-          var name = r.novel_name || r.novel_id || '未知';
-          var spend = (r.spend || 0);
-          var revenue = (r.revenue || 0);
-          var orderCount = (r.order_count || 0);
-          var roi = spend > 0 ? (revenue / spend).toFixed(2) : '0.00';
-          var cpa = orderCount > 0 ? (spend / orderCount).toFixed(2) : '-';
-          return '<tr class="border-b border-slate-50 hover:bg-slate-50/50">' +
-            '<td class="py-1.5 text-slate-400">' + ((bookStatsPage-1)*20 + i + 1) + '</td>' +
-            '<td class="py-1.5 font-medium text-slate-700 max-w-[200px] truncate" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</td>' +
-            '<td class="py-1.5 text-right text-slate-600 font-medium">$' + spend.toLocaleString(undefined, {minimumFractionDigits:2}) + '</td>' +
-            '<td class="py-1.5 text-right text-slate-600">' + orderCount.toLocaleString() + ' 单</td>' +
-            '<td class="py-1.5 text-right text-emerald-600 font-semibold">$' + (r.order_amount || 0).toLocaleString() + '</td>' +
-            '<td class="py-1.5 text-right ' + roiColorClass(roi, false) + '">' + roi + 'x</td>' +
-            '<td class="py-1.5 text-right text-slate-600">$' + cpa + '</td>' +
-            '</tr>';
-        }).join('') || '<tr><td colspan="7" class="text-center py-4 text-slate-300">暂无书籍消耗数据（需要同步广告数据后更新）</td></tr>';
-        renderPager('bookStatsPager', res, function(p) { bookStatsPage = p; loadBookStats(); });
-      });
-    }
-    // 书籍消耗排序
-    document.getElementById('bookSortSpend').addEventListener('click', function() { bookSortBy = 'spend'; bookStatsPage = 1; loadBookStats(); });
-    document.getElementById('bookSortOrders').addEventListener('click', function() { bookSortBy = 'order_count'; bookStatsPage = 1; loadBookStats(); });
-    document.getElementById('bookSortRevenue').addEventListener('click', function() { bookSortBy = 'revenue'; bookStatsPage = 1; loadBookStats(); });
-
     function loadUserRanking() {
       var card = document.getElementById('dashUserRankCard');
       var dailyCard = document.getElementById('dashDailyCard');
@@ -4141,7 +4084,6 @@
       }).catch(function() {});
 
       loadNovelStats();
-      loadBookStats();
       loadUserRanking();
 
       loadDailyStats(dashPages.stats);
