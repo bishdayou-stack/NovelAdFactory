@@ -4657,13 +4657,14 @@
       }
       var isAdmin = currentUser && currentUser.role === 'admin';
 
-      function makeTreeItem(key, label, icon, depth, children) {
+      function makeTreeItem(key, label, icon, depth, children, action) {
         var collapsed = _treeCollapsed[key] === true;
         var arrow = children ? (collapsed ? '▶' : '▼') : '';
         var isSelected = _metaSelectedAccount === key;
         return '<div class="meta-tree-item' + (isSelected ? ' active' : '') + '" style="padding-left:' + (8 + depth*12) + 'px" onclick="event.stopPropagation();selectMetaAccount(\'' + key + '\')">' +
           (children ? '<span class="inline-block w-4 text-center cursor-pointer text-slate-500 mr-0.5" onclick="event.stopPropagation();_treeCollapsed[\'' + key + '\']=!_treeCollapsed[\'' + key + '\'];renderMetaAccountTree();">' + arrow + '</span>' : '<span class="inline-block w-4 mr-0.5"></span>') +
           '<span class="flex-1 truncate">' + icon + ' ' + escapeHtml(label) + '</span>' +
+          (action || '') +
           '</div>' +
           (children && !collapsed ? children : '');
       }
@@ -4672,10 +4673,19 @@
         var html = '';
         html += makeTreeItem('__all__', '全部账户', '📊', 0, null);
 
+        // 分离 active 与已停用账户
+        var activeAccounts = accounts.filter(function(a) { return a.status === 'active'; });
+        var pausedAccounts = accounts.filter(function(a) { return a.status !== 'active'; });
+
+        // 批量停用按钮
+        function batchPauseBtn(targetType, targetId) {
+          return '<button class="text-[10px] px-1 rounded hover:bg-slate-700 cursor-pointer border-0 bg-transparent text-amber-400" onclick="event.stopPropagation();batchAccountStatus(\'' + targetType + '\',\'' + targetId + '\',\'paused\')" title="停用此节点下所有账户">⏸</button>';
+        }
+
         if (isAdmin) {
-          // 管理员：按用户 → BM → 账户
+          // 管理员：按用户 → BM → 账户（只渲染 active）
           var userGroups = {};
-          accounts.forEach(function(a) {
+          activeAccounts.forEach(function(a) {
             var uname = a.user_name || ('用户' + (a.user_id || ''));
             if (!userGroups[uname]) userGroups[uname] = { id: a.user_id, accounts: [] };
             userGroups[uname].accounts.push(a);
@@ -4705,14 +4715,14 @@
                   '<span class="flex-1 truncate cursor-pointer" onclick="event.stopPropagation();selectMetaAccount(\'' + actKey + '\')">' + escapeHtml(a.act_name || a.act_id) + '</span>' +
                   '<span class="text-[10px] text-slate-500 hover:text-indigo-400 cursor-pointer ml-1" onclick="event.stopPropagation();syncOneAccount(\'' + actKey + '\',\'' + escapeHtml(a.act_name || actKey).replace(/'/g,'') + '\')" title="单独更新此账户">🔄</span>' + '</div>';
               }).join('');
-              bmChildren += makeTreeItem(bmKey, bm + bmOwner, '📁', 2, acctChildren);
+              bmChildren += makeTreeItem(bmKey, bm + bmOwner, '📁', 2, acctChildren, batchPauseBtn('bm', bm));
             });
-            html += makeTreeItem(userKey, uname + ' (' + ug.accounts.length + '个账户)', '👤', 1, bmChildren);
+            html += makeTreeItem(userKey, uname + ' (' + ug.accounts.length + '个账户)', '👤', 1, bmChildren, batchPauseBtn('user', String(ug.id)));
           });
         } else {
-          // 普通用户：按 BM → 账户
+          // 普通用户：按 BM → 账户（只渲染 active）
           var bmGroups = {};
-          accounts.forEach(function(a) {
+          activeAccounts.forEach(function(a) {
             var bm = a.bm_name || '未归类';
             if (!bmGroups[bm]) bmGroups[bm] = [];
             bmGroups[bm].push(a);
@@ -4730,6 +4740,19 @@
             }).join('');
             html += makeTreeItem(bmKey, bm, '📁', 1, acctChildren);
           });
+        }
+
+        // 已停用账户折叠区
+        if (pausedAccounts.length) {
+          var pausedChildren = pausedAccounts.map(function(a) {
+            var actKey = a.act_id;
+            return '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === actKey ? ' active' : '') + '" style="padding-left:24px">' +
+              '<span class="inline-block w-2 h-2 rounded-full mr-1.5 bg-red-400"></span>' +
+              '<span class="flex-1 truncate cursor-pointer" onclick="event.stopPropagation();selectMetaAccount(\'' + actKey + '\')">' + escapeHtml(a.act_name || a.act_id) + '</span>' +
+              '<button class="text-[10px] px-1 rounded hover:bg-slate-700 cursor-pointer border-0 bg-transparent text-emerald-400" onclick="event.stopPropagation();toggleMetaAccountStatus(\'' + actKey + '\',\'active\')" title="启用此账户">▶</button>' +
+              '</div>';
+          }).join('');
+          html += makeTreeItem('__paused__', '已停用账户 (' + pausedAccounts.length + ')', '🚫', 0, pausedChildren);
         }
         return html;
       }
@@ -4878,6 +4901,22 @@
         body: JSON.stringify({act_id: actId, status: newStatus})
       });
       loadMetaAccountTree();
+    }
+
+    async function batchAccountStatus(targetType, targetId, status) {
+      var verb = status === 'paused' ? '停用' : '启用';
+      if (!confirm('确认' + verb + '该节点下所有账户？')) return;
+      var resp = await fetch('/api/meta/accounts/batch-status', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({target_type: targetType, target_id: targetId, status: status})
+      });
+      var result = await resp.json();
+      if (result.success) {
+        alert(result.message);
+        loadMetaAccountTree();
+      } else {
+        alert('操作失败: ' + (result.message || ''));
+      }
     }
 
     document.getElementById('btnMetaDiscover').addEventListener('click', openDiscoverPanel);

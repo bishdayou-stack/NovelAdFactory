@@ -4668,6 +4668,27 @@ def _delete_meta_account(act_id: str, user: dict = Depends(get_current_user)):
     return {"success": True}
 
 
+class BatchAccountStatusBody(BaseModel):
+    target_type: str = ""   # 'user' 或 'bm'
+    target_id: str = ""     # user_id 或 bm_id
+    status: str = "paused"  # 'active' 或 'paused'
+
+
+@app.post("/api/meta/accounts/batch-status")
+def _batch_account_status(body: BatchAccountStatusBody,
+                          user: dict = Depends(get_current_admin)):
+    """批量停用/启用某用户或某 BM 下的所有账户（管理员专用）"""
+    if body.status not in ("active", "paused"):
+        return {"success": False, "message": "状态无效"}
+    if body.target_type not in ("user", "bm"):
+        return {"success": False, "message": "目标类型无效"}
+    count = database.update_meta_accounts_status_batch(
+        body.target_type, body.target_id, body.status
+    )
+    verb = "停用" if body.status == "paused" else "启用"
+    return {"success": True, "count": count, "message": f"已{verb} {count} 个账户"}
+
+
 class AssignAccountsBody(BaseModel):
     act_ids: list
     user_id: int
