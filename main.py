@@ -2826,6 +2826,13 @@ def api_history(
     uid = _opt_user_id(user)
     items = []
     running_batch_ids = set()
+    # 批量加载用户名映射，避免逐批次查询数据库（273 次查询约 1.5s）
+    user_name_map = {}
+    try:
+        for u in database.list_users():
+            user_name_map[u["id"]] = u.get("display_name") or u.get("username", "")
+    except Exception:
+        pass
     # 1. 收集运行中任务
     running_progress = _get_all_running_progress()
     for bid, prog in running_progress.items():
@@ -2868,12 +2875,9 @@ def api_history(
             vid_list = vids if isinstance(vids, list) else []
             img_count = len(img_list) or (imgs if not isinstance(imgs, list) else 0)
             vid_count = len(vid_list) or (vids if not isinstance(vids, list) else 0)
-            # 查找用户名
+            # 查找用户名（用预加载映射，避免逐个查询）
             batch_user_id = meta.get("user_id", 1)
-            batch_user_name = ""
-            if batch_user_id:
-                u = database.get_user(batch_user_id)
-                batch_user_name = u.get("display_name") or u.get("username", "") if u else ""
+            batch_user_name = user_name_map.get(batch_user_id, "")
 
             items.append({
                 "batch_id": meta.get("batch_id", d.name),
