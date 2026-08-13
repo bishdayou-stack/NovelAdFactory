@@ -97,7 +97,10 @@ def _curl_get_text(url: str, timeout_sec: int = 60):
 def _get_proxy_url_from_config():
     try:
         config = json.loads(Path("config.json").read_text(encoding="utf-8"))
-        return config.get("meta", {}).get("proxy", "")
+        meta = config.get("meta", {})
+        if meta.get("proxy_enabled") is False:
+            return ""
+        return meta.get("proxy", "")
     except Exception:
         return ""
 
@@ -4668,27 +4671,6 @@ def _delete_meta_account(act_id: str, user: dict = Depends(get_current_user)):
     return {"success": True}
 
 
-class BatchAccountStatusBody(BaseModel):
-    target_type: str = ""   # 'user' 或 'bm'
-    target_id: str = ""     # user_id 或 bm_id
-    status: str = "paused"  # 'active' 或 'paused'
-
-
-@app.post("/api/meta/accounts/batch-status")
-def _batch_account_status(body: BatchAccountStatusBody,
-                          user: dict = Depends(get_current_admin)):
-    """批量停用/启用某用户或某 BM 下的所有账户（管理员专用）"""
-    if body.status not in ("active", "paused"):
-        return {"success": False, "message": "状态无效"}
-    if body.target_type not in ("user", "bm"):
-        return {"success": False, "message": "目标类型无效"}
-    count = database.update_meta_accounts_status_batch(
-        body.target_type, body.target_id, body.status
-    )
-    verb = "停用" if body.status == "paused" else "启用"
-    return {"success": True, "count": count, "message": f"已{verb} {count} 个账户"}
-
-
 class AssignAccountsBody(BaseModel):
     act_ids: list
     user_id: int
@@ -5611,6 +5593,7 @@ class MetaConfigBody(BaseModel):
     sync_interval_seconds: int = Field(default=300, ge=30, le=86400)
     rate_limit_per_second: int = Field(default=4, ge=1, le=20)
     proxy: str = ""
+    proxy_enabled: bool = None
 
 
 @app.get("/api/meta/config")
@@ -5625,6 +5608,7 @@ def _get_meta_config(user: dict = Depends(get_current_user)):
         "sync_interval_seconds": meta.get("sync_interval_seconds", 300),
         "rate_limit_per_second": meta.get("rate_limit_per_second", 4),
         "proxy": meta.get("proxy", ""),
+        "proxy_enabled": meta.get("proxy_enabled", True),
     }
 
 
@@ -5642,6 +5626,8 @@ def _save_meta_config(body: MetaConfigBody, user: dict = Depends(get_current_adm
     meta["sync_interval_seconds"] = body.sync_interval_seconds
     meta["rate_limit_per_second"] = body.rate_limit_per_second
     meta["proxy"] = body.proxy
+    if body.proxy_enabled is not None:
+        meta["proxy_enabled"] = body.proxy_enabled
     config["meta"] = meta
     _save_config(config)
     return {"status": "ok", "message": "Meta 配置已保存"}

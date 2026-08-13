@@ -1611,25 +1611,6 @@ def update_meta_account_status(act_id: str, status: str, user_id: int = None) ->
             (status, act_id, uid)
         )
 
-
-def update_meta_accounts_status_batch(target_type: str, target_id: str, status: str) -> int:
-    """批量更新账户状态。target_type: 'user'(按用户) / 'bm'(按BM)。返回更新数量"""
-    with get_conn() as conn:
-        if target_type == "user":
-            cur = conn.execute(
-                "UPDATE meta_accounts SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
-                (status, target_id)
-            )
-        elif target_type == "bm":
-            # 同时匹配 bm_id 和 pingykj_account，覆盖 bm_name 的两种来源
-            cur = conn.execute(
-                "UPDATE meta_accounts SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE bm_id = ? OR pingykj_account = ?",
-                (status, target_id, target_id)
-            )
-        else:
-            return 0
-        return cur.rowcount
-
 def update_meta_account_meta_status(act_id: str, meta_status: str, user_id: int = None) -> None:
     """更新账户在 Meta 端的真实状态（活跃/已停用/待关闭/已关闭）"""
     uid = user_id or 1

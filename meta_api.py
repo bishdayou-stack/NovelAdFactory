@@ -19,12 +19,16 @@ _RATE_LIMITS: Dict[str, Tuple[float, int]] = {}  # act_id -> (last_reset_time, r
 
 def _get_proxy() -> Optional[str]:
     """获取 Meta API 代理 URL。
-    优先读 config.json 的 meta.proxy，否则读取环境变量。"""
+    优先读 config.json 的 meta.proxy，否则读取环境变量。
+    meta.proxy_enabled 为 false 时明确禁用代理（直连）。"""
     try:
         config_path = Path(__file__).parent / "config.json"
         if config_path.exists():
             config = json.loads(config_path.read_text(encoding="utf-8"))
-            proxy_url = config.get("meta", {}).get("proxy", "")
+            meta = config.get("meta", {})
+            if meta.get("proxy_enabled") is False:
+                return None  # 明确禁用代理
+            proxy_url = meta.get("proxy", "")
             if proxy_url:
                 return proxy_url
     except Exception:
