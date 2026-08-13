@@ -744,6 +744,7 @@
                 <th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none" id="bookSortOrders">订单数</th>
                 <th class="pb-2 font-medium text-right text-slate-500 cursor-pointer select-none" id="bookSortRevenue">转化金额</th>
                 <th class="pb-2 font-medium text-right text-slate-500">ROI</th>
+                <th class="pb-2 font-medium text-right text-slate-500">转化成本</th>
               </tr></thead>
               <tbody id="dashBookBody"></tbody>
             </table>
@@ -4019,16 +4020,19 @@
           var name = r.novel_name || r.novel_id || '未知';
           var spend = (r.spend || 0);
           var revenue = (r.revenue || 0);
+          var orderCount = (r.order_count || 0);
           var roi = spend > 0 ? (revenue / spend).toFixed(2) : '0.00';
+          var cpa = orderCount > 0 ? (spend / orderCount).toFixed(2) : '-';
           return '<tr class="border-b border-slate-50 hover:bg-slate-50/50">' +
             '<td class="py-1.5 text-slate-400">' + ((bookStatsPage-1)*20 + i + 1) + '</td>' +
             '<td class="py-1.5 font-medium text-slate-700 max-w-[200px] truncate" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</td>' +
             '<td class="py-1.5 text-right text-slate-600 font-medium">$' + spend.toLocaleString(undefined, {minimumFractionDigits:2}) + '</td>' +
-            '<td class="py-1.5 text-right text-slate-600">' + (r.order_count || 0).toLocaleString() + ' 单</td>' +
+            '<td class="py-1.5 text-right text-slate-600">' + orderCount.toLocaleString() + ' 单</td>' +
             '<td class="py-1.5 text-right text-emerald-600 font-semibold">$' + (r.order_amount || 0).toLocaleString() + '</td>' +
-            '<td class="py-1.5 text-right ' + (roi >= 1 ? 'text-emerald-600' : 'text-slate-400') + '">' + roi + 'x</td>' +
+            '<td class="py-1.5 text-right ' + roiColorClass(roi, false) + '">' + roi + 'x</td>' +
+            '<td class="py-1.5 text-right text-slate-600">$' + cpa + '</td>' +
             '</tr>';
-        }).join('') || '<tr><td colspan="6" class="text-center py-4 text-slate-300">暂无书籍消耗数据（需要同步广告数据后更新）</td></tr>';
+        }).join('') || '<tr><td colspan="7" class="text-center py-4 text-slate-300">暂无书籍消耗数据（需要同步广告数据后更新）</td></tr>';
         renderPager('bookStatsPager', res, function(p) { bookStatsPage = p; loadBookStats(); });
       });
     }
@@ -4060,7 +4064,7 @@
             '<td class="py-1.5 text-right text-slate-700">¥' + (r.total_spend || 0).toLocaleString() + '</td>' +
             '<td class="py-1.5 text-right font-medium ' + (r.total_revenue > r.total_spend ? 'text-emerald-600' : 'text-red-500') + '">¥' + (r.total_revenue || 0).toLocaleString() + '</td>' +
             '<td class="py-1.5 text-right text-slate-600">' + (r.order_count || 0) + '</td>' +
-            '<td class="py-1.5 text-right font-medium ' + (r.roi >= 2 ? 'text-emerald-600' : r.roi >= 1 ? 'text-amber-600' : 'text-red-500') + '">' + (r.roi || 0).toFixed(2) + '</td>' +
+            '<td class="py-1.5 text-right font-medium ' + roiColorClass(r.roi, false) + '">' + (r.roi || 0).toFixed(2) + '</td>' +
             '<td class="py-1.5 text-right text-amber-600 font-medium">¥' + ((r.cpa || 0)).toLocaleString(undefined, {minimumFractionDigits: 2}) + '</td>' +
             '</tr>';
         }).join('');
@@ -4103,7 +4107,7 @@
             '<td class="py-1.5 font-medium text-slate-700">' + escapeHtml(r.account_display || r.ad_account || '') + '</td>' +
             '<td class="py-1.5 text-right text-slate-700">¥' + (r.total_spend || 0).toLocaleString() + '</td>' +
             '<td class="py-1.5 text-right font-medium ' + (r.total_revenue > r.total_spend ? 'text-emerald-600' : 'text-red-500') + '">¥' + (r.total_revenue || 0).toLocaleString() + '</td>' +
-            '<td class="py-1.5 text-right font-medium ' + (r.roi >= 2 ? 'text-emerald-600' : r.roi >= 1 ? 'text-amber-600' : 'text-red-500') + '">' + (r.roi || 0).toFixed(2) + '</td>' +
+            '<td class="py-1.5 text-right font-medium ' + roiColorClass(r.roi, false) + '">' + (r.roi || 0).toFixed(2) + '</td>' +
             '<td class="py-1.5 text-slate-500 text-xs pl-4">' + escapeHtml(r.user_name || '-') + '</td></tr>';
         }).join('');
         var sumRoi = sumSpend > 0 ? (sumRevenue / sumSpend).toFixed(2) : '-';
@@ -4170,7 +4174,7 @@
           var html = data.map(function(r, i) {
             sumSpend += (r.spend||0);
             sumRevenue += (r.revenue||0);
-            return '<tr><td class="py-1 text-slate-400">' + ((page-1)*20 + i + 1) + '</td><td class="py-1 font-medium text-slate-700">' + escapeHtml(r.account_display || r.ad_account || '') + '</td><td class="py-1 text-xs text-slate-500">' + escapeHtml(r.user_name || '-') + '</td><td class="py-1 text-right text-slate-600">¥' + (r.spend||0).toLocaleString() + '</td><td class="py-1 text-right text-slate-600">¥' + (r.revenue||0).toLocaleString() + '</td><td class="py-1 text-right font-medium ' + (r.roi>=2?'text-emerald-600':'text-red-500') + '">' + (r.roi||0).toFixed(2) + '</td></tr>';
+            return '<tr><td class="py-1 text-slate-400">' + ((page-1)*20 + i + 1) + '</td><td class="py-1 font-medium text-slate-700">' + escapeHtml(r.account_display || r.ad_account || '') + '</td><td class="py-1 text-xs text-slate-500">' + escapeHtml(r.user_name || '-') + '</td><td class="py-1 text-right text-slate-600">¥' + (r.spend||0).toLocaleString() + '</td><td class="py-1 text-right text-slate-600">¥' + (r.revenue||0).toLocaleString() + '</td><td class="py-1 text-right font-medium ' + roiColorClass(r.roi, false) + '">' + (r.roi||0).toFixed(2) + '</td></tr>';
           }).join('');
           var sumRoi = sumSpend > 0 ? (sumRevenue / sumSpend).toFixed(2) : '-';
           html += '<tr class="border-t-2 border-slate-300 bg-slate-100 font-semibold text-xs">' +
@@ -5445,7 +5449,7 @@
           '<td class="text-right">' + (u.add_to_cart || 0) + '</td>' +
           '<td class="text-right">' + (u.subscribe_count || 0) + '</td>' +
           '<td class="text-right">$' + ((u.revenue || 0).toLocaleString()) + '</td>' +
-          '<td class="text-right ' + ((u.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((u.roi || 0).toFixed(2)) + 'x</td>' +
+          '<td class="text-right ' + roiColorClass(u.roi, true) + '">' + ((u.roi || 0).toFixed(2)) + 'x</td>' +
           '<td class="text-right">$' + ((u.cpa || 0).toFixed(2)) + '</td>' +
           '</tr>';
       });
@@ -5465,7 +5469,7 @@
           '<td class="text-right">' + (bm.purchases || 0) + '</td>' +
           '<td class="text-right">' + (bm.add_to_cart || 0) + '</td>' +
           '<td class="text-right">' + (bm.subscribe_count || 0) + '</td>' +
-          '<td class="text-right ' + ((bm.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((bm.roi || 0).toFixed(2)) + 'x</td>' +
+          '<td class="text-right ' + roiColorClass(bm.roi, true) + '">' + ((bm.roi || 0).toFixed(2)) + 'x</td>' +
           '<td class="text-right">$' + ((bm.cpa || 0).toFixed(2)) + '</td>' +
           '<td class="text-right">$' + ((bm.cpm || 0).toFixed(2)) + '</td>' +
           '<td class="text-right">' + ((bm.ctr || 0).toFixed(2)) + '%</td>' +
@@ -5495,7 +5499,7 @@
           '<td class="text-right">' + (a.add_to_cart || 0) + '</td>' +
           '<td class="text-right">' + (a.subscribe_count || 0) + '</td>' +
           '<td class="text-right">$' + ((a.revenue || 0).toLocaleString()) + '</td>' +
-          '<td class="text-right ' + ((a.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((a.roi || 0).toFixed(2)) + 'x</td>' +
+          '<td class="text-right ' + roiColorClass(a.roi, true) + '">' + ((a.roi || 0).toFixed(2)) + 'x</td>' +
           '<td class="text-right">$' + ((a.cpa || 0).toFixed(2)) + '</td>' +
           '<td class="text-right">$' + ((a.cpm || 0).toFixed(2)) + '</td>' +
           '<td class="text-right">' + ((a.ctr || 0).toFixed(2)) + '%</td>' +
@@ -5524,7 +5528,7 @@
           '<td class="text-right">' + (d.add_to_cart || 0) + '</td>' +
           '<td class="text-right">' + (d.subscribe_count || 0) + '</td>' +
           '<td class="text-right">$' + ((d.purchase_value || 0).toLocaleString()) + '</td>' +
-          '<td class="text-right ' + ((d.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((d.roi || 0).toFixed(2)) + 'x</td>' +
+          '<td class="text-right ' + roiColorClass(d.roi, true) + '">' + ((d.roi || 0).toFixed(2)) + 'x</td>' +
           '<td class="text-right">$' + ((d.cpa || 0).toFixed(2)) + '</td>' +
           '<td class="text-right">$' + ((d.cpm || 0).toFixed(2)) + '</td>' +
           '<td class="text-right">' + ((d.ctr || 0).toFixed(2)) + '%</td>' +
@@ -5660,12 +5664,20 @@
       return html;
     }
 
+    // ---- ROI 颜色（>=0.9 绿，>=0.7 黄，<0.7 红）----
+    function roiColorClass(roi, dark) {
+      var v = parseFloat(roi) || 0;
+      if (v >= 0.9) return dark ? 'text-emerald-400' : 'text-emerald-600';
+      if (v >= 0.7) return dark ? 'text-amber-400' : 'text-amber-600';
+      return dark ? 'text-red-400' : 'text-red-500';
+    }
+
     // ---- 广告系列 / 广告组 指标单元格（系列页复用）----
     function metaMetricCells(d) {
       return '<td class="text-right">$' + ((d.spend || 0).toLocaleString()) + '</td>' +
         '<td class="text-right">' + (d.purchases || 0) + '</td>' +
         '<td class="text-right">$' + ((d.purchase_value || 0).toLocaleString()) + '</td>' +
-        '<td class="text-right font-medium ' + ((d.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400') + '">' + ((d.roi || 0).toFixed(2)) + 'x</td>' +
+        '<td class="text-right font-medium ' + roiColorClass(d.roi, true) + '">' + ((d.roi || 0).toFixed(2)) + 'x</td>' +
         '<td class="text-right">$' + ((d.cpa || 0).toFixed(2)) + '</td>' +
         '<td class="text-right">$' + ((d.cpm || 0).toFixed(2)) + '</td>' +
         '<td class="text-right">' + ((d.ctr || 0).toFixed(2)) + '%</td>' +
