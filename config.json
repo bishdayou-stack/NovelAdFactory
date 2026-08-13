@@ -10,6 +10,7 @@
     "api_version": "v25.0",
     "sync_interval_seconds": 1800,
     "rate_limit_per_second": 4,
-    "proxy": "http://127.0.0.1:10808"
+    "proxy": "http://127.0.0.1:10808",
+    "proxy_enabled": true
   }
 }

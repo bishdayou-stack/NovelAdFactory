@@ -5614,20 +5614,18 @@ def _get_meta_config(user: dict = Depends(get_current_user)):
 
 @app.post("/api/meta/config")
 def _save_meta_config(body: MetaConfigBody, user: dict = Depends(get_current_admin)):
-    config_path = Path("config.json")
     config = _load_config()
     meta = config.get("meta", {})
-    if body.app_secret:
-        meta["app_secret"] = body.app_secret
-    if body.default_access_token:
-        meta["default_access_token"] = body.default_access_token
-    meta["app_id"] = body.app_id
-    meta["api_version"] = body.api_version
-    meta["sync_interval_seconds"] = body.sync_interval_seconds
-    meta["rate_limit_per_second"] = body.rate_limit_per_second
-    meta["proxy"] = body.proxy
-    if body.proxy_enabled is not None:
-        meta["proxy_enabled"] = body.proxy_enabled
+    # 只更新前端显式传入的字段，避免用默认值覆盖未传入的配置
+    data = body.model_dump(exclude_unset=True)
+    if data.get("app_secret"):
+        meta["app_secret"] = data["app_secret"]
+    if data.get("default_access_token"):
+        meta["default_access_token"] = data["default_access_token"]
+    for k in ("app_id", "api_version", "sync_interval_seconds",
+              "rate_limit_per_second", "proxy", "proxy_enabled"):
+        if k in data:
+            meta[k] = data[k]
     config["meta"] = meta
     _save_config(config)
     return {"status": "ok", "message": "Meta 配置已保存"}
