@@ -4785,41 +4785,45 @@ def _trigger_meta_sync(user: dict = Depends(get_current_user),
         total_count = [0]  # 用列表避免闭包赋值问题
         completed = [0]
         from concurrent.futures import as_completed
-        futures = {}
-        with ThreadPoolExecutor(max_workers=5) as pool:
-            for acct in active:
-                f = pool.submit(scraper._sync_one_meta_account,
-                    acct["act_id"], acct["token"], acct.get("owner_user_id", uid))
-                futures[f] = acct
-            for f in as_completed(futures):
-                acct = futures[f]
-                act_id = acct["act_id"]
-                completed[0] += 1
-                try:
-                    a_id, count, err = f.result()
-                    total_count[0] += count
-                    with _meta_sync_lock:
-                        if uid in _meta_sync_progress:
-                            _meta_sync_progress[uid]["current"] = completed[0]
-                            _meta_sync_progress[uid]["current_account"] = acct.get("act_name", act_id)
-                            _meta_sync_progress[uid]["results"].append({
-                                "act_id": act_id, "act_name": acct["act_name"],
-                                "count": count, "error": err or "",
-                                "status": "done" if not err else "error"
-                            })
-                except Exception as e:
-                    with _meta_sync_lock:
-                        if uid in _meta_sync_progress:
-                            _meta_sync_progress[uid]["current"] = completed[0]
-                            _meta_sync_progress[uid]["results"].append({
-                                "act_id": act_id, "act_name": acct["act_name"],
-                                "count": 0, "error": str(e), "status": "error"
-                            })
-
-        with _meta_sync_lock:
-            if uid in _meta_sync_progress:
-                _meta_sync_progress[uid]["status"] = "done"
-                _meta_sync_progress[uid]["total_count"] = total_count[0]
+        try:
+            futures = {}
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                for acct in active:
+                    f = pool.submit(scraper._sync_one_meta_account,
+                        acct["act_id"], acct["token"], acct.get("owner_user_id", uid))
+                    futures[f] = acct
+                for f in as_completed(futures):
+                    acct = futures[f]
+                    act_id = acct["act_id"]
+                    completed[0] += 1
+                    try:
+                        a_id, count, err = f.result()
+                        total_count[0] += count
+                        with _meta_sync_lock:
+                            if uid in _meta_sync_progress:
+                                _meta_sync_progress[uid]["current"] = completed[0]
+                                _meta_sync_progress[uid]["current_account"] = acct.get("act_name", act_id)
+                                _meta_sync_progress[uid]["results"].append({
+                                    "act_id": act_id, "act_name": acct["act_name"],
+                                    "count": count, "error": err or "",
+                                    "status": "done" if not err else "error"
+                                })
+                    except Exception as e:
+                        with _meta_sync_lock:
+                            if uid in _meta_sync_progress:
+                                _meta_sync_progress[uid]["current"] = completed[0]
+                                _meta_sync_progress[uid]["results"].append({
+                                    "act_id": act_id, "act_name": acct["act_name"],
+                                    "count": 0, "error": str(e), "status": "error"
+                                })
+        except Exception as e:
+            # 确保任何异常都不会让进度卡在 running
+            print(f"[MetaSync] 同步任务异常: {e}")
+        finally:
+            with _meta_sync_lock:
+                if uid in _meta_sync_progress:
+                    _meta_sync_progress[uid]["status"] = "done"
+                    _meta_sync_progress[uid]["total_count"] = total_count[0]
 
     _EXECUTOR.submit(_bg_sync)
     return {"success": True, "total": len(active), "message": f"开始逐个同步 {len(active)} 个账户"}
