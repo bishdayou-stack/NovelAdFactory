@@ -16,16 +16,17 @@ BASE_URL = "https://hw.manage.pingykj.com"
 # ====== 代理支持 ======
 
 def _get_proxy_url() -> Optional[str]:
-    """从 config.json 读取代理地址，与 meta_api.py 保持一致"""
+    """书城（pingykj）代理地址。
+    书城是国内服务，默认直连（不走 Meta 的 meta.proxy）。
+    特殊网络环境如需代理，单独配置 meta.pingykj_proxy。"""
     try:
         config = json.loads((BASE_PATH / "config.json").read_text(encoding="utf-8"))
-        proxy_url = config.get("meta", {}).get("proxy", "")
+        proxy_url = config.get("meta", {}).get("pingykj_proxy", "")
         if proxy_url:
             return proxy_url
     except Exception:
         pass
-    return os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or \
-           os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") or None
+    return None  # 默认直连书城
 
 
 def _curl_get(url: str, headers: dict = None, cookies: dict = None,
