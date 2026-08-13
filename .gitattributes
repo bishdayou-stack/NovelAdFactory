@@ -1,0 +1,3 @@
+# 强制 shell 脚本用 LF 行结束符（Linux 兼容）
+*.sh text eol=lf
+*.bat text eol=crlf
