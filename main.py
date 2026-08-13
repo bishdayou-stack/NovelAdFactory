@@ -118,10 +118,10 @@ import asyncio.selector_events as _ase
 if hasattr(_ase, "_SelectorSocketTransport") and hasattr(_ase._SelectorSocketTransport, "_write_send"):
     _orig_write_send = _ase._SelectorSocketTransport._write_send
 
-    def _safe_write_send(self, data):
+    def _safe_write_send(self):
         if not self._buffer:
             return
-        _orig_write_send(self, data)
+        _orig_write_send(self)
 
     _ase._SelectorSocketTransport._write_send = _safe_write_send
 
