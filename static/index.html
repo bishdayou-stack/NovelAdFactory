@@ -6067,7 +6067,7 @@
         _galItems = {};
         items.forEach(function(a) {
           _galItems[a.ad_id] = a;
-          var roiColor = (a.roi || 0) >= 1 ? 'text-emerald-400' : 'text-red-400';
+          var roiColor = roiColorClass(a.roi, true);
           var img = a.thumb
             ? '<img src="' + a.thumb + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'<div class=&quot;flex items-center justify-center h-full text-slate-600 text-xs&quot;>无图</div>\'">'
             : '<div class="flex items-center justify-center h-full text-slate-600 text-xs">' + (a.video_id ? '🎬 视频' : '无图') + '</div>';
@@ -6511,7 +6511,7 @@
               : '<div class="w-full aspect-square bg-slate-200 rounded-t-xl flex items-center justify-center"><span class="text-slate-400 text-xs">无图</span></div>';
             var stars = '';
             for (var s = 0; s < 5; s++) { stars += s < (h.score || 0) ? '★' : '☆'; }
-            var roiColor = (h.roi || 0) >= 1 ? 'text-emerald-600' : 'text-red-500';
+            var roiColor = roiColorClass(h.roi, false);
             return '<div class="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm hover:shadow-md transition-all group relative">' +
               imgHtml +
               '<div class="p-1.5">' +
