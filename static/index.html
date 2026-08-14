@@ -5383,7 +5383,7 @@
 
     // ---- 用户汇总 ----
     function renderUserSummary(data) {
-      var html = '<table class="w-full"><thead><tr><th>用户</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">加购</th><th class="text-right">订阅</th><th class="text-right">发起结账</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th>用户</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">加购</th><th class="text-right">发起结账</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th></tr></thead><tbody>';
       data.forEach(function(u) {
         html += '<tr>' +
           '<td class="text-indigo-400">' + escapeHtml(u.user_name || '未知') + '</td>' +
@@ -5391,21 +5391,20 @@
           '<td class="text-right">$' + ((u.spend || 0).toLocaleString()) + '</td>' +
           '<td class="text-right">' + (u.purchases || 0) + '</td>' +
           '<td class="text-right">' + (u.add_to_cart || 0) + '</td>' +
-          '<td class="text-right">' + (u.subscribe_count || 0) + '</td>' +
           '<td class="text-right">' + (u.initiate_checkout || 0) + '</td>' +
           '<td class="text-right">$' + ((u.revenue || 0).toLocaleString()) + '</td>' +
           '<td class="text-right ' + roiColorClass(u.roi, true) + '">' + ((u.roi || 0).toFixed(2)) + 'x</td>' +
           '<td class="text-right">$' + ((u.cpa || 0).toFixed(2)) + '</td>' +
           '</tr>';
       });
-      if (!data.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      if (!data.length) html += '<tr><td colspan="9" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
       document.getElementById('metaUserSummary').innerHTML = html;
     }
 
     // ---- BM 汇总 ----
     function renderBmSummary(bmData) {
-      var html = '<table class="w-full"><thead><tr><th class="text-left">BM</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">加购</th><th class="text-right">订阅</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">转化金额</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th class="text-left">BM</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">加购</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">转化金额</th></tr></thead><tbody>';
       bmData.forEach(function(bm) {
         html += '<tr>' +
           '<td class="text-left text-indigo-400">' + escapeHtml(bm.bm_name || '未归类') + '</td>' +
@@ -5413,7 +5412,6 @@
           '<td class="text-right">$' + ((bm.spend || 0).toLocaleString()) + '</td>' +
           '<td class="text-right">' + (bm.purchases || 0) + '</td>' +
           '<td class="text-right">' + (bm.add_to_cart || 0) + '</td>' +
-          '<td class="text-right">' + (bm.subscribe_count || 0) + '</td>' +
           '<td class="text-right ' + roiColorClass(bm.roi, true) + '">' + ((bm.roi || 0).toFixed(2)) + 'x</td>' +
           '<td class="text-right">$' + ((bm.cpa || 0).toFixed(2)) + '</td>' +
           '<td class="text-right">$' + ((bm.cpm || 0).toFixed(2)) + '</td>' +
@@ -5421,7 +5419,7 @@
           '<td class="text-right">$' + ((bm.revenue || 0).toLocaleString()) + '</td>' +
           '</tr>';
       });
-      if (!bmData.length) html += '<tr><td colspan="11" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      if (!bmData.length) html += '<tr><td colspan="10" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
       document.getElementById('metaBmTable').innerHTML = html;
     }
@@ -5432,7 +5430,7 @@
       var total = data.total || items.length;
       var page = data.page || 1;
       var pageSize = data.page_size || 20;
-      var html = '<table class="w-full"><thead><tr><th class="text-left">#</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">加购</th><th class="text-right">订阅</th><th class="text-right">发起结账</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th class="text-left">#</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">加购</th><th class="text-right">发起结账</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th></tr></thead><tbody>';
       items.forEach(function(a, i) {
         var actName = a.act_name || a.ad_account || '-';
         html += '<tr>' +
@@ -5442,7 +5440,6 @@
           '<td class="text-right">$' + ((a.total_spend || a.spend || 0).toLocaleString()) + '</td>' +
           '<td class="text-right">' + (a.purchases || 0) + '</td>' +
           '<td class="text-right">' + (a.add_to_cart || 0) + '</td>' +
-          '<td class="text-right">' + (a.subscribe_count || 0) + '</td>' +
           '<td class="text-right">' + (a.initiate_checkout || 0) + '</td>' +
           '<td class="text-right">$' + ((a.revenue || 0).toLocaleString()) + '</td>' +
           '<td class="text-right ' + roiColorClass(a.roi, true) + '">' + ((a.roi || 0).toFixed(2)) + 'x</td>' +
@@ -5451,7 +5448,7 @@
           '<td class="text-right">' + ((a.ctr || 0).toFixed(2)) + '%</td>' +
           '</tr>';
       });
-      if (!items.length) html += '<tr><td colspan="13" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      if (!items.length) html += '<tr><td colspan="12" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
       html += renderMetaPager(total, page, pageSize, 'rank');
       document.getElementById('metaAccountRank').innerHTML = html;
@@ -5463,7 +5460,7 @@
       var total = data.total || items.length;
       var page = data.page || 1;
       var pageSize = data.page_size || 15;
-      var html = '<table class="w-full"><thead><tr><th class="text-left">日期</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">加购</th><th class="text-right">订阅</th><th class="text-right">发起结账</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th class="text-left">日期</th><th class="text-left">账户</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">加购</th><th class="text-right">发起结账</th><th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th></tr></thead><tbody>';
       items.forEach(function(d) {
         html += '<tr>' +
           '<td class="text-left">' + (d.date || '-') + '</td>' +
@@ -5472,7 +5469,6 @@
           '<td class="text-right">$' + ((d.total_spend || 0).toLocaleString()) + '</td>' +
           '<td class="text-right">' + (d.purchases || 0) + '</td>' +
           '<td class="text-right">' + (d.add_to_cart || 0) + '</td>' +
-          '<td class="text-right">' + (d.subscribe_count || 0) + '</td>' +
           '<td class="text-right">' + (d.initiate_checkout || 0) + '</td>' +
           '<td class="text-right">$' + ((d.purchase_value || 0).toLocaleString()) + '</td>' +
           '<td class="text-right ' + roiColorClass(d.roi, true) + '">' + ((d.roi || 0).toFixed(2)) + 'x</td>' +
@@ -5483,7 +5479,7 @@
           '<td class="text-right">' + ((d.clicks || 0).toLocaleString()) + '</td>' +
           '</tr>';
       });
-      if (!items.length) html += '<tr><td colspan="15" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      if (!items.length) html += '<tr><td colspan="14" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
       html += renderMetaPager(total, page, pageSize, 'daily');
       document.getElementById('metaDailyTable').innerHTML = html;
@@ -5631,7 +5627,6 @@
         '<td class="text-right">' + ((d.impressions || 0).toLocaleString()) + '</td>' +
         '<td class="text-right">' + ((d.clicks || 0).toLocaleString()) + '</td>' +
         '<td class="text-right">' + ((d.add_to_cart || 0).toLocaleString()) + '</td>' +
-        '<td class="text-right">' + ((d.subscribe_count || 0).toLocaleString()) + '</td>' +
         '<td class="text-right">' + ((d.initiate_checkout || 0).toLocaleString()) + '</td>';
     }
 
@@ -5816,7 +5811,7 @@
           '<th class="text-left">广告系列</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th>' +
           '<th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th>' +
           '<th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th>' +
-          '<th class="text-right">加购</th><th class="text-right">订阅</th><th class="text-right">发起结账</th>' +
+          '<th class="text-right">加购</th><th class="text-right">发起结账</th>' +
           '</tr></thead><tbody>';
         var isMulti = (_campPageAccount || '').indexOf(',') >= 0;
         rows.forEach(function(c) {
@@ -5834,9 +5829,9 @@
             '</td>' +
             '<td class="text-left text-slate-400">' + escapeHtml(c.user_name || '-') + '</td>' +
             metaMetricCells(c) + '</tr>';
-          html += '<tr class="camp-adsets" hidden><td colspan="15" class="p-0"><div class="adset-slot"></div></td></tr>';
+          html += '<tr class="camp-adsets" hidden><td colspan="14" class="p-0"><div class="adset-slot"></div></td></tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="15" class="text-center text-slate-500 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="14" class="text-center text-slate-500 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
         html += '</tbody></table>';
         el.innerHTML = html;
         applyCampStatusFilter();
@@ -5891,9 +5886,9 @@
             '</td>' +
             '<td class="text-left text-slate-400 pl-6">' + escapeHtml(a.user_name || '-') + '</td>' +
             metaMetricCells(a) + '</tr>';
-          html += '<tr class="aset-ads" hidden><td colspan="15" class="p-0"><div class="ad-slot"></div></td></tr>';
+          html += '<tr class="aset-ads" hidden><td colspan="14" class="p-0"><div class="ad-slot"></div></td></tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="15" class="text-center text-slate-500 py-2 text-[10px]">无广告组数据</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="14" class="text-center text-slate-500 py-2 text-[10px]">无广告组数据</td></tr>';
         html += '</tbody></table>';
         slot.innerHTML = html;
         slot.setAttribute('data-loaded', '1');
@@ -5929,7 +5924,7 @@
             '<td class="text-left text-slate-400 pl-8">' + escapeHtml(a.user_name || '-') + '</td>' +
             metaMetricCells(a) + '</tr>';
         });
-        if (!rows.length) html += '<tr><td colspan="15" class="text-center text-slate-500 py-2 text-[10px]">无广告数据</td></tr>';
+        if (!rows.length) html += '<tr><td colspan="14" class="text-center text-slate-500 py-2 text-[10px]">无广告数据</td></tr>';
         html += '</tbody></table>';
         slot.innerHTML = html;
         slot.setAttribute('data-loaded', '1');
