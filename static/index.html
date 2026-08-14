@@ -5405,7 +5405,7 @@
 
     // ---- BM 汇总 ----
     function renderBmSummary(bmData) {
-      var html = '<table class="w-full"><thead><tr><th class="text-left">BM</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">加购</th><th class="text-right">订阅</th><th class="text-right">发起结账</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">转化金额</th></tr></thead><tbody>';
+      var html = '<table class="w-full"><thead><tr><th class="text-left">BM</th><th class="text-right">账户</th><th class="text-right">消耗</th><th class="text-right">转化</th><th class="text-right">加购</th><th class="text-right">订阅</th><th class="text-right">ROI</th><th class="text-right">转化成本</th><th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">转化金额</th></tr></thead><tbody>';
       bmData.forEach(function(bm) {
         html += '<tr>' +
           '<td class="text-left text-indigo-400">' + escapeHtml(bm.bm_name || '未归类') + '</td>' +
@@ -5414,7 +5414,6 @@
           '<td class="text-right">' + (bm.purchases || 0) + '</td>' +
           '<td class="text-right">' + (bm.add_to_cart || 0) + '</td>' +
           '<td class="text-right">' + (bm.subscribe_count || 0) + '</td>' +
-          '<td class="text-right">' + (bm.initiate_checkout || 0) + '</td>' +
           '<td class="text-right ' + roiColorClass(bm.roi, true) + '">' + ((bm.roi || 0).toFixed(2)) + 'x</td>' +
           '<td class="text-right">$' + ((bm.cpa || 0).toFixed(2)) + '</td>' +
           '<td class="text-right">$' + ((bm.cpm || 0).toFixed(2)) + '</td>' +
@@ -5422,7 +5421,7 @@
           '<td class="text-right">$' + ((bm.revenue || 0).toLocaleString()) + '</td>' +
           '</tr>';
       });
-      if (!bmData.length) html += '<tr><td colspan="12" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
+      if (!bmData.length) html += '<tr><td colspan="11" class="text-center text-slate-500 py-4">暂无数据</td></tr>';
       html += '</tbody></table>';
       document.getElementById('metaBmTable').innerHTML = html;
     }
