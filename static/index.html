@@ -4644,7 +4644,7 @@
       });
     }
 
-    var _treeCollapsed = {};  // 存储节点折叠状态
+    var _treeExpanded = {};  // 存储节点展开状态（默认不展开）
 
     function renderMetaAccountTree() {
       var tree = document.getElementById('metaAccountTree');
@@ -4660,14 +4660,14 @@
       var isAdmin = currentUser && currentUser.role === 'admin';
 
       function makeTreeItem(key, label, icon, depth, children) {
-        var collapsed = _treeCollapsed[key] === true;
-        var arrow = children ? (collapsed ? '▶' : '▼') : '';
+        var expanded = _treeExpanded[key] === true;
+        var arrow = children ? (expanded ? '▼' : '▶') : '';
         var isSelected = _metaSelectedAccount === key;
         return '<div class="meta-tree-item' + (isSelected ? ' active' : '') + '" style="padding-left:' + (8 + depth*12) + 'px" onclick="event.stopPropagation();selectMetaAccount(\'' + key + '\')">' +
-          (children ? '<span class="inline-block w-4 text-center cursor-pointer text-slate-500 mr-0.5" onclick="event.stopPropagation();_treeCollapsed[\'' + key + '\']=!_treeCollapsed[\'' + key + '\'];renderMetaAccountTree();">' + arrow + '</span>' : '<span class="inline-block w-4 mr-0.5"></span>') +
+          (children ? '<span class="inline-block w-4 text-center cursor-pointer text-slate-500 mr-0.5" onclick="event.stopPropagation();_treeExpanded[\'' + key + '\']=!_treeExpanded[\'' + key + '\'];renderMetaAccountTree();">' + arrow + '</span>' : '<span class="inline-block w-4 mr-0.5"></span>') +
           '<span class="flex-1 truncate">' + icon + ' ' + escapeHtml(label) + '</span>' +
           '</div>' +
-          (children && !collapsed ? children : '');
+          (children && expanded ? children : '');
       }
 
       function buildTree() {
