@@ -4659,7 +4659,10 @@
       }
       var isAdmin = currentUser && currentUser.role === 'admin';
 
-      function makeTreeItem(key, label, icon, depth, children) {
+      function makeTreeItem(key, label, icon, depth, children, defaultOpen) {
+        if (!(key in _treeExpanded)) {
+          _treeExpanded[key] = !!defaultOpen;  // 首次渲染初始化默认展开状态
+        }
         var expanded = _treeExpanded[key] === true;
         var arrow = children ? (expanded ? '▼' : '▶') : '';
         var isSelected = _metaSelectedAccount === key;
@@ -4707,31 +4710,35 @@
                   '<span class="flex-1 truncate cursor-pointer" onclick="event.stopPropagation();selectMetaAccount(\'' + actKey + '\')">' + escapeHtml(a.act_name || a.act_id) + '</span>' +
                   '<span class="text-[10px] text-slate-500 hover:text-indigo-400 cursor-pointer ml-1" onclick="event.stopPropagation();syncOneAccount(\'' + actKey + '\',\'' + escapeHtml(a.act_name || actKey).replace(/'/g,'') + '\')" title="单独更新此账户">🔄</span>' + '</div>';
               }).join('');
-              bmChildren += makeTreeItem(bmKey, bm + bmOwner, '📁', 2, acctChildren);
+              bmChildren += makeTreeItem(bmKey, bm + bmOwner, '📁', 2, acctChildren, false);
             });
-            html += makeTreeItem(userKey, uname + ' (' + ug.accounts.length + '个账户)', '👤', 1, bmChildren);
+            html += makeTreeItem(userKey, uname + ' (' + ug.accounts.length + '个账户)', '👤', 1, bmChildren, true);
           });
         } else {
-          // 普通用户：按 BM → 账户
+          // 普通用户：用户（自己）→ BM → 账户
           var bmGroups = {};
           accounts.forEach(function(a) {
             var bm = a.bm_name || '未归类';
             if (!bmGroups[bm]) bmGroups[bm] = [];
             bmGroups[bm].push(a);
           });
+          var bmChildren = '';
           Object.keys(bmGroups).sort().forEach(function(bm) {
             var bmAccounts = bmGroups[bm];
             var bmKey = 'bm:' + bm;
             var acctChildren = bmAccounts.map(function(a) {
               var actKey = a.act_id;
               var dotColor2 = metaStatusDot(a.meta_status);
-              return '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === actKey ? ' active' : '') + '" style="padding-left:24px">' +
+              return '<div class="meta-tree-item meta-tree-account' + (_metaSelectedAccount === actKey ? ' active' : '') + '" style="padding-left:44px">' +
                 '<span class="inline-block w-2 h-2 rounded-full mr-1.5 ' + dotColor2 + '"></span>' +
                 '<span class="flex-1 truncate cursor-pointer" onclick="event.stopPropagation();selectMetaAccount(\'' + actKey + '\')">' + escapeHtml(a.act_name || a.act_id) + '</span>' +
                 '<span class="text-[10px] text-slate-500 hover:text-indigo-400 cursor-pointer ml-1" onclick="event.stopPropagation();syncOneAccount(\'' + actKey + '\',\'' + escapeHtml(a.act_name || actKey).replace(/'/g,'') + '\')" title="单独更新此账户">🔄</span></div>';
             }).join('');
-            html += makeTreeItem(bmKey, bm, '📁', 1, acctChildren);
+            bmChildren += makeTreeItem(bmKey, bm, '📁', 2, acctChildren, false);
           });
+          var uname2 = currentUser && (currentUser.display_name || currentUser.username) || '我的账户';
+          var userKey2 = 'user:' + (currentUser && currentUser.id || 0);
+          html += makeTreeItem(userKey2, uname2 + ' (' + accounts.length + '个账户)', '👤', 1, bmChildren, true);
         }
         return html;
       }
