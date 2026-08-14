@@ -1159,13 +1159,17 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
     _ATC_TYPES = {"omni_add_to_cart"}
     # 订阅
     _SUB_TYPES = {"subscribe"}
+    # 发起结账：只用 omni_initiated_checkout（Meta 去重后的值）
+    _ICO_TYPES = {"omni_initiated_checkout"}
 
     adset_agg = defaultdict(lambda: {"spend": 0.0, "impressions": 0, "clicks": 0,
                                       "purchases": 0, "purchase_value": 0.0,
-                                      "add_to_cart": 0, "subscribe_count": 0})
+                                      "add_to_cart": 0, "subscribe_count": 0,
+                                      "initiate_checkout": 0})
     ad_agg = defaultdict(lambda: {"spend": 0.0, "impressions": 0, "clicks": 0,
                                    "purchases": 0, "purchase_value": 0.0,
-                                   "add_to_cart": 0, "subscribe_count": 0})
+                                   "add_to_cart": 0, "subscribe_count": 0,
+                                   "initiate_checkout": 0})
     for r in rows:
         d = r.get("date_start", "")
         if not d:
@@ -1177,6 +1181,7 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
         pv = _purchase_value(r)
         atc = _count_action(r, _ATC_TYPES)
         sub = _count_action(r, _SUB_TYPES)
+        ico = _count_action(r, _ICO_TYPES)
         adset_id = r.get("adset_id", "")
         if adset_id:
             a = adset_agg[(d, adset_id)]
@@ -1186,6 +1191,7 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
             a["spend"] += spend; a["impressions"] += impr; a["clicks"] += clk
             a["purchases"] += pur; a["purchase_value"] += pv
             a["add_to_cart"] += atc; a["subscribe_count"] += sub
+            a["initiate_checkout"] += ico
         ad_id = r.get("ad_id", "")
         if not ad_id:
             ad_id = f"_missing_ad_{adset_id}_{d}"  # 兜底：无 ad_id 也保留，确保数据完整
@@ -1196,6 +1202,7 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
         b["spend"] += spend; b["impressions"] += impr; b["clicks"] += clk
         b["purchases"] += pur; b["purchase_value"] += pv
         b["add_to_cart"] += atc; b["subscribe_count"] += sub
+        b["initiate_checkout"] += ico
 
     database.upsert_meta_adset_stats(act_id, [dict(v) for v in adset_agg.values()], user_id)
     return database.upsert_meta_ad_stats(act_id, [dict(v) for v in ad_agg.values()], user_id)

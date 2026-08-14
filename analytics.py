@@ -503,6 +503,7 @@ def meta_summary(start_date=None, end_date=None, account=None, keyword=None,
                    COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(inline_link_clicks),0) AS link_clicks,
                    COALESCE(SUM(purchases),0) AS purchases, COALESCE(SUM(add_to_cart),0) AS add_to_cart,
                    COALESCE(SUM(subscribe_count),0) AS subscribe_count,
+                   COALESCE(SUM(initiate_checkout),0) AS initiate_checkout,
                    COALESCE(SUM(purchase_value),0) AS purchase_value
             FROM ad_daily_stats WHERE {' AND '.join(where)}
         """, params).fetchone()
@@ -518,6 +519,7 @@ def meta_summary(start_date=None, end_date=None, account=None, keyword=None,
                 "impressions": row["impressions"] or 0, "clicks": row["clicks"] or 0,
                 "link_clicks": row["link_clicks"] or 0, "purchases": purchases,
                 "add_to_cart": row["add_to_cart"] or 0, "subscribe_count": row["subscribe_count"] or 0,
+                "initiate_checkout": row["initiate_checkout"] or 0,
                 "purchase_value": round(row["purchase_value"] or 0, 2),
                 "active_days": row["days"] or 0, "account_count": row["accounts"] or 0,
                 "total_ads": row["ads"] or 0}
@@ -539,6 +541,7 @@ def meta_daily_stats(start_date=None, end_date=None, account=None, keyword=None,
                    SUM(a.inline_link_clicks) AS link_clicks, SUM(a.purchases) AS purchases,
                    SUM(a.purchase_value) AS purchase_value, SUM(a.ad_count) AS ad_count,
                    SUM(a.add_to_cart) AS add_to_cart, SUM(a.subscribe_count) AS subscribe_count,
+                   SUM(a.initiate_checkout) AS initiate_checkout,
                    CASE WHEN SUM(a.total_spend)>0 THEN ROUND(SUM(a.total_revenue)/SUM(a.total_spend),2) ELSE 0 END AS roi,
                    CASE WHEN SUM(a.purchases)>0 THEN ROUND(SUM(a.total_spend)/SUM(a.purchases),2) ELSE 0 END AS cpa,
                    CASE WHEN SUM(a.impressions)>0 THEN ROUND(SUM(a.total_spend)/SUM(a.impressions)*1000,2) ELSE 0 END AS cpm,
@@ -592,6 +595,7 @@ def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20,
                    SUM(a.total_spend) AS spend,
                    SUM(a.total_revenue) AS revenue, SUM(a.purchases) AS purchases,
                    SUM(a.add_to_cart) AS add_to_cart, SUM(a.subscribe_count) AS subscribe_count,
+                   SUM(a.initiate_checkout) AS initiate_checkout,
                    SUM(a.impressions) AS impressions, SUM(a.clicks) AS clicks,
                    CASE WHEN SUM(a.total_spend)>0 THEN ROUND(SUM(a.total_revenue)/SUM(a.total_spend),2) ELSE 0 END AS roi,
                    CASE WHEN SUM(a.purchases)>0 THEN ROUND(SUM(a.total_spend)/SUM(a.purchases),2) ELSE 0 END AS cpa,
@@ -716,7 +720,8 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
                     COALESCE(SUM(purchases),0) AS purchases,
                     COALESCE(SUM(purchase_value),0) AS purchase_value,
                     COALESCE(SUM(add_to_cart),0) AS add_to_cart,
-                    COALESCE(SUM(subscribe_count),0) AS subscribe_count
+                    COALESCE(SUM(subscribe_count),0) AS subscribe_count,
+                    COALESCE(SUM(initiate_checkout),0) AS initiate_checkout
                 FROM meta_adset_stats
                 WHERE {' AND '.join(where)}
                 GROUP BY campaign_id
@@ -742,6 +747,7 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
             m["status"] = r["status"] if "status" in r.keys() else None
             m["add_to_cart"] = r["add_to_cart"] if "add_to_cart" in r.keys() else 0
             m["subscribe_count"] = r["subscribe_count"] if "subscribe_count" in r.keys() else 0
+            m["initiate_checkout"] = r["initiate_checkout"] if "initiate_checkout" in r.keys() else 0
             m["user_name"] = r["user_name"] if "user_name" in r.keys() else ""
             out.append(m)
         return out
@@ -773,7 +779,8 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
                     COALESCE(SUM(purchases),0) AS purchases,
                     COALESCE(SUM(purchase_value),0) AS purchase_value,
                     COALESCE(SUM(add_to_cart),0) AS add_to_cart,
-                    COALESCE(SUM(subscribe_count),0) AS subscribe_count
+                    COALESCE(SUM(subscribe_count),0) AS subscribe_count,
+                    COALESCE(SUM(initiate_checkout),0) AS initiate_checkout
                 FROM meta_adset_stats
                 WHERE {' AND '.join(where)}
                 GROUP BY adset_id
@@ -800,6 +807,7 @@ def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,
             m["status"] = r["status"] if "status" in r.keys() else None
             m["add_to_cart"] = r["add_to_cart"] if "add_to_cart" in r.keys() else 0
             m["subscribe_count"] = r["subscribe_count"] if "subscribe_count" in r.keys() else 0
+            m["initiate_checkout"] = r["initiate_checkout"] if "initiate_checkout" in r.keys() else 0
             m["user_name"] = r["user_name"] if "user_name" in r.keys() else ""
             out.append(m)
         return out
@@ -834,6 +842,7 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
                     COALESCE(SUM(s.purchase_value),0) AS purchase_value,
                     COALESCE(SUM(s.add_to_cart),0) AS add_to_cart,
                     COALESCE(SUM(s.subscribe_count),0) AS subscribe_count,
+                    COALESCE(SUM(s.initiate_checkout),0) AS initiate_checkout,
                     MAX(c.local_path) AS local_path,
                     MAX(c.thumbnail_url) AS thumbnail_url,
                     MAX(c.video_id) AS video_id
@@ -863,6 +872,7 @@ def meta_ads(account: str, adset_id: str = None, start_date: str = None,
             m["campaign_name"] = r["campaign_name"] or ""
             m["add_to_cart"] = r["add_to_cart"] if "add_to_cart" in r.keys() else 0
             m["subscribe_count"] = r["subscribe_count"] if "subscribe_count" in r.keys() else 0
+            m["initiate_checkout"] = r["initiate_checkout"] if "initiate_checkout" in r.keys() else 0
             m["thumb"] = ("/static/" + r["local_path"]) if r["local_path"] else (r["thumbnail_url"] or "")
             m["video_id"] = r["video_id"] or ""
             m["effective_status"] = r["effective_status"] if "effective_status" in r.keys() else None

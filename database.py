@@ -854,8 +854,11 @@ def init_db() -> None:
         if "add_to_cart" not in ads_cols:
             c.execute("ALTER TABLE ad_daily_stats ADD COLUMN add_to_cart INTEGER DEFAULT 0")
             c.execute("ALTER TABLE ad_daily_stats ADD COLUMN add_to_cart_cost REAL DEFAULT 0")
+        # 迁移：ad_daily_stats 加 initiate_checkout 列
+        if "initiate_checkout" not in ads_cols:
+            c.execute("ALTER TABLE ad_daily_stats ADD COLUMN initiate_checkout INTEGER DEFAULT 0")
 
-        # 迁移：meta_adset_stats / meta_ad_stats 加 add_to_cart + subscribe 列
+        # 迁移：meta_adset_stats / meta_ad_stats 加 add_to_cart + subscribe + initiate_checkout 列
         for tbl in ("meta_adset_stats", "meta_ad_stats"):
             c.execute(f"PRAGMA table_info('{tbl}')")
             cols = [r[1] for r in c.fetchall()]
@@ -863,6 +866,8 @@ def init_db() -> None:
                 c.execute(f"ALTER TABLE {tbl} ADD COLUMN add_to_cart INTEGER DEFAULT 0")
             if "subscribe_count" not in cols:
                 c.execute(f"ALTER TABLE {tbl} ADD COLUMN subscribe_count INTEGER DEFAULT 0")
+            if "initiate_checkout" not in cols:
+                c.execute(f"ALTER TABLE {tbl} ADD COLUMN initiate_checkout INTEGER DEFAULT 0")
 
 # ====== 用户管理 CRUD ======
 
@@ -2084,6 +2089,7 @@ def upsert_meta_insights(act_id: str, insights_rows: List[Dict[str, Any]],
             purchase_value = _extract_action_value(r.get("action_values"), "purchase")
             add_to_cart = _extract_action_value(r.get("actions"), "add_to_cart")
             subscribe_count = _extract_action_value(r.get("actions"), "subscribe")
+            initiate_checkout = _extract_action_value(r.get("actions"), "initiate_checkout")
 
             conn.execute("""
                 INSERT INTO ad_daily_stats (date, ad_account, source, meta_account_id,
@@ -2092,8 +2098,8 @@ def upsert_meta_insights(act_id: str, insights_rows: List[Dict[str, Any]],
                     inline_link_clicks, inline_link_click_ctr,
                     add_to_cart, add_to_cart_cost,
                     purchases, cost_per_purchase, purchase_value,
-                    subscribe_count, user_id)
-                VALUES (?, ?, 'meta', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    subscribe_count, initiate_checkout, user_id)
+                VALUES (?, ?, 'meta', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(date, ad_account, source, user_id) DO UPDATE SET
                     total_spend=excluded.total_spend,
                     total_revenue=excluded.total_revenue,
@@ -2110,6 +2116,7 @@ def upsert_meta_insights(act_id: str, insights_rows: List[Dict[str, Any]],
                     cost_per_purchase=excluded.cost_per_purchase,
                     purchase_value=excluded.purchase_value,
                     subscribe_count=excluded.subscribe_count,
+                    initiate_checkout=excluded.initiate_checkout,
                     synced_at=CURRENT_TIMESTAMP
             """, (
                 date, act_id, act_id,
@@ -2128,6 +2135,7 @@ def upsert_meta_insights(act_id: str, insights_rows: List[Dict[str, Any]],
                 _extract_cost_per_action(r.get("cost_per_action_type"), "purchase"),
                 purchase_value,
                 subscribe_count,
+                initiate_checkout,
                 uid,
             ))
             count += 1
@@ -2151,8 +2159,8 @@ def upsert_meta_adset_stats(act_id: str, rows: List[Dict[str, Any]],
             conn.execute("""
                 INSERT INTO meta_adset_stats (date, ad_account, campaign_id, campaign_name,
                     adset_id, adset_name, spend, impressions, clicks, purchases, purchase_value,
-                    add_to_cart, subscribe_count, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    add_to_cart, subscribe_count, initiate_checkout, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(date, ad_account, adset_id, user_id) DO UPDATE SET
                     campaign_id=excluded.campaign_id,
                     campaign_name=excluded.campaign_name,
@@ -2164,6 +2172,7 @@ def upsert_meta_adset_stats(act_id: str, rows: List[Dict[str, Any]],
                     purchase_value=excluded.purchase_value,
                     add_to_cart=excluded.add_to_cart,
                     subscribe_count=excluded.subscribe_count,
+                    initiate_checkout=excluded.initiate_checkout,
                     synced_at=CURRENT_TIMESTAMP
             """, (
                 date, act_id, r.get("campaign_id", ""), r.get("campaign_name", ""),
@@ -2172,6 +2181,7 @@ def upsert_meta_adset_stats(act_id: str, rows: List[Dict[str, Any]],
                 _safe_int(r.get("clicks")), _safe_int(r.get("purchases")),
                 _safe_float(r.get("purchase_value")),
                 _safe_int(r.get("add_to_cart")), _safe_int(r.get("subscribe_count")),
+                _safe_int(r.get("initiate_checkout")),
                 uid,
             ))
             count += 1
@@ -2194,8 +2204,8 @@ def upsert_meta_ad_stats(act_id: str, rows: List[Dict[str, Any]],
                 INSERT INTO meta_ad_stats (date, ad_account, campaign_id, campaign_name,
                     adset_id, adset_name, ad_id, ad_name,
                     spend, impressions, clicks, purchases, purchase_value,
-                    add_to_cart, subscribe_count, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    add_to_cart, subscribe_count, initiate_checkout, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(date, ad_account, ad_id, user_id) DO UPDATE SET
                     campaign_id=excluded.campaign_id, campaign_name=excluded.campaign_name,
                     adset_id=excluded.adset_id, adset_name=excluded.adset_name,
@@ -2203,6 +2213,7 @@ def upsert_meta_ad_stats(act_id: str, rows: List[Dict[str, Any]],
                     impressions=excluded.impressions, clicks=excluded.clicks,
                     purchases=excluded.purchases, purchase_value=excluded.purchase_value,
                     add_to_cart=excluded.add_to_cart, subscribe_count=excluded.subscribe_count,
+                    initiate_checkout=excluded.initiate_checkout,
                     synced_at=CURRENT_TIMESTAMP
             """, (
                 date, act_id, r.get("campaign_id", ""), r.get("campaign_name", ""),
@@ -2212,6 +2223,7 @@ def upsert_meta_ad_stats(act_id: str, rows: List[Dict[str, Any]],
                 _safe_int(r.get("clicks")), _safe_int(r.get("purchases")),
                 _safe_float(r.get("purchase_value")),
                 _safe_int(r.get("add_to_cart")), _safe_int(r.get("subscribe_count")),
+                _safe_int(r.get("initiate_checkout")),
                 uid,
             ))
             count += 1
