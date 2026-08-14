@@ -9,6 +9,9 @@ data/
 output/
 *.db
 
+# Meta 素材缩略图缓存（运行时下载，部署后自动重建）
+static/meta_creatives/
+
 # 开发工具
 .claude/
 .playwright-mcp/
