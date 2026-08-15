@@ -329,7 +329,8 @@ def create_campaign(act_id: str, access_token: str,
                     name: str, objective: str = "OUTCOME_TRAFFIC",
                     status: str = "PAUSED",
                     special_ad_categories: list = None,
-                    is_adset_budget_sharing_enabled=None) -> Tuple[Optional[str], Optional[str]]:
+                    is_adset_budget_sharing_enabled=None,
+                    daily_budget=None) -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/campaigns"
     body = {
@@ -341,6 +342,8 @@ def create_campaign(act_id: str, access_token: str,
     }
     if is_adset_budget_sharing_enabled is not None:
         body["is_adset_budget_sharing_enabled"] = "true" if is_adset_budget_sharing_enabled else "false"
+    if daily_budget:
+        body["daily_budget"] = str(daily_budget)
     data, err = _http_request("POST", url, data=body)
     if err:
         return None, err

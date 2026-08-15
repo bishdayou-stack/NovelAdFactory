@@ -5179,6 +5179,82 @@ def _get_delivery_records(page: int = 1, page_size: int = 20, status: str = None
     return database.get_delivery_records(page, page_size, status, uid)
 
 
+class DeliveryCampaignBody(BaseModel):
+    name: str
+    objective: str = "OUTCOME_SALES"
+    budget_strategy: str = "adset"          # 'adset'(ABO) | 'campaign'(CBO)
+    is_adset_budget_sharing_enabled: int = 0
+    daily_budget: int = 0
+    page_id: str = ""
+    link_url: str = ""
+    call_to_action: str = "LEARN_MORE"
+
+@app.post("/api/delivery/campaigns")
+def _create_delivery_campaign(body: DeliveryCampaignBody, user: dict = Depends(get_current_user)):
+    cid = database.create_delivery_campaign(body.name, body.objective, body.budget_strategy,
+        body.is_adset_budget_sharing_enabled, body.daily_budget, body.page_id,
+        body.link_url, body.call_to_action, _opt_user_id(user))
+    return {"success": True, "id": cid}
+
+@app.get("/api/delivery/campaigns")
+def _list_delivery_campaigns(user: dict = Depends(get_current_user)):
+    return database.get_delivery_campaigns(_opt_user_id(user))
+
+class DeliveryAdsetBody(BaseModel):
+    campaign_id: int
+    name: str = ""
+    ad_account_id: str = ""
+    pixel_id: str = ""
+    audience_id: str = ""
+    daily_budget: int = 0
+    bid_strategy: str = "LOWEST_COST_WITHOUT_CAP"
+    bid_amount: int = 0
+    optimization_goal: str = "OFFSITE_CONVERSIONS"
+    billing_event: str = "IMPRESSIONS"
+    destination_type: str = "WEBSITE"
+    custom_event_type: str = "PURCHASE"
+    attribution_spec_json: str = ""
+    targeting_json: str = "{}"
+
+@app.post("/api/delivery/adsets")
+def _create_delivery_adset(body: DeliveryAdsetBody, user: dict = Depends(get_current_user)):
+    aid = database.create_delivery_adset(body.campaign_id, body.name, body.ad_account_id,
+        body.pixel_id, body.audience_id, body.daily_budget, body.bid_strategy, body.bid_amount,
+        body.optimization_goal, body.billing_event, body.destination_type, body.custom_event_type,
+        body.attribution_spec_json, body.targeting_json, _opt_user_id(user))
+    return {"success": True, "id": aid}
+
+@app.get("/api/delivery/adsets/{campaign_id}")
+def _list_delivery_adsets(campaign_id: int, user: dict = Depends(get_current_user)):
+    return database.get_delivery_adsets(campaign_id)
+
+class PublishAsset(BaseModel):
+    adset_id: int
+    image_url: str
+    image_type: str = ""
+    overlay_text: str = ""
+
+class PublishBody(BaseModel):
+    campaign_id: int
+    assets: List[PublishAsset]
+
+@app.post("/api/delivery/publish")
+def _publish_delivery_campaign(body: PublishBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    for a in body.assets:
+        path = delivery.resolve_output_path(a.image_url, OUTPUT_ROOT)
+        if not path:
+            return {"success": False, "message": f"无效素材路径: {a.image_url}"}
+        database.add_to_delivery_queue([{
+            "batch_id": "", "image_type": a.image_type, "image_path": path,
+            "image_prompt": "", "overlay_text": a.overlay_text, "adset_id": a.adset_id,
+        }], uid)
+    batch_id, err = delivery.submit_delivery_campaign(body.campaign_id, uid)
+    if err:
+        return {"success": False, "message": err}
+    return {"success": True, "batch_id": batch_id}
+
+
 # ---- Meta 数据看板 API（独立，不混入 pingykj 看板） ----
 
 @app.get("/api/meta/summary")

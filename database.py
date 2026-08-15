@@ -2129,11 +2129,11 @@ def add_to_delivery_queue(items: List[Dict[str, Any]], user_id: int = None) -> i
         for item in items:
             conn.execute("""
                 INSERT INTO delivery_queue (batch_id, image_type, image_path,
-                    image_prompt, overlay_text, status, user_id)
-                VALUES (?, ?, ?, ?, ?, 'pending', ?)
+                    image_prompt, overlay_text, status, adset_id, user_id)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
             """, (
                 item.get("batch_id"), item.get("image_type"), item.get("image_path"),
-                item.get("image_prompt"), item.get("overlay_text"), uid
+                item.get("image_prompt"), item.get("overlay_text"), item.get("adset_id", 0), uid
             ))
             count += 1
         return count

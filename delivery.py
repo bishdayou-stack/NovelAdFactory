@@ -3,6 +3,7 @@ import json
 import time
 import threading
 import uuid
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -211,3 +212,134 @@ def get_delivery_progress(batch_id: str) -> dict:
         "completed": last_event.get("data", {}).get("completed", 0),
         "failed": last_event.get("data", {}).get("failed", 0),
     }
+
+
+def resolve_output_path(url: str, output_root) -> Optional[str]:
+    """把 /static/output/{batch_id}/{name} 转成本地路径并校验存在，防路径穿越。"""
+    if not url or not url.startswith("/static/output/"):
+        return None
+    rel = url[len("/static/output/"):]
+    try:
+        p = (Path(output_root) / rel).resolve()
+    except Exception:
+        return None
+    root = Path(output_root).resolve()
+    if not str(p).startswith(str(root)) or not p.is_file():
+        return None
+    return str(p)
+
+
+def _deliver_ad_to_adset(queue_item: dict, fb_adset_id: str, act_id: str, token: str,
+                         page_id: str, link_url: str, call_to_action: str,
+                         user_id: int = None) -> dict:
+    """只上传创意 + 建 Ad（系列/广告组已由上层建好）。返回 result dict。"""
+    result = {"queue_id": queue_item["id"], "status": "failed"}
+    image_path = queue_item.get("image_path", "")
+    is_video = image_path.lower().endswith(".mp4")
+    image_hash = None
+    video_id = None
+    if is_video:
+        video_id, err = meta_api.upload_ad_video(act_id, token, image_path)
+        result["fb_creative_id"] = video_id
+    else:
+        image_hash, err = meta_api.upload_ad_image(act_id, token, image_path)
+        result["fb_creative_id"] = image_hash
+    if err:
+        result["error"] = f"上传创意失败: {err}"
+        return result
+    ad_name = (queue_item.get("overlay_text", "") or str(queue_item["id"]))[:60]
+    ad_id, err = meta_api.create_ad(
+        act_id, token, ad_name, fb_adset_id,
+        creative_name=str(queue_item["id"]), page_id=page_id,
+        image_hash=image_hash, video_id=video_id,
+        message=queue_item.get("overlay_text", ""), link_url=link_url,
+        call_to_action_type=call_to_action, status="PAUSED")
+    if err:
+        result["error"] = f"建广告失败: {err}"
+        return result
+    result["fb_ad_id"] = ad_id
+    result["status"] = "delivered"
+    return result
+
+
+def submit_delivery_campaign(campaign_id: int, user_id: int = None):
+    """按 1 系列 → N 广告组 → 组内 n 广告 分层创建，全部 PAUSED。返回 (batch_id, error)。"""
+    batch_id = uuid.uuid4().hex[:12]
+    with database.get_conn() as conn:
+        camp = conn.execute("SELECT * FROM delivery_campaigns WHERE id = ?", (campaign_id,)).fetchone()
+        adsets = conn.execute("SELECT * FROM delivery_adsets WHERE campaign_id = ? ORDER BY id", (campaign_id,)).fetchall()
+        adset_ids = [r["id"] for r in adsets]
+        queue = []
+        if adset_ids:
+            ph = ",".join("?" * len(adset_ids))
+            queue = conn.execute(f"SELECT * FROM delivery_queue WHERE adset_id IN ({ph})", adset_ids).fetchall()
+    if not camp:
+        return "", "系列不存在"
+    camp = dict(camp)
+    adsets = [dict(a) for a in adsets]
+    queue = [dict(q) for q in queue]
+    act_id = adsets[0].get("ad_account_id", "") if adsets else ""
+    token = _get_token(act_id, user_id)
+    if not act_id or not token:
+        return "", "广告账户未配置或无有效 token"
+    total = len(queue)
+    _delivery_events[batch_id] = threading.Event()
+    _delivery_queues[batch_id] = []
+
+    def _run():
+        _push_event(batch_id, "start", {"total": total})
+        is_sharing = (camp.get("is_adset_budget_sharing_enabled") == 1)
+        campaign_daily = camp.get("daily_budget") or None
+        fb_campaign_id, err = meta_api.create_campaign(
+            act_id, token, camp.get("name", ""), objective=camp.get("objective", "OUTCOME_SALES"),
+            status="PAUSED", special_ad_categories=[],
+            is_adset_budget_sharing_enabled=is_sharing, daily_budget=campaign_daily)
+        if err:
+            _push_event(batch_id, "complete", {"completed": 0, "failed": total, "error": f"建系列失败: {err}"})
+            _delivery_events[batch_id].set(); return
+        completed = 0; failed = 0
+        for adset in adsets:
+            targeting = json.loads(adset.get("targeting_json") or "{}")
+            attribution = json.loads(adset.get("attribution_spec_json") or "[]") or None
+            promoted = {"pixel_id": adset["pixel_id"], "custom_event_type": adset.get("custom_event_type", "PURCHASE")} if adset.get("pixel_id") else None
+            adset_daily = adset.get("daily_budget") or None
+            if campaign_daily:
+                adset_daily = None  # CBO：预算在系列层，组层不给预算
+            fb_adset_id, err = meta_api.create_adset(
+                act_id, token, adset.get("name", ""), fb_campaign_id,
+                targeting=targeting, daily_budget=adset_daily,
+                bid_strategy=adset.get("bid_strategy", "LOWEST_COST_WITHOUT_CAP"),
+                billing_event=adset.get("billing_event", "IMPRESSIONS"),
+                optimization_goal=adset.get("optimization_goal", "OFFSITE_CONVERSIONS"),
+                promoted_object=promoted, destination_type=adset.get("destination_type", "WEBSITE"),
+                attribution_spec=attribution, bid_amount=adset.get("bid_amount") or None,
+                status="PAUSED")
+            if err:
+                failed += 1
+                _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"建广告组失败: {err}"})
+                continue
+            database.update_delivery_adset_fb_id(adset["id"], fb_adset_id)
+            for item in queue:
+                if item.get("adset_id") != adset["id"]:
+                    continue
+                r = _deliver_ad_to_adset(item, fb_adset_id, act_id, token,
+                                         camp.get("page_id", ""), camp.get("link_url", ""),
+                                         camp.get("call_to_action", "LEARN_MORE"), user_id)
+                database.update_queue_delivery_result(
+                    r["queue_id"], r["status"],
+                    fb_campaign_id=fb_campaign_id, fb_adset_id=fb_adset_id,
+                    fb_ad_id=r.get("fb_ad_id"), fb_creative_id=r.get("fb_creative_id"),
+                    delivery_params_json=json.dumps(camp, ensure_ascii=False),
+                    error_message=r.get("error"))
+                if r["status"] == "delivered":
+                    completed += 1
+                else:
+                    failed += 1
+                _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "current_id": r["queue_id"], "fb_ad_id": r.get("fb_ad_id", "")})
+        _push_event(batch_id, "complete", {"completed": completed, "failed": failed})
+        _delivery_events[batch_id].set()
+
+    executor = ThreadPoolExecutor(max_workers=1)
+    executor.submit(_run)
+    executor.shutdown(wait=False)
+    return batch_id, None
