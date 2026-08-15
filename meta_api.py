@@ -301,10 +301,35 @@ def upload_ad_video(act_id: str, access_token: str,
         return None, err
     return data.get("id", ""), None
 
+def get_pixels(act_id: str, access_token: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    _check_rate(act_id)
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/adspixels"
+    data, err = _http_request("GET", url, params={
+        "fields": "id,name",
+        "access_token": access_token,
+    })
+    if err:
+        return None, err
+    return data.get("data", []), None
+
+
+def get_saved_audiences(act_id: str, access_token: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    _check_rate(act_id)
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/saved_audiences"
+    data, err = _http_request("GET", url, params={
+        "fields": "id,name,targeting",
+        "access_token": access_token,
+    })
+    if err:
+        return None, err
+    return data.get("data", []), None
+
+
 def create_campaign(act_id: str, access_token: str,
                     name: str, objective: str = "OUTCOME_TRAFFIC",
                     status: str = "PAUSED",
-                    special_ad_categories: list = None) -> Tuple[Optional[str], Optional[str]]:
+                    special_ad_categories: list = None,
+                    is_adset_budget_sharing_enabled=None) -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/campaigns"
     body = {
@@ -314,6 +339,8 @@ def create_campaign(act_id: str, access_token: str,
         "special_ad_categories": json.dumps(special_ad_categories or []),
         "access_token": access_token,
     }
+    if is_adset_budget_sharing_enabled is not None:
+        body["is_adset_budget_sharing_enabled"] = "true" if is_adset_budget_sharing_enabled else "false"
     data, err = _http_request("POST", url, data=body)
     if err:
         return None, err
@@ -328,6 +355,9 @@ def create_adset(act_id: str, access_token: str,
                  optimization_goal: str = "OFFSITE_CONVERSIONS",
                  start_time: str = None, end_time: str = None,
                  promoted_object: dict = None,
+                 destination_type: str = "WEBSITE",
+                 attribution_spec: dict = None,
+                 bid_amount: int = None,
                  status: str = "PAUSED") -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/adsets"
@@ -351,6 +381,11 @@ def create_adset(act_id: str, access_token: str,
         body["end_time"] = end_time
     if promoted_object:
         body["promoted_object"] = json.dumps(promoted_object)
+    body["destination_type"] = destination_type
+    if attribution_spec:
+        body["attribution_spec"] = json.dumps(attribution_spec)
+    if bid_amount:
+        body["bid_amount"] = str(bid_amount)
 
     data, err = _http_request("POST", url, data=body)
     if err:
@@ -362,6 +397,7 @@ def create_ad(act_id: str, access_token: str,
               creative_name: str, page_id: str,
               image_hash: str = None, video_id: str = None,
               message: str = "", link_url: str = "",
+              call_to_action_type: str = "LEARN_MORE",
               status: str = "PAUSED") -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/ads"
@@ -376,6 +412,11 @@ def create_ad(act_id: str, access_token: str,
         object_story_spec["link_data"]["image_hash"] = image_hash
     if video_id:
         object_story_spec["link_data"]["video_id"] = video_id
+    if call_to_action_type:
+        object_story_spec["link_data"]["call_to_action"] = {
+            "type": call_to_action_type,
+            "value": {"link": link_url},
+        }
 
     body = {
         "name": name,
