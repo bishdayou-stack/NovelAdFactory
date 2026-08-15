@@ -394,6 +394,7 @@
           <button id="btnApplyFilter" type="button" class="rounded-xl bg-indigo-600 px-4 py-2 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm border-0 cursor-pointer">筛选</button>
           <button id="btnClearFilter" type="button" class="rounded-xl border border-slate-200 px-3 py-2 text-[11px] text-slate-500 hover:bg-slate-50 transition-all bg-white cursor-pointer">清除</button>
           <button type="button" id="btnRefreshAssets" class="rounded-xl border border-slate-200 px-3 py-2 text-[11px] text-indigo-600 hover:bg-indigo-50 transition-all bg-white cursor-pointer">刷新</button>
+          <button type="button" id="btnAssetsDeliver" class="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm border-0 cursor-pointer" onclick="assetsCollectForDelivery()">发布到 Meta</button>
         </div>
       </div>
 
@@ -2496,12 +2497,14 @@
               ' data-is-video="' + (media.isVideo ? 'y' : 'n') + '"' +
               ' onclick="event.stopPropagation();var b=this;openHitRegister(b.dataset.batch,b.dataset.url,b.dataset.prompt,b.dataset.label,b.dataset.novelId,b.dataset.novelName,b.dataset.isVideo)">⭐ 登记</button>' +
               '</div></div>' +
-              '<span class="absolute top-2 left-2 rounded-lg bg-black/60 px-2 py-0.5 text-[10px] text-white">' + media.label + '</span>';
+              '<span class="absolute top-2 left-2 rounded-lg bg-black/60 px-2 py-0.5 text-[10px] text-white">' + media.label + '</span>' +
+              '<input type="checkbox" class="absolute top-2 right-2 w-4 h-4 accent-indigo-600 cursor-pointer" data-url="' + media.src + '" data-type="image" onclick="event.stopPropagation();assetToggle(this)">';
             // Store prompt as data attribute on the img for copy function
             card.querySelector('img').setAttribute('data-prompt', safePrompt);
           } else {
             var vfull = absUrl(media.src);
-            card.innerHTML = '<video src="' + vfull + '" controls class="w-full rounded-2xl"></video>';
+            card.innerHTML = '<video src="' + vfull + '" controls class="w-full rounded-2xl"></video>' +
+              '<input type="checkbox" class="absolute top-2 right-2 w-4 h-4 accent-indigo-600 cursor-pointer" data-url="' + media.src + '" data-type="video" onclick="event.stopPropagation();assetToggle(this)">';
           }
 
           grid.appendChild(card);
@@ -2510,6 +2513,25 @@
         section.appendChild(grid);
         gallery.appendChild(section);
       });
+    }
+
+    var _assetSelect = {};
+    function assetToggle(cb) {
+      var url = cb.getAttribute('data-url');
+      if (cb.checked) {
+        _assetSelect[url] = { image_url: url, image_type: cb.getAttribute('data-type') === 'video' ? 'scroll' : 'text_single', overlay_text: '' };
+      } else {
+        delete _assetSelect[url];
+      }
+      var btn = document.getElementById('btnAssetsDeliver');
+      if (btn) btn.textContent = '发布到 Meta (' + Object.keys(_assetSelect).length + ')';
+    }
+    function assetsCollectForDelivery() {
+      var assets = [];
+      Object.keys(_assetSelect).forEach(function(k){ assets.push(_assetSelect[k]); });
+      if (!assets.length) { alert('请先勾选要投放的素材'); return; }
+      _dwAssets = assets;
+      switchTab('delivery-wizard');
     }
 
     function applyAssetFilter(page) {

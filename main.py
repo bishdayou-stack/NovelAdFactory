@@ -4916,7 +4916,7 @@ async def _set_meta_sync_interval(request: Request, user: dict = Depends(get_cur
 
 @app.get("/api/meta/pages")
 def _get_meta_pages(user: dict = Depends(get_current_user)):
-    return database.get_meta_pages(_opt_user_id(user))
+    return database.get_meta_pages(None)
 
 class PageDiscoverBody(BaseModel):
     act_id: str
@@ -4972,7 +4972,7 @@ def _import_meta_pixels(body: ImportPixelsBody, user: dict = Depends(get_current
 
 @app.get("/api/meta/pixels")
 def _get_meta_pixels(user: dict = Depends(get_current_user)):
-    return database.get_meta_pixels(_opt_user_id(user))
+    return database.get_meta_pixels(None)
 
 class AudienceDiscoverBody(BaseModel):
     act_id: str
@@ -5004,7 +5004,7 @@ def _import_meta_audiences(body: ImportAudiencesBody, user: dict = Depends(get_c
 
 @app.get("/api/meta/saved-audiences")
 def _get_meta_saved_audiences(user: dict = Depends(get_current_user)):
-    return database.get_meta_saved_audiences(_opt_user_id(user))
+    return database.get_meta_saved_audiences(None)
 
 
 # ---- 投放模板管理 API ----
