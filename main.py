@@ -4903,6 +4903,77 @@ async def _set_meta_sync_interval(request: Request, user: dict = Depends(get_cur
     return {"success": True, "interval": seconds}
 
 
+# ---- Meta 资产：主页 / 数据集 / 受众模版 ----
+
+@app.get("/api/meta/pages")
+def _get_meta_pages(user: dict = Depends(get_current_user)):
+    return database.get_meta_pages(_opt_user_id(user))
+
+class ImportPagesBody(BaseModel):
+    pages: list  # [{"page_id","page_name","bm_id"}]
+
+@app.post("/api/meta/pages/import")
+def _import_meta_pages(body: ImportPagesBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    for p in body.pages:
+        database.upsert_meta_page(p.get("page_id",""), p.get("page_name",""), p.get("bm_id",""), uid)
+    return {"success": True, "count": len(body.pages)}
+
+class PixelDiscoverBody(BaseModel):
+    act_id: str
+    access_token: str = ""
+
+@app.post("/api/meta/pixels/discover")
+def _discover_meta_pixels(body: PixelDiscoverBody, user: dict = Depends(get_current_user)):
+    token = body.access_token or _load_meta_default_token()
+    pixels, err = meta_api.get_pixels(body.act_id, token)
+    if err:
+        return {"success": False, "message": err}
+    return {"success": True, "pixels": pixels}
+
+class ImportPixelsBody(BaseModel):
+    pixels: list  # [{"pixel_id","pixel_name","act_id"}]
+
+@app.post("/api/meta/pixels/import")
+def _import_meta_pixels(body: ImportPixelsBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    for p in body.pixels:
+        database.upsert_meta_pixel(p.get("pixel_id",""), p.get("pixel_name",""), p.get("act_id",""), uid)
+    return {"success": True, "count": len(body.pixels)}
+
+@app.get("/api/meta/pixels")
+def _get_meta_pixels(user: dict = Depends(get_current_user)):
+    return database.get_meta_pixels(_opt_user_id(user))
+
+class AudienceDiscoverBody(BaseModel):
+    act_id: str
+    access_token: str = ""
+
+@app.post("/api/meta/saved-audiences/discover")
+def _discover_meta_audiences(body: AudienceDiscoverBody, user: dict = Depends(get_current_user)):
+    token = body.access_token or _load_meta_default_token()
+    audiences, err = meta_api.get_saved_audiences(body.act_id, token)
+    if err:
+        return {"success": False, "message": err}
+    return {"success": True, "audiences": audiences}
+
+class ImportAudiencesBody(BaseModel):
+    audiences: list  # [{"audience_id","audience_name","act_id","targeting_json"}]
+
+@app.post("/api/meta/saved-audiences/import")
+def _import_meta_audiences(body: ImportAudiencesBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    for a in body.audiences:
+        database.upsert_meta_saved_audience(
+            a.get("audience_id",""), a.get("audience_name",""), a.get("act_id",""),
+            a.get("targeting_json","{}"), uid)
+    return {"success": True, "count": len(body.audiences)}
+
+@app.get("/api/meta/saved-audiences")
+def _get_meta_saved_audiences(user: dict = Depends(get_current_user)):
+    return database.get_meta_saved_audiences(_opt_user_id(user))
+
+
 # ---- 投放模板管理 API ----
 
 @app.get("/api/delivery/templates")
