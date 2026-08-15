@@ -1788,6 +1788,11 @@ def get_delivery_campaigns(user_id=None):
             rows = conn.execute("SELECT * FROM delivery_campaigns ORDER BY id DESC").fetchall()
         return [dict(r) for r in rows]
 
+def get_delivery_campaign(campaign_id):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM delivery_campaigns WHERE id = ?", (campaign_id,)).fetchone()
+        return dict(row) if row else None
+
 def create_delivery_adset(campaign_id, name, ad_account_id="", pixel_id="", audience_id="",
                           daily_budget=0, bid_strategy="LOWEST_COST_WITHOUT_CAP", bid_amount=0,
                           optimization_goal="OFFSITE_CONVERSIONS", billing_event="IMPRESSIONS",

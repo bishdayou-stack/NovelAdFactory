@@ -173,6 +173,15 @@ def _opt_user_id(user: dict) -> int:
         return None
     return user["id"]
 
+def _check_campaign_owner(campaign_id, uid):
+    """校验投放系列归属：admin 直接返回系列；非 admin 校验 user_id，越权抛 403。"""
+    camp = database.get_delivery_campaign(campaign_id)
+    if uid is None:  # admin
+        return camp
+    if not camp or camp.get("user_id") != uid:
+        raise HTTPException(403, "无权访问该投放系列")
+    return camp
+
 # 启动时初始化数据库
 database.init_db()
 
@@ -4925,7 +4934,11 @@ class PixelDiscoverBody(BaseModel):
 
 @app.post("/api/meta/pixels/discover")
 def _discover_meta_pixels(body: PixelDiscoverBody, user: dict = Depends(get_current_user)):
-    token = body.access_token or _load_meta_default_token()
+    token = body.access_token
+    if not token and user.get("role") == "admin":
+        token = _load_meta_default_token()
+    if not token:
+        return {"success": False, "message": "未提供 access_token"}
     pixels, err = meta_api.get_pixels(body.act_id, token)
     if err:
         return {"success": False, "message": err}
@@ -4951,7 +4964,11 @@ class AudienceDiscoverBody(BaseModel):
 
 @app.post("/api/meta/saved-audiences/discover")
 def _discover_meta_audiences(body: AudienceDiscoverBody, user: dict = Depends(get_current_user)):
-    token = body.access_token or _load_meta_default_token()
+    token = body.access_token
+    if not token and user.get("role") == "admin":
+        token = _load_meta_default_token()
+    if not token:
+        return {"success": False, "message": "未提供 access_token"}
     audiences, err = meta_api.get_saved_audiences(body.act_id, token)
     if err:
         return {"success": False, "message": err}
@@ -5218,6 +5235,7 @@ class DeliveryAdsetBody(BaseModel):
 
 @app.post("/api/delivery/adsets")
 def _create_delivery_adset(body: DeliveryAdsetBody, user: dict = Depends(get_current_user)):
+    _check_campaign_owner(body.campaign_id, _opt_user_id(user))
     aid = database.create_delivery_adset(body.campaign_id, body.name, body.ad_account_id,
         body.pixel_id, body.audience_id, body.daily_budget, body.bid_strategy, body.bid_amount,
         body.optimization_goal, body.billing_event, body.destination_type, body.custom_event_type,
@@ -5226,6 +5244,7 @@ def _create_delivery_adset(body: DeliveryAdsetBody, user: dict = Depends(get_cur
 
 @app.get("/api/delivery/adsets/{campaign_id}")
 def _list_delivery_adsets(campaign_id: int, user: dict = Depends(get_current_user)):
+    _check_campaign_owner(campaign_id, _opt_user_id(user))
     return database.get_delivery_adsets(campaign_id)
 
 class PublishAsset(BaseModel):
@@ -5241,7 +5260,11 @@ class PublishBody(BaseModel):
 @app.post("/api/delivery/publish")
 def _publish_delivery_campaign(body: PublishBody, user: dict = Depends(get_current_user)):
     uid = _opt_user_id(user)
+    _check_campaign_owner(body.campaign_id, uid)
+    valid_adset_ids = {a["id"] for a in database.get_delivery_adsets(body.campaign_id)}
     for a in body.assets:
+        if a.adset_id not in valid_adset_ids:
+            return {"success": False, "message": f"广告组 {a.adset_id} 不属于该系列"}
         path = delivery.resolve_output_path(a.image_url, OUTPUT_ROOT)
         if not path:
             return {"success": False, "message": f"无效素材路径: {a.image_url}"}

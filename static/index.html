@@ -1160,7 +1160,7 @@
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div><label class="mb-1 block text-sm font-medium text-slate-400">出价策略</label><select id="dwBidStrategy" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" onchange="dwOnBidStrategy()"><option value="LOWEST_COST_WITHOUT_CAP">LOWEST_COST_WITHOUT_CAP（最低成本）</option><option value="COST_CAP">COST_CAP（成本上限）</option></select></div>
-              <div id="dwBidAmountWrap" style="display:none"><label class="mb-1 block text-sm font-medium text-slate-400">单次成效目标费用</label><input id="dwBidAmount" type="number" min="0" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" placeholder="如 5"></div>
+              <div id="dwBidAmountWrap" style="display:none"><label class="mb-1 block text-sm font-medium text-slate-400">单次成效目标费用（美元）</label><input id="dwBidAmount" type="number" min="0" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" placeholder="如 5"></div>
             </div>
             <div><label class="mb-1 block text-sm font-medium text-slate-400">成效目标</label><select id="dwOptimizationGoal" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"><option value="OFFSITE_CONVERSIONS">OFFSITE_CONVERSIONS（站外转化）</option><option value="LANDING_PAGE_VIEWS">LANDING_PAGE_VIEWS（落地页浏览）</option><option value="LINK_CLICKS">LINK_CLICKS（链接点击）</option></select></div>
             <div>
@@ -3732,7 +3732,7 @@
         objective: 'OUTCOME_SALES',
         budget_strategy: isCampaign ? 'campaign' : 'adset',
         is_adset_budget_sharing_enabled: isCampaign ? 1 : 0,
-        daily_budget: isCampaign ? (parseInt(document.getElementById('dwCampaignDailyBudget').value) || 0) : 0,
+        daily_budget: isCampaign ? (Math.round(parseFloat(document.getElementById('dwCampaignDailyBudget').value) * 100) || 0) : 0,
         page_id: document.getElementById('dwPageId').value,
         link_url: document.getElementById('dwLinkUrl').value.trim(),
         call_to_action: document.getElementById('dwCallToAction').value
@@ -3770,9 +3770,9 @@
         ad_account_id: adAccountId,
         pixel_id: pixelId,
         audience_id: audienceId,
-        daily_budget: isCampaign ? 0 : (parseInt(document.getElementById('dwAdsetDailyBudget').value) || 0),
+        daily_budget: isCampaign ? 0 : (Math.round(parseFloat(document.getElementById('dwAdsetDailyBudget').value) * 100) || 0),
         bid_strategy: bidStrategy,
-        bid_amount: bidStrategy === 'COST_CAP' ? (parseInt(document.getElementById('dwBidAmount').value) || 0) : 0,
+        bid_amount: bidStrategy === 'COST_CAP' ? (Math.round(parseFloat(document.getElementById('dwBidAmount').value) * 100) || 0) : 0,
         optimization_goal: document.getElementById('dwOptimizationGoal').value,
         billing_event: 'IMPRESSIONS',
         destination_type: 'WEBSITE',
