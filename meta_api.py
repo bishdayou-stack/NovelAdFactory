@@ -59,13 +59,17 @@ def _http_request(method: str, url: str, params: dict = None, data: dict = None,
         # 如果是 JSON body
         has_files = any(isinstance(v, tuple) for v in data.values())
         if has_files:
-            # 文件上传
-            for key, (filename, filebytes) in data.items():
-                # 用临时文件
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=filename)
-                tmp.write(filebytes if isinstance(filebytes, bytes) else filebytes.encode())
-                tmp.close()
-                cmd.extend(["-F", f"{key}=@{tmp.name};filename={filename}"])
+            # 文件上传：tuple 值作为文件，其余作为普通表单字段
+            for key, value in data.items():
+                if isinstance(value, tuple):
+                    filename, filebytes = value
+                    # 用临时文件
+                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=filename)
+                    tmp.write(filebytes if isinstance(filebytes, bytes) else filebytes.encode())
+                    tmp.close()
+                    cmd.extend(["-F", f"{key}=@{tmp.name};filename={filename}"])
+                else:
+                    cmd.extend(["-F", f"{key}={value}"])
         else:
             cmd.extend(["-d", urlencode(data)])
 
