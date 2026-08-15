@@ -289,10 +289,9 @@ def submit_delivery_campaign(campaign_id: int, user_id: int = None):
     _delivery_events[batch_id] = threading.Event()
     _delivery_queues[batch_id] = []
 
-    completed = 0
-    failed = 0
-
     def _run():
+        completed = 0
+        failed = 0
         try:
             _push_event(batch_id, "start", {"total": total})
             is_sharing = (camp.get("is_adset_budget_sharing_enabled") == 1)
