@@ -329,6 +329,19 @@ def get_saved_audiences(act_id: str, access_token: str) -> Tuple[Optional[List[D
     return data.get("data", []), None
 
 
+def get_promote_pages(act_id: str, access_token: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    """列出广告账户可推广的主页（用于广告的 page_id）。返回 [{"id","name"}]。"""
+    _check_rate(act_id)
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/promote_pages"
+    data, err = _http_request("GET", url, params={
+        "fields": "id,name",
+        "access_token": access_token,
+    })
+    if err:
+        return None, err
+    return data.get("data", []), None
+
+
 def create_campaign(act_id: str, access_token: str,
                     name: str, objective: str = "OUTCOME_TRAFFIC",
                     status: str = "PAUSED",

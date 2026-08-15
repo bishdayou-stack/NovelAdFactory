@@ -4918,6 +4918,22 @@ async def _set_meta_sync_interval(request: Request, user: dict = Depends(get_cur
 def _get_meta_pages(user: dict = Depends(get_current_user)):
     return database.get_meta_pages(_opt_user_id(user))
 
+class PageDiscoverBody(BaseModel):
+    act_id: str
+    access_token: str = ""
+
+@app.post("/api/meta/pages/discover")
+def _discover_meta_pages(body: PageDiscoverBody, user: dict = Depends(get_current_user)):
+    token = body.access_token
+    if not token and user.get("role") == "admin":
+        token = _load_meta_default_token()
+    if not token:
+        return {"success": False, "message": "未提供 access_token"}
+    pages, err = meta_api.get_promote_pages(body.act_id, token)
+    if err:
+        return {"success": False, "message": err}
+    return {"success": True, "pages": pages}
+
 class ImportPagesBody(BaseModel):
     pages: list  # [{"page_id","page_name","bm_id"}]
 
