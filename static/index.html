@@ -280,6 +280,7 @@
             <div class="flex items-center gap-2">
               <span id="batchTag" class="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] text-slate-500 font-mono font-medium" hidden></span>
               <button type="button" id="downloadAllBtn" class="rounded-xl bg-slate-800 px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-900 transition-all shadow-sm" hidden>下载全部</button>
+              <button type="button" id="genPublishBtn" class="rounded-xl bg-indigo-600 px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm" onclick="genCollectForDelivery()">发布到 Meta</button>
             </div>
           </div>
           <div id="resultEmpty" class="flex-1 flex flex-col items-center justify-center text-slate-300">
@@ -3546,6 +3547,7 @@
             '<div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div id="naProgressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all"></div></div>' +
             '<div id="naProgressText" class="text-xs text-slate-500">准备中...</div>' +
             '<div id="naGeneratedImages" class="grid grid-cols-2 gap-3 sm:grid-cols-3"></div>' +
+            '<button id="naPublishBtn" type="button" class="rounded-xl bg-indigo-600 px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm" onclick="naCollectForDelivery()">发布到 Meta</button>' +
             '<div class="text-xs text-slate-400">提示：如长时间无变化，刷新页面或去<a href="javascript:void(0)" class="underline text-indigo-500" onclick="switchTab(\'history\')">历史记录</a>查看</div>' +
             '</div>';
           document.getElementById('naCancelBtn').addEventListener('click', function() {
@@ -3838,6 +3840,36 @@
         var sel = document.getElementById('dwAssetAdset_' + idx);
         if (sel && _dwAdsets.length) sel.value = _dwAdsets[idx % _dwAdsets.length].id;
       });
+    }
+
+    function dwRelUrl(abs) {
+      try { return new URL(abs).pathname; } catch (e) { return abs; }
+    }
+
+    function genCollectForDelivery() {
+      var assets = [];
+      var gallery = document.getElementById("imageGallery");
+      var videoList = document.getElementById("videoList");
+      if (gallery) gallery.querySelectorAll("img").forEach(function(img) {
+        assets.push({ image_url: dwRelUrl(img.src), image_type: "text_single", overlay_text: "" });
+      });
+      if (videoList) videoList.querySelectorAll("video").forEach(function(v) {
+        assets.push({ image_url: dwRelUrl(v.src), image_type: "scroll", overlay_text: "" });
+      });
+      if (!assets.length) { alert("暂无素材，请先生成图片或视频"); return; }
+      _dwAssets = assets;
+      switchTab("delivery-wizard");
+    }
+
+    function naCollectForDelivery() {
+      var assets = [];
+      var grid = document.getElementById("naGeneratedImages");
+      if (grid) grid.querySelectorAll("img").forEach(function(img) {
+        assets.push({ image_url: dwRelUrl(img.src), image_type: "text_single", overlay_text: "" });
+      });
+      if (!assets.length) { alert("暂无素材，请先生成图片"); return; }
+      _dwAssets = assets;
+      switchTab("delivery-wizard");
     }
 
     function dwPublish() {
