@@ -173,6 +173,15 @@ def _opt_user_id(user: dict) -> int:
         return None
     return user["id"]
 
+def _check_campaign_owner(campaign_id, uid):
+    """校验投放系列归属：admin 直接返回系列；非 admin 校验 user_id，越权抛 403。"""
+    camp = database.get_delivery_campaign(campaign_id)
+    if uid is None:  # admin
+        return camp
+    if not camp or camp.get("user_id") != uid:
+        raise HTTPException(403, "无权访问该投放系列")
+    return camp
+
 # 启动时初始化数据库
 database.init_db()
 
@@ -4903,6 +4912,101 @@ async def _set_meta_sync_interval(request: Request, user: dict = Depends(get_cur
     return {"success": True, "interval": seconds}
 
 
+# ---- Meta 资产：主页 / 数据集 / 受众模版 ----
+
+@app.get("/api/meta/pages")
+def _get_meta_pages(user: dict = Depends(get_current_user)):
+    return database.get_meta_pages(_opt_user_id(user))
+
+class PageDiscoverBody(BaseModel):
+    act_id: str
+    access_token: str = ""
+
+@app.post("/api/meta/pages/discover")
+def _discover_meta_pages(body: PageDiscoverBody, user: dict = Depends(get_current_user)):
+    token = body.access_token
+    if not token and user.get("role") == "admin":
+        token = _load_meta_default_token()
+    if not token:
+        return {"success": False, "message": "未提供 access_token"}
+    pages, err = meta_api.get_promote_pages(body.act_id, token)
+    if err:
+        return {"success": False, "message": err}
+    return {"success": True, "pages": pages}
+
+class ImportPagesBody(BaseModel):
+    pages: list  # [{"page_id","page_name","bm_id"}]
+
+@app.post("/api/meta/pages/import")
+def _import_meta_pages(body: ImportPagesBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    for p in body.pages:
+        database.upsert_meta_page(p.get("page_id",""), p.get("page_name",""), p.get("bm_id",""), uid)
+    return {"success": True, "count": len(body.pages)}
+
+class PixelDiscoverBody(BaseModel):
+    act_id: str
+    access_token: str = ""
+
+@app.post("/api/meta/pixels/discover")
+def _discover_meta_pixels(body: PixelDiscoverBody, user: dict = Depends(get_current_user)):
+    token = body.access_token
+    if not token and user.get("role") == "admin":
+        token = _load_meta_default_token()
+    if not token:
+        return {"success": False, "message": "未提供 access_token"}
+    pixels, err = meta_api.get_pixels(body.act_id, token)
+    if err:
+        return {"success": False, "message": err}
+    return {"success": True, "pixels": pixels}
+
+class ImportPixelsBody(BaseModel):
+    pixels: list  # [{"pixel_id","pixel_name","act_id"}]
+
+@app.post("/api/meta/pixels/import")
+def _import_meta_pixels(body: ImportPixelsBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    for p in body.pixels:
+        database.upsert_meta_pixel(p.get("pixel_id",""), p.get("pixel_name",""), p.get("act_id",""), uid)
+    return {"success": True, "count": len(body.pixels)}
+
+@app.get("/api/meta/pixels")
+def _get_meta_pixels(user: dict = Depends(get_current_user)):
+    return database.get_meta_pixels(_opt_user_id(user))
+
+class AudienceDiscoverBody(BaseModel):
+    act_id: str
+    access_token: str = ""
+
+@app.post("/api/meta/saved-audiences/discover")
+def _discover_meta_audiences(body: AudienceDiscoverBody, user: dict = Depends(get_current_user)):
+    token = body.access_token
+    if not token and user.get("role") == "admin":
+        token = _load_meta_default_token()
+    if not token:
+        return {"success": False, "message": "未提供 access_token"}
+    audiences, err = meta_api.get_saved_audiences(body.act_id, token)
+    if err:
+        return {"success": False, "message": err}
+    return {"success": True, "audiences": audiences}
+
+class ImportAudiencesBody(BaseModel):
+    audiences: list  # [{"audience_id","audience_name","act_id","targeting_json"}]
+
+@app.post("/api/meta/saved-audiences/import")
+def _import_meta_audiences(body: ImportAudiencesBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    for a in body.audiences:
+        database.upsert_meta_saved_audience(
+            a.get("audience_id",""), a.get("audience_name",""), a.get("act_id",""),
+            a.get("targeting_json","{}"), uid)
+    return {"success": True, "count": len(body.audiences)}
+
+@app.get("/api/meta/saved-audiences")
+def _get_meta_saved_audiences(user: dict = Depends(get_current_user)):
+    return database.get_meta_saved_audiences(_opt_user_id(user))
+
+
 # ---- 投放模板管理 API ----
 
 @app.get("/api/delivery/templates")
@@ -5106,6 +5210,88 @@ def _get_delivery_records(page: int = 1, page_size: int = 20, status: str = None
                            user: dict = Depends(get_current_user)):
     uid = _opt_user_id(user)
     return database.get_delivery_records(page, page_size, status, uid)
+
+
+class DeliveryCampaignBody(BaseModel):
+    name: str
+    objective: str = "OUTCOME_SALES"
+    budget_strategy: str = "adset"          # 'adset'(ABO) | 'campaign'(CBO)
+    is_adset_budget_sharing_enabled: int = 0
+    daily_budget: int = 0
+    page_id: str = ""
+    link_url: str = ""
+    call_to_action: str = "LEARN_MORE"
+
+@app.post("/api/delivery/campaigns")
+def _create_delivery_campaign(body: DeliveryCampaignBody, user: dict = Depends(get_current_user)):
+    cid = database.create_delivery_campaign(body.name, body.objective, body.budget_strategy,
+        body.is_adset_budget_sharing_enabled, body.daily_budget, body.page_id,
+        body.link_url, body.call_to_action, _opt_user_id(user))
+    return {"success": True, "id": cid}
+
+@app.get("/api/delivery/campaigns")
+def _list_delivery_campaigns(user: dict = Depends(get_current_user)):
+    return database.get_delivery_campaigns(_opt_user_id(user))
+
+class DeliveryAdsetBody(BaseModel):
+    campaign_id: int
+    name: str = ""
+    ad_account_id: str = ""
+    pixel_id: str = ""
+    audience_id: str = ""
+    daily_budget: int = 0
+    bid_strategy: str = "LOWEST_COST_WITHOUT_CAP"
+    bid_amount: int = 0
+    optimization_goal: str = "OFFSITE_CONVERSIONS"
+    billing_event: str = "IMPRESSIONS"
+    destination_type: str = "WEBSITE"
+    custom_event_type: str = "PURCHASE"
+    attribution_spec_json: str = ""
+    targeting_json: str = "{}"
+
+@app.post("/api/delivery/adsets")
+def _create_delivery_adset(body: DeliveryAdsetBody, user: dict = Depends(get_current_user)):
+    _check_campaign_owner(body.campaign_id, _opt_user_id(user))
+    aid = database.create_delivery_adset(body.campaign_id, body.name, body.ad_account_id,
+        body.pixel_id, body.audience_id, body.daily_budget, body.bid_strategy, body.bid_amount,
+        body.optimization_goal, body.billing_event, body.destination_type, body.custom_event_type,
+        body.attribution_spec_json, body.targeting_json, _opt_user_id(user))
+    return {"success": True, "id": aid}
+
+@app.get("/api/delivery/adsets/{campaign_id}")
+def _list_delivery_adsets(campaign_id: int, user: dict = Depends(get_current_user)):
+    _check_campaign_owner(campaign_id, _opt_user_id(user))
+    return database.get_delivery_adsets(campaign_id)
+
+class PublishAsset(BaseModel):
+    adset_id: int
+    image_url: str
+    image_type: str = ""
+    overlay_text: str = ""
+
+class PublishBody(BaseModel):
+    campaign_id: int
+    assets: List[PublishAsset]
+
+@app.post("/api/delivery/publish")
+def _publish_delivery_campaign(body: PublishBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    _check_campaign_owner(body.campaign_id, uid)
+    valid_adset_ids = {a["id"] for a in database.get_delivery_adsets(body.campaign_id)}
+    for a in body.assets:
+        if a.adset_id not in valid_adset_ids:
+            return {"success": False, "message": f"广告组 {a.adset_id} 不属于该系列"}
+        path = delivery.resolve_output_path(a.image_url, OUTPUT_ROOT)
+        if not path:
+            return {"success": False, "message": f"无效素材路径: {a.image_url}"}
+        database.add_to_delivery_queue([{
+            "batch_id": "", "image_type": a.image_type, "image_path": path,
+            "image_prompt": "", "overlay_text": a.overlay_text, "adset_id": a.adset_id,
+        }], uid)
+    batch_id, err = delivery.submit_delivery_campaign(body.campaign_id, uid)
+    if err:
+        return {"success": False, "message": err}
+    return {"success": True, "batch_id": batch_id}
 
 
 # ---- Meta 数据看板 API（独立，不混入 pingykj 看板） ----

@@ -59,13 +59,17 @@ def _http_request(method: str, url: str, params: dict = None, data: dict = None,
         # 如果是 JSON body
         has_files = any(isinstance(v, tuple) for v in data.values())
         if has_files:
-            # 文件上传
-            for key, (filename, filebytes) in data.items():
-                # 用临时文件
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=filename)
-                tmp.write(filebytes if isinstance(filebytes, bytes) else filebytes.encode())
-                tmp.close()
-                cmd.extend(["-F", f"{key}=@{tmp.name};filename={filename}"])
+            # 文件上传：tuple 值作为文件，其余作为普通表单字段
+            for key, value in data.items():
+                if isinstance(value, tuple):
+                    filename, filebytes = value
+                    # 用临时文件
+                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=filename)
+                    tmp.write(filebytes if isinstance(filebytes, bytes) else filebytes.encode())
+                    tmp.close()
+                    cmd.extend(["-F", f"{key}=@{tmp.name};filename={filename}"])
+                else:
+                    cmd.extend(["-F", f"{key}={value}"])
         else:
             cmd.extend(["-d", urlencode(data)])
 
@@ -301,10 +305,49 @@ def upload_ad_video(act_id: str, access_token: str,
         return None, err
     return data.get("id", ""), None
 
+def get_pixels(act_id: str, access_token: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    _check_rate(act_id)
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/adspixels"
+    data, err = _http_request("GET", url, params={
+        "fields": "id,name",
+        "access_token": access_token,
+    })
+    if err:
+        return None, err
+    return data.get("data", []), None
+
+
+def get_saved_audiences(act_id: str, access_token: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    _check_rate(act_id)
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/saved_audiences"
+    data, err = _http_request("GET", url, params={
+        "fields": "id,name,targeting",
+        "access_token": access_token,
+    })
+    if err:
+        return None, err
+    return data.get("data", []), None
+
+
+def get_promote_pages(act_id: str, access_token: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    """列出广告账户可推广的主页（用于广告的 page_id）。返回 [{"id","name"}]。"""
+    _check_rate(act_id)
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/promote_pages"
+    data, err = _http_request("GET", url, params={
+        "fields": "id,name",
+        "access_token": access_token,
+    })
+    if err:
+        return None, err
+    return data.get("data", []), None
+
+
 def create_campaign(act_id: str, access_token: str,
                     name: str, objective: str = "OUTCOME_TRAFFIC",
                     status: str = "PAUSED",
-                    special_ad_categories: list = None) -> Tuple[Optional[str], Optional[str]]:
+                    special_ad_categories: list = None,
+                    is_adset_budget_sharing_enabled=None,
+                    daily_budget=None) -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/campaigns"
     body = {
@@ -314,6 +357,10 @@ def create_campaign(act_id: str, access_token: str,
         "special_ad_categories": json.dumps(special_ad_categories or []),
         "access_token": access_token,
     }
+    if is_adset_budget_sharing_enabled is not None:
+        body["is_adset_budget_sharing_enabled"] = "true" if is_adset_budget_sharing_enabled else "false"
+    if daily_budget:
+        body["daily_budget"] = str(daily_budget)
     data, err = _http_request("POST", url, data=body)
     if err:
         return None, err
@@ -328,6 +375,9 @@ def create_adset(act_id: str, access_token: str,
                  optimization_goal: str = "OFFSITE_CONVERSIONS",
                  start_time: str = None, end_time: str = None,
                  promoted_object: dict = None,
+                 destination_type: str = "WEBSITE",
+                 attribution_spec: dict = None,
+                 bid_amount: int = None,
                  status: str = "PAUSED") -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/adsets"
@@ -351,6 +401,11 @@ def create_adset(act_id: str, access_token: str,
         body["end_time"] = end_time
     if promoted_object:
         body["promoted_object"] = json.dumps(promoted_object)
+    body["destination_type"] = destination_type
+    if attribution_spec:
+        body["attribution_spec"] = json.dumps(attribution_spec)
+    if bid_amount:
+        body["bid_amount"] = str(bid_amount)
 
     data, err = _http_request("POST", url, data=body)
     if err:
@@ -362,6 +417,7 @@ def create_ad(act_id: str, access_token: str,
               creative_name: str, page_id: str,
               image_hash: str = None, video_id: str = None,
               message: str = "", link_url: str = "",
+              call_to_action_type: str = "LEARN_MORE",
               status: str = "PAUSED") -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/ads"
@@ -376,6 +432,11 @@ def create_ad(act_id: str, access_token: str,
         object_story_spec["link_data"]["image_hash"] = image_hash
     if video_id:
         object_story_spec["link_data"]["video_id"] = video_id
+    if call_to_action_type:
+        object_story_spec["link_data"]["call_to_action"] = {
+            "type": call_to_action_type,
+            "value": {"link": link_url},
+        }
 
     body = {
         "name": name,
