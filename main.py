@@ -4642,9 +4642,7 @@ def _get_meta_accounts(user: dict = Depends(get_current_user)):
         else:
             a["bm_name"] = a.get("pingykj_account", "") or "未归类"
             a["bm_owner_name"] = ""
-    # 普通用户只看 active 账户（管理员看全部，含已停用）
-    if user.get("role") != "admin":
-        accounts = [a for a in accounts if a.get("status") == "active"]
+    # 普通用户与管理员的账户树都返回全部账户（含已停用/封禁，便于查看历史数据）
     return accounts
 
 @app.post("/api/meta/accounts")
