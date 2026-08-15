@@ -154,6 +154,10 @@
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16l4-4 4 4 4-6"/></svg>
         <span class="truncate">Meta 管理</span>
       </button>
+      <button type="button" id="nav-delivery-wizard" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        <span class="truncate">投放向导</span>
+      </button>
       <button type="button" id="nav-meta-campaign" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
         <span class="truncate">广告系列</span>
@@ -1082,6 +1086,115 @@
       </div>
     </div>
 
+    <!-- 投放向导（三步：系列 / 广告组 / 广告） -->
+    <div id="tab-delivery-wizard" class="flex-1 bg-slate-900 overflow-y-auto px-5 py-4 min-w-0" hidden>
+      <div class="max-w-3xl mx-auto">
+        <!-- 步骤指示器 -->
+        <div class="flex items-center gap-3 mb-4">
+          <span id="dwStepDot1" class="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-600 text-white">1 系列</span>
+          <span class="text-slate-600">→</span>
+          <span id="dwStepDot2" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400">2 广告组</span>
+          <span class="text-slate-600">→</span>
+          <span id="dwStepDot3" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400">3 广告</span>
+        </div>
+
+        <!-- Step 1 系列 -->
+        <div id="dwStep1" class="card-dark p-6 space-y-4">
+          <h2 class="text-sm font-bold text-white">Step 1 · 广告系列</h2>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-400">系列名称</label>
+            <input id="dwCampaignName" type="text" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="例如：Novel Launch - 8月">
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-400">目标（固定）</label>
+            <input type="text" value="OUTCOME_SALES（销售转化）" readonly class="w-full rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-2.5 text-sm text-slate-500">
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-400">预算策略</label>
+            <div class="flex gap-4">
+              <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer"><input type="radio" name="dwBudgetStrategy" value="adset" id="dwBudgetStrategyAdset" checked onchange="dwOnBudgetStrategy()"> 广告组预算 (ABO)</label>
+              <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer"><input type="radio" name="dwBudgetStrategy" value="campaign" id="dwBudgetStrategyCampaign" onchange="dwOnBudgetStrategy()"> 系列预算 (CBO)</label>
+            </div>
+          </div>
+          <div id="dwCampaignBudgetWrap" style="display:none">
+            <label class="mb-1 block text-sm font-medium text-slate-400">系列日预算（美元）</label>
+            <input id="dwCampaignDailyBudget" type="number" min="0" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" placeholder="如 50">
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-400">主页</label>
+            <select id="dwPageId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"></select>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-400">落地页网址</label>
+            <input id="dwLinkUrl" type="text" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="https://example.com/landing">
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-400">行动号召</label>
+            <select id="dwCallToAction" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none">
+              <option value="LEARN_MORE">LEARN_MORE（了解更多）</option>
+              <option value="SIGN_UP">SIGN_UP（注册）</option>
+              <option value="SUBSCRIBE">SUBSCRIBE（订阅）</option>
+              <option value="SHOP_NOW">SHOP_NOW（立即购买）</option>
+              <option value="DOWNLOAD">DOWNLOAD（下载）</option>
+            </select>
+          </div>
+          <div class="flex justify-end pt-2">
+            <button id="dwBtnStep1Next" onclick="dwCreateCampaign()" class="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer border-0">下一步</button>
+          </div>
+        </div>
+
+        <!-- Step 2 广告组 -->
+        <div id="dwStep2" class="card-dark p-6 space-y-4" hidden>
+          <h2 class="text-sm font-bold text-white">Step 2 · 广告组</h2>
+          <div class="rounded-xl bg-slate-800/50 border border-slate-700 p-4 space-y-3">
+            <div><label class="mb-1 block text-sm font-medium text-slate-400">广告组名称</label><input id="dwAdsetName" type="text" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="例如：Adset 1 - 40+ 女性"></div>
+            <div><label class="mb-1 block text-sm font-medium text-slate-400">广告账户</label><select id="dwAdAccountId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"></select></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="mb-1 block text-sm font-medium text-slate-400">数据集</label><select id="dwPixelId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"></select></div>
+              <div><label class="mb-1 block text-sm font-medium text-slate-400">受众模版</label><select id="dwAudienceId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"></select></div>
+            </div>
+            <div id="dwAdsetBudgetWrap">
+              <label class="mb-1 block text-sm font-medium text-slate-400">组日预算（美元）</label>
+              <input id="dwAdsetDailyBudget" type="number" min="0" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" placeholder="如 20">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="mb-1 block text-sm font-medium text-slate-400">出价策略</label><select id="dwBidStrategy" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" onchange="dwOnBidStrategy()"><option value="LOWEST_COST_WITHOUT_CAP">LOWEST_COST_WITHOUT_CAP（最低成本）</option><option value="COST_CAP">COST_CAP（成本上限）</option></select></div>
+              <div id="dwBidAmountWrap" style="display:none"><label class="mb-1 block text-sm font-medium text-slate-400">单次成效目标费用</label><input id="dwBidAmount" type="number" min="0" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" placeholder="如 5"></div>
+            </div>
+            <div><label class="mb-1 block text-sm font-medium text-slate-400">成效目标</label><select id="dwOptimizationGoal" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"><option value="OFFSITE_CONVERSIONS">OFFSITE_CONVERSIONS（站外转化）</option><option value="LANDING_PAGE_VIEWS">LANDING_PAGE_VIEWS（落地页浏览）</option><option value="LINK_CLICKS">LINK_CLICKS（链接点击）</option></select></div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-400">归因窗口</label>
+              <div class="flex gap-4">
+                <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer"><input type="checkbox" id="dwAttrClick" checked> 点击 7 天</label>
+                <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer"><input type="checkbox" id="dwAttrView" checked> 浏览 1 天</label>
+                <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer"><input type="checkbox" id="dwAttrEngaged"> 互动观看 1 天</label>
+              </div>
+            </div>
+            <button id="dwBtnAddAdset" onclick="dwAddAdset()" class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer border-0">+ 添加广告组</button>
+          </div>
+          <div>
+            <h3 class="text-xs font-semibold text-slate-400 mb-2">已添加广告组</h3>
+            <div id="dwAdsetList" class="space-y-2"></div>
+          </div>
+          <div class="flex justify-between pt-2">
+            <button onclick="dwSwitchStep(1)" class="rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-all cursor-pointer bg-transparent">上一步</button>
+            <button onclick="dwSwitchStep(3)" class="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer border-0">下一步</button>
+          </div>
+        </div>
+
+        <!-- Step 3 广告 -->
+        <div id="dwStep3" class="card-dark p-6 space-y-4" hidden>
+          <h2 class="text-sm font-bold text-white">Step 3 · 广告（素材分配 + 发布）</h2>
+          <div id="dwAssetList" class="space-y-2"></div>
+          <div id="dwPublishProgress" class="text-xs text-slate-400"></div>
+          <div class="flex justify-between pt-2">
+            <button onclick="dwSwitchStep(2)" class="rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-all cursor-pointer bg-transparent">上一步</button>
+            <button id="dwBtnPublish" onclick="dwPublish()" class="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 transition-all cursor-pointer border-0">发布到 Meta</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 章节弹窗（双视图：章节列表 / 内容） -->
     <div id="chapterModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" hidden>
       <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col">
@@ -1925,7 +2038,7 @@
       // 隐藏所有 tab
       var allTabs = ['generate', 'history', 'assets', 'video-style', 'prompt-generate',
                      'novel-analyze', 'dashboard', 'novel-mgr', 'hit-gallery', 'config',
-                     'meta', 'bm-mgmt', 'meta-campaign', 'meta-gallery', 'meta-assign', 'users'];
+                     'meta', 'bm-mgmt', 'meta-campaign', 'delivery-wizard', 'meta-gallery', 'meta-assign', 'users'];
       for (var i = 0; i < allTabs.length; i++) {
         var el = document.getElementById('tab-' + allTabs[i]);
         if (el) el.hidden = true;
@@ -1949,12 +2062,12 @@
       }
 
       // 更新面包屑
-      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'meta': 'Meta 管理', 'bm-mgmt': 'BM/App 管理', 'meta-campaign': '广告系列', 'meta-gallery': '素材画廊', 'meta-assign': '账户分配', 'users': '用户管理' };
+      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'meta': 'Meta 管理', 'bm-mgmt': 'BM/App 管理', 'meta-campaign': '广告系列', 'delivery-wizard': '投放向导', 'meta-gallery': '素材画廊', 'meta-assign': '账户分配', 'users': '用户管理' };
       document.getElementById('breadcrumb').textContent = titles[tab] || tab;
       document.getElementById('pageTitle').textContent = titles[tab] || tab;
 
       // 根据页面类型切换 header 明暗
-      var darkPages = ['meta', 'bm-mgmt', 'meta-campaign', 'meta-gallery', 'meta-assign', 'users', 'hit-gallery', 'config'];
+      var darkPages = ['meta', 'bm-mgmt', 'meta-campaign', 'delivery-wizard', 'meta-gallery', 'meta-assign', 'users', 'hit-gallery', 'config'];
       var isDark = darkPages.indexOf(tab) >= 0;
       var header = document.getElementById('pageHeader');
       if (isDark) {
@@ -1987,6 +2100,7 @@
       if (tab === 'meta-campaign') { loadCampPage(); }
       if (tab === 'meta-gallery') { loadGalleryPage(); }
       if (tab === 'meta-assign') { loadAssignPage(); }
+      if (tab === 'delivery-wizard') { dwLoadOptions(); }
       if (tab === 'users') loadUserList();
     }
 
@@ -3545,6 +3659,233 @@
       }
     }
 
+    // ====== 投放向导 (Delivery Wizard) ======
+    var _dwCampaignId = null;   // 当前系列 id
+    var _dwAdsets = [];         // 已建广告组 [{id, name, act_id, ...}]
+    var _dwAssets = [];         // 待投放素材 [{image_url, image_type, overlay_text}]
+    var _dwAudiences = [];      // 受众模版缓存（用于读取 targeting_json）
+    var _dwEs = null;           // 发布进度 EventSource
+
+    function dwLoadOptions() {
+      fetch('/api/meta/pages').then(function(r){return r.json();}).then(function(d){
+        dwFillSelect('dwPageId', d || [], 'page_id', 'page_name', '选择主页');
+      }).catch(function(){});
+      fetch('/api/meta/accounts').then(function(r){return r.json();}).then(function(d){
+        var acc = (d && d.accounts) || d || [];
+        dwFillSelect('dwAdAccountId', acc, 'act_id', 'act_name', '选择广告账户');
+      }).catch(function(){});
+      fetch('/api/meta/pixels').then(function(r){return r.json();}).then(function(d){
+        dwFillSelect('dwPixelId', d || [], 'pixel_id', 'pixel_name', '选择数据集');
+      }).catch(function(){});
+      fetch('/api/meta/saved-audiences').then(function(r){return r.json();}).then(function(d){
+        _dwAudiences = d || [];
+        dwFillSelect('dwAudienceId', _dwAudiences, 'audience_id', 'audience_name', '选择受众模版');
+      }).catch(function(){});
+    }
+
+    function dwFillSelect(selId, items, valKey, labelKey, placeholder) {
+      var sel = document.getElementById(selId);
+      if (!sel) return;
+      var html = '<option value="">' + placeholder + '</option>';
+      (items || []).forEach(function(it){
+        var val = it[valKey] || '';
+        var label = it[labelKey] || val;
+        html += '<option value="' + escapeHtml(String(val)) + '">' + escapeHtml(String(label)) + '</option>';
+      });
+      sel.innerHTML = html;
+    }
+
+    function dwOnBudgetStrategy() {
+      var isCampaign = document.getElementById('dwBudgetStrategyCampaign').checked;
+      document.getElementById('dwCampaignBudgetWrap').style.display = isCampaign ? '' : 'none';
+      var adsetBudget = document.getElementById('dwAdsetBudgetWrap');
+      if (adsetBudget) adsetBudget.style.display = isCampaign ? 'none' : '';
+    }
+
+    function dwOnBidStrategy() {
+      document.getElementById('dwBidAmountWrap').style.display = document.getElementById('dwBidStrategy').value === 'COST_CAP' ? '' : 'none';
+    }
+
+    function dwSwitchStep(step) {
+      var ids = ['dwStep1', 'dwStep2', 'dwStep3'];
+      for (var i = 0; i < ids.length; i++) {
+        document.getElementById(ids[i]).hidden = (i + 1) !== step;
+      }
+      for (var s = 1; s <= 3; s++) {
+        var dot = document.getElementById('dwStepDot' + s);
+        if (!dot) continue;
+        if (s < step) { dot.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-emerald-600 text-white'; }
+        else if (s === step) { dot.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-indigo-600 text-white'; }
+        else { dot.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400'; }
+      }
+      if (step === 3) dwRenderAssets();
+    }
+
+    function dwCreateCampaign() {
+      var name = document.getElementById('dwCampaignName').value.trim();
+      if (!name) { alert('请输入系列名称'); return; }
+      var isCampaign = document.getElementById('dwBudgetStrategyCampaign').checked;
+      var body = {
+        name: name,
+        objective: 'OUTCOME_SALES',
+        budget_strategy: isCampaign ? 'campaign' : 'adset',
+        is_adset_budget_sharing_enabled: isCampaign ? 1 : 0,
+        daily_budget: isCampaign ? (parseInt(document.getElementById('dwCampaignDailyBudget').value) || 0) : 0,
+        page_id: document.getElementById('dwPageId').value,
+        link_url: document.getElementById('dwLinkUrl').value.trim(),
+        call_to_action: document.getElementById('dwCallToAction').value
+      };
+      var btn = document.getElementById('dwBtnStep1Next');
+      btn.disabled = true; btn.textContent = '创建中...';
+      fetch('/api/delivery/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d && d.success) { _dwCampaignId = d.id; dwSwitchStep(2); }
+          else { alert('创建系列失败: ' + ((d && d.message) || '未知错误')); }
+        })
+        .catch(function(e){ alert('创建系列失败: ' + e); })
+        .finally(function(){ btn.disabled = false; btn.textContent = '下一步'; });
+    }
+
+    function dwAddAdset() {
+      if (!_dwCampaignId) { alert('请先完成 Step 1'); return; }
+      var name = document.getElementById('dwAdsetName').value.trim();
+      var adAccountId = document.getElementById('dwAdAccountId').value;
+      var pixelId = document.getElementById('dwPixelId').value;
+      var audienceId = document.getElementById('dwAudienceId').value;
+      if (!name) { alert('请输入广告组名称'); return; }
+      if (!adAccountId) { alert('请选择广告账户'); return; }
+      var isCampaign = document.getElementById('dwBudgetStrategyCampaign').checked;
+      var bidStrategy = document.getElementById('dwBidStrategy').value;
+      // 选中受众时使用其 targeting_json
+      var targetingJson = '{}';
+      for (var i = 0; i < _dwAudiences.length; i++) {
+        if (String(_dwAudiences[i].audience_id) === String(audienceId)) { targetingJson = _dwAudiences[i].targeting_json || '{}'; break; }
+      }
+      var body = {
+        campaign_id: _dwCampaignId,
+        name: name,
+        ad_account_id: adAccountId,
+        pixel_id: pixelId,
+        audience_id: audienceId,
+        daily_budget: isCampaign ? 0 : (parseInt(document.getElementById('dwAdsetDailyBudget').value) || 0),
+        bid_strategy: bidStrategy,
+        bid_amount: bidStrategy === 'COST_CAP' ? (parseInt(document.getElementById('dwBidAmount').value) || 0) : 0,
+        optimization_goal: document.getElementById('dwOptimizationGoal').value,
+        billing_event: 'IMPRESSIONS',
+        destination_type: 'WEBSITE',
+        custom_event_type: 'PURCHASE',
+        attribution_spec_json: dwBuildAttributionSpec(),
+        targeting_json: targetingJson
+      };
+      var btn = document.getElementById('dwBtnAddAdset');
+      btn.disabled = true; btn.textContent = '添加中...';
+      fetch('/api/delivery/adsets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d && d.success) {
+            _dwAdsets.push({ id: d.id, name: name, act_id: adAccountId });
+            dwRenderAdsets();
+            document.getElementById('dwAdsetName').value = '';
+          } else { alert('创建广告组失败: ' + ((d && d.message) || '未知错误')); }
+        })
+        .catch(function(e){ alert('创建广告组失败: ' + e); })
+        .finally(function(){ btn.disabled = false; btn.textContent = '+ 添加广告组'; });
+    }
+
+    function dwBuildAttributionSpec() {
+      var spec = [];
+      if (document.getElementById('dwAttrClick').checked) spec.push({ event_type: 'CLICK_THROUGH', window_days: 7 });
+      if (document.getElementById('dwAttrView').checked) spec.push({ event_type: 'VIEW_THROUGH', window_days: 1 });
+      if (document.getElementById('dwAttrEngaged').checked) spec.push({ event_type: 'ENGAGED_VIDEO_VIEW', window_days: 1 });
+      return JSON.stringify(spec);
+    }
+
+    function dwRenderAdsets() {
+      var el = document.getElementById('dwAdsetList');
+      if (!el) return;
+      if (!_dwAdsets.length) { el.innerHTML = '<div class="text-xs text-slate-500">尚未添加广告组</div>'; return; }
+      var html = '';
+      _dwAdsets.forEach(function(a){
+        html += '<div class="flex items-center justify-between rounded-lg bg-slate-800 px-3 py-2">' +
+          '<span class="text-sm text-white">' + escapeHtml(a.name) + '</span>' +
+          '<span class="text-[11px] text-slate-500">#' + a.id + ' · ' + escapeHtml(a.act_id || '') + '</span></div>';
+      });
+      el.innerHTML = html;
+    }
+
+    function dwRenderAssets() {
+      var el = document.getElementById('dwAssetList');
+      if (!el) return;
+      if (!_dwAssets.length) {
+        el.innerHTML = '<div class="text-sm text-slate-500 py-8 text-center">请先从生产中心或小说分析选择素材</div>';
+        return;
+      }
+      var html = '';
+      _dwAssets.forEach(function(asset, idx){
+        var opts = '<option value="">选择广告组</option>';
+        _dwAdsets.forEach(function(a){
+          opts += '<option value="' + a.id + '">' + escapeHtml(a.name) + ' (#' + a.id + ')</option>';
+        });
+        html += '<div class="flex items-center gap-3 rounded-lg bg-slate-800 p-2">' +
+          '<img src="' + absUrl(asset.image_url) + '" class="w-12 h-12 object-cover rounded-lg bg-slate-700" onerror="this.style.display=\'none\'">' +
+          '<div class="flex-1 min-w-0"><div class="text-xs text-white truncate">' + escapeHtml(asset.image_type || '素材') + '</div>' +
+          '<div class="text-[10px] text-slate-500 truncate">' + escapeHtml(asset.image_url || '') + '</div></div>' +
+          '<select id="dwAssetAdset_' + idx + '" class="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none">' + opts + '</select></div>';
+      });
+      el.innerHTML = html;
+      _dwAssets.forEach(function(asset, idx){
+        var sel = document.getElementById('dwAssetAdset_' + idx);
+        if (sel && _dwAdsets.length) sel.value = _dwAdsets[idx % _dwAdsets.length].id;
+      });
+    }
+
+    function dwPublish() {
+      if (!_dwAssets.length) { alert('没有素材，请先从生产中心或小说分析选择素材'); return; }
+      if (!_dwAdsets.length) { alert('请先至少添加一个广告组'); return; }
+      var assets = [];
+      for (var i = 0; i < _dwAssets.length; i++) {
+        var sel = document.getElementById('dwAssetAdset_' + i);
+        var adsetId = sel ? parseInt(sel.value) : 0;
+        if (!adsetId) { alert('请为第 ' + (i + 1) + ' 条素材选择广告组'); return; }
+        assets.push({ adset_id: adsetId, image_url: _dwAssets[i].image_url, image_type: _dwAssets[i].image_type || '', overlay_text: _dwAssets[i].overlay_text || '' });
+      }
+      var btn = document.getElementById('dwBtnPublish');
+      var prog = document.getElementById('dwPublishProgress');
+      btn.disabled = true; btn.textContent = '提交中...';
+      prog.innerHTML = '<div class="text-xs text-slate-400">正在提交...</div>';
+      fetch('/api/delivery/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campaign_id: _dwCampaignId, assets: assets }) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d && d.success) { dwOpenStream(d.batch_id); }
+          else { prog.innerHTML = '<div class="text-xs text-red-400">发布失败: ' + ((d && d.message) || '未知错误') + '</div>'; btn.disabled = false; btn.textContent = '发布到 Meta'; }
+        })
+        .catch(function(e){ prog.innerHTML = '<div class="text-xs text-red-400">发布失败: ' + e + '</div>'; btn.disabled = false; btn.textContent = '发布到 Meta'; });
+    }
+
+    function dwOpenStream(batchId) {
+      if (_dwEs) { _dwEs.close(); }
+      _dwEs = new EventSource('/api/delivery/stream/' + batchId);
+      var prog = document.getElementById('dwPublishProgress');
+      _dwEs.addEventListener('start', function(e){
+        var d = JSON.parse(e.data);
+        prog.innerHTML = '<div class="text-xs text-slate-400">开始投放，共 ' + (d.total || 0) + ' 条素材...</div>';
+      });
+      _dwEs.addEventListener('progress', function(e){
+        var d = JSON.parse(e.data);
+        prog.innerHTML = '<div class="text-xs text-indigo-400">已投放 ' + d.completed + '/' + d.total + '（失败 ' + (d.failed || 0) + '）...</div>';
+      });
+      _dwEs.addEventListener('complete', function(e){
+        var d = JSON.parse(e.data);
+        var n = d.completed || 0;
+        var extra = (d.failed && d.failed > 0) ? '，失败 ' + d.failed + ' 条' : '';
+        prog.innerHTML = '<div class="text-xs text-emerald-400 font-semibold">已创建 ' + n + ' 条广告（PAUSED）' + extra + '</div>';
+        _dwEs.close(); _dwEs = null;
+        document.getElementById('dwBtnPublish').disabled = false;
+        document.getElementById('dwBtnPublish').textContent = '发布到 Meta';
+      });
+    }
+
     // ====== 初始化：绑定事件 ======
     document.getElementById('nav-generate').addEventListener('click', function() { switchTab('generate'); });
     document.getElementById('nav-history').addEventListener('click', function() { switchTab('history'); });
@@ -3597,6 +3938,7 @@
     document.getElementById('nav-meta').addEventListener('click', function() { switchTab('meta'); });
     document.getElementById('nav-bm-mgmt').addEventListener('click', function() { switchTab('bm-mgmt'); });
     document.getElementById('nav-meta-campaign').addEventListener('click', function() { switchTab('meta-campaign'); });
+    document.getElementById('nav-delivery-wizard').addEventListener('click', function() { switchTab('delivery-wizard'); });
     document.getElementById('nav-meta-gallery').addEventListener('click', function() { switchTab('meta-gallery'); });
     document.getElementById('nav-meta-assign').addEventListener('click', function() { switchTab('meta-assign'); });
 
