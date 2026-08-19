@@ -454,6 +454,9 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
             _push_event(batch_id, "start", {"total": total})
             is_sharing = (params.get("is_adset_budget_sharing_enabled") == 1)
             campaign_daily = params.get("campaign_daily_budget") or None
+            ad_bid_amount = params.get("bid_amount") or None
+            if campaign_daily and not ad_bid_amount:
+                ad_bid_amount = 500  # CBO 模式 Meta v25 要求竞价金额（5 美元）
             for i, cid in enumerate(campaign_ids):
                 fb_cid, err = meta_api.create_campaign(
                     act_id, token, f"{params.get('campaign_name_prefix','Campaign')}-{i+1}",
@@ -477,7 +480,7 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                         promoted_object={"pixel_id": params.get("pixel_id"), "custom_event_type": params.get("custom_event_type", "PURCHASE")} if params.get("pixel_id") else None,
                         destination_type=params.get("destination_type", "WEBSITE"),
                         attribution_spec=json.loads(params.get("attribution_spec_json") or "[]") or None,
-                        bid_amount=params.get("bid_amount") or None,
+                        bid_amount=ad_bid_amount,
                         status="PAUSED")
                     if err:
                         failed += n3

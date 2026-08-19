@@ -5423,6 +5423,12 @@ def _batch_publish(body: BatchPublishBody, user: dict = Depends(get_current_user
         return {"success": False, "message": "广告名不能为空"}
     if body.optimization_goal == "OFFSITE_CONVERSIONS" and not body.pixel_id:
         return {"success": False, "message": "优化目标为站外转化时必须选择数据集（Pixel）"}
+    try:
+        targeting = json.loads(body.targeting_json or "{}")
+    except Exception:
+        targeting = {}
+    if not targeting.get("geo_locations"):
+        return {"success": False, "message": "请选择受众模版或设置投放地区（定向）"}
     if body.budget_strategy == "adset" and not body.adset_daily_budget:
         return {"success": False, "message": "广告组预算 (ABO) 模式下必须设置组日预算"}
     if body.budget_strategy == "campaign" and not body.campaign_daily_budget:

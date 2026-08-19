@@ -361,8 +361,7 @@ def create_campaign(act_id: str, access_token: str,
         "special_ad_categories": json.dumps(special_ad_categories or []),
         "access_token": access_token,
     }
-    if is_adset_budget_sharing_enabled is not None:
-        body["is_adset_budget_sharing_enabled"] = "true" if is_adset_budget_sharing_enabled else "false"
+    # Meta v25.0 不再支持 is_adset_budget_sharing_enabled 字段（CBO 由 campaign 层 daily_budget 实现）
     if daily_budget:
         body["daily_budget"] = str(daily_budget)
     data, err = _http_request("POST", url, data=body)
