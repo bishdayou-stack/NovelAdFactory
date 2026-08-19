@@ -1118,7 +1118,8 @@
           <div class="rounded-xl bg-slate-800/50 border border-slate-700 p-4 space-y-3">
             <h3 class="text-xs font-semibold text-slate-300">系列设置</h3>
             <input id="dwCampaignPrefix" placeholder="系列名前缀" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white">
-            <select id="dwBudgetStrategy" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="adset">广告组预算 (ABO)</option><option value="campaign">系列预算 (CBO)</option></select>
+            <select id="dwBudgetStrategy" onchange="dwOnBudgetStrategy()" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="adset">广告组预算 (ABO)</option><option value="campaign">系列预算 (CBO)</option></select>
+            <input id="dwCampaignDailyBudget" type="number" min="0" placeholder="系列日预算（美元，CBO 必填）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white" hidden>
             <select id="dwPageId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></select>
             <input id="dwLinkUrl" placeholder="落地页网址" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white">
           </div>
@@ -1126,7 +1127,10 @@
           <div class="rounded-xl bg-slate-800/50 border border-slate-700 p-4 space-y-3">
             <h3 class="text-xs font-semibold text-slate-300">广告组设置</h3>
             <input id="dwAdsetPrefix" placeholder="广告组名前缀" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white">
-            <input id="dwAdsetDailyBudget" type="number" min="0" placeholder="组日预算（美元，ABO 必填）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white">
+            <div id="dwAdsetDailyBudgetWrap"><input id="dwAdsetDailyBudget" type="number" min="0" placeholder="组日预算（美元，ABO 必填）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></div>
+            <select id="dwBidStrategy" onchange="dwOnBidStrategy()" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="LOWEST_COST_WITHOUT_CAP">最低成本（LOWEST_COST_WITHOUT_CAP）</option><option value="COST_CAP">成本上限（COST_CAP）</option></select>
+            <div id="dwBidAmountWrap" hidden><input id="dwBidAmount" type="number" min="0" placeholder="单次成效目标费用（美元）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></div>
+            <div><label class="mb-1 block text-xs text-slate-400">归因窗口</label><div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-300"><label class="inline-flex items-center gap-1.5"><input type="checkbox" id="dwAttrClick" checked>点击 7 天</label><label class="inline-flex items-center gap-1.5"><input type="checkbox" id="dwAttrView" checked>浏览 1 天</label><label class="inline-flex items-center gap-1.5"><input type="checkbox" id="dwAttrEngaged" checked>互动观看 1 天</label></div></div>
             <select id="dwOptimizationGoal" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="OFFSITE_CONVERSIONS">OFFSITE_CONVERSIONS（站外转化）</option><option value="LINK_CLICKS">LINK_CLICKS（链接点击）</option><option value="LANDING_PAGE_VIEWS">LANDING_PAGE_VIEWS（落地页浏览）</option></select>
             <select id="dwPixelId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></select>
             <select id="dwAudienceId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></select>
@@ -3748,6 +3752,24 @@
 
     function dwAddHeadline() { document.getElementById('dwHeadlines').appendChild(dwHeadlineInput()); }
 
+    function dwOnBudgetStrategy() {
+      var isCbo = document.getElementById('dwBudgetStrategy').value === 'campaign';
+      document.getElementById('dwCampaignDailyBudget').hidden = !isCbo;
+      document.getElementById('dwAdsetDailyBudgetWrap').hidden = isCbo;
+    }
+
+    function dwOnBidStrategy() {
+      document.getElementById('dwBidAmountWrap').hidden = document.getElementById('dwBidStrategy').value !== 'COST_CAP';
+    }
+
+    function dwBuildAttributionSpec() {
+      var spec = [];
+      if (document.getElementById('dwAttrClick').checked) spec.push({ event_type: 'CLICK_THROUGH', window_days: 7 });
+      if (document.getElementById('dwAttrView').checked) spec.push({ event_type: 'VIEW_THROUGH', window_days: 1 });
+      if (document.getElementById('dwAttrEngaged').checked) spec.push({ event_type: 'ENGAGED_VIDEO_VIEW', window_days: 1 });
+      return JSON.stringify(spec);
+    }
+
     function dwRenderAssetPool() {
       var el = document.getElementById('dwAssetPool');
       var need = parseInt(document.getElementById('dwTotal').textContent) || 0;
@@ -3783,6 +3805,7 @@
     }
 
     function dwPublishBatch() {
+      if (!document.getElementById('dwAdName').value.trim()) { alert('请填写广告名'); return; }
       var n1 = parseInt(document.getElementById('dwN1').value) || 1;
       var n2 = parseInt(document.getElementById('dwN2').value) || 1;
       var n3 = parseInt(document.getElementById('dwN3').value) || 1;
@@ -3792,6 +3815,7 @@
       var assets = sel.map(function(i){ return _dwAssets[i]; });
       var headlines = [];
       document.querySelectorAll('#dwHeadlines input').forEach(function(inp){ var v = inp.value.trim(); if (v) headlines.push(v); });
+      if (headlines.length < 1) { alert('请至少填写 1 个广告标题'); return; }
       var targetingJson = '{}';
       for (var i = 0; i < _dwAudiences.length; i++) {
         if (String(_dwAudiences[i].audience_id) === String(document.getElementById('dwAudienceId').value)) {
@@ -3804,10 +3828,14 @@
         campaign_name_prefix: document.getElementById('dwCampaignPrefix').value,
         budget_strategy: document.getElementById('dwBudgetStrategy').value,
         is_adset_budget_sharing_enabled: document.getElementById('dwBudgetStrategy').value === 'campaign' ? 1 : 0,
+        campaign_daily_budget: Math.round(parseFloat(document.getElementById('dwCampaignDailyBudget').value) * 100) || 0,
         page_id: document.getElementById('dwPageId').value,
         link_url: document.getElementById('dwLinkUrl').value,
         adset_name_prefix: document.getElementById('dwAdsetPrefix').value,
         adset_daily_budget: Math.round(parseFloat(document.getElementById('dwAdsetDailyBudget').value) * 100) || 0,
+        bid_strategy: document.getElementById('dwBidStrategy').value,
+        bid_amount: document.getElementById('dwBidStrategy').value === 'COST_CAP' ? (Math.round(parseFloat(document.getElementById('dwBidAmount').value) * 100) || 0) : 0,
+        attribution_spec_json: dwBuildAttributionSpec(),
         optimization_goal: document.getElementById('dwOptimizationGoal').value,
         pixel_id: document.getElementById('dwPixelId').value,
         audience_id: document.getElementById('dwAudienceId').value,

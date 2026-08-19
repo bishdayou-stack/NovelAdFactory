@@ -383,6 +383,8 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
     ad_name = params.get("ad_name", "")
     if not ad_name:
         return "", "广告名不能为空"
+    if not headlines:
+        return "", "广告标题至少填写 1 个"
 
     batch_id = uuid.uuid4().hex[:12]
     uid = user_id or 1
@@ -451,7 +453,7 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                     status="PAUSED", special_ad_categories=[],
                     is_adset_budget_sharing_enabled=is_sharing, daily_budget=campaign_daily)
                 if err:
-                    failed += 1
+                    failed += n2 * n3
                     _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"建系列失败: {err}"})
                     continue
                 database.update_delivery_campaign_fb_id(cid, fb_cid)
@@ -470,7 +472,7 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                         bid_amount=params.get("bid_amount") or None,
                         status="PAUSED")
                     if err:
-                        failed += 1
+                        failed += n3
                         _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"建广告组失败: {err}"})
                         continue
                     database.update_delivery_adset_fb_id(adset_id, fb_adset_id)

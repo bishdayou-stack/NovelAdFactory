@@ -5423,6 +5423,8 @@ def _batch_publish(body: BatchPublishBody, user: dict = Depends(get_current_user
         return {"success": False, "message": "优化目标为站外转化时必须选择数据集（Pixel）"}
     if body.budget_strategy == "adset" and not body.adset_daily_budget:
         return {"success": False, "message": "广告组预算 (ABO) 模式下必须设置组日预算"}
+    if body.budget_strategy == "campaign" and not body.campaign_daily_budget:
+        return {"success": False, "message": "系列预算 (CBO) 模式下必须设置系列日预算"}
 
     # 解析素材本地路径
     resolved = []
