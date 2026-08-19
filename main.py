@@ -4933,7 +4933,7 @@ def _get_promote_pages(act_id: str = Query(default=""), refresh: int = Query(def
     token = (database.get_bm_token(bm_id) if bm_id else "") or account.get("access_token") or _load_meta_default_token()
     if not token:
         return []
-    pages, err = meta_api.discover_pages(token)
+    pages, err = meta_api.get_promote_pages(act_id, token)
     if err:
         return []
     result = [{"page_id": p.get("id", ""), "page_name": p.get("name", "")} for p in (pages or [])]
