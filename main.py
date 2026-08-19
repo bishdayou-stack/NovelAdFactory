@@ -5417,6 +5417,8 @@ def _batch_publish(body: BatchPublishBody, user: dict = Depends(get_current_user
         return {"success": False, "message": "系列数/广告组数/广告数都必须 ≥ 1"}
     if len(body.assets) != n1 * n2 * n3:
         return {"success": False, "message": f"素材数 {len(body.assets)} 不等于总广告数 {n1*n2*n3}"}
+    if not body.page_id:
+        return {"success": False, "message": "请选择主页（Page）"}
     if not body.ad_name.strip():
         return {"success": False, "message": "广告名不能为空"}
     if body.optimization_goal == "OFFSITE_CONVERSIONS" and not body.pixel_id:
