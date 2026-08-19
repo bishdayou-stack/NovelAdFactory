@@ -361,3 +361,155 @@ def submit_delivery_campaign(campaign_id: int, user_id: int = None):
     executor.submit(_run)
     executor.shutdown(wait=False)
     return batch_id, None
+
+
+def submit_delivery_batch(params: dict, user_id: int = None) -> tuple:
+    """批量投放：N1 系列 × N2 广告组 × N3 广告，全部 PAUSED。返回 (batch_id, error)。"""
+    import random as _random
+    act_id = params.get("ad_account_id", "")
+    token = _get_token(act_id, user_id)
+    if not act_id or not token:
+        return "", "广告账户未配置或无有效 token"
+
+    n1 = int(params.get("n_campaigns") or 1)
+    n2 = int(params.get("n_adsets") or 1)
+    n3 = int(params.get("n_ads") or 1)
+    assets = params.get("assets") or []
+    total = n1 * n2 * n3
+    if len(assets) != total:
+        return "", f"素材数 {len(assets)} 不等于总广告数 {total}（{n1}×{n2}×{n3}）"
+
+    headlines = [h for h in (params.get("headlines") or []) if h]
+    ad_name = params.get("ad_name", "")
+    if not ad_name:
+        return "", "广告名不能为空"
+
+    batch_id = uuid.uuid4().hex[:12]
+    uid = user_id or 1
+
+    # 1. 批量落库：N1 系列 + N1×N2 广告组 + N1×N2×N3 队列
+    campaign_ids = []
+    adset_ids = []
+    queue_items = []
+    for i in range(n1):
+        cid = database.create_delivery_campaign(
+            f"{params.get('campaign_name_prefix', 'Campaign')}-{i+1}",
+            objective=params.get("objective", "OUTCOME_SALES"),
+            budget_strategy=params.get("budget_strategy", "adset"),
+            is_adset_budget_sharing_enabled=params.get("is_adset_budget_sharing_enabled", 0),
+            daily_budget=params.get("campaign_daily_budget", 0),
+            ad_account_id=act_id,
+            page_id=params.get("page_id", ""),
+            link_url=params.get("link_url", ""),
+            call_to_action=params.get("call_to_action", "LEARN_MORE"),
+            user_id=uid)
+        campaign_ids.append(cid)
+        for j in range(n2):
+            aid = database.create_delivery_adset(
+                cid, f"{params.get('adset_name_prefix', 'Adset')}-{i+1}-{j+1}",
+                ad_account_id=act_id,
+                pixel_id=params.get("pixel_id", ""),
+                audience_id=params.get("audience_id", ""),
+                daily_budget=params.get("adset_daily_budget", 0),
+                bid_strategy=params.get("bid_strategy", "LOWEST_COST_WITHOUT_CAP"),
+                bid_amount=params.get("bid_amount", 0),
+                optimization_goal=params.get("optimization_goal", "OFFSITE_CONVERSIONS"),
+                billing_event=params.get("billing_event", "IMPRESSIONS"),
+                destination_type=params.get("destination_type", "WEBSITE"),
+                custom_event_type=params.get("custom_event_type", "PURCHASE"),
+                attribution_spec_json=params.get("attribution_spec_json", ""),
+                targeting_json=params.get("targeting_json", "{}"),
+                user_id=uid)
+            adset_ids.append(aid)
+    # 素材按顺序分配到 (i,j,k)
+    for idx, a in enumerate(assets):
+        adset_id = adset_ids[idx // n3]
+        path = a.get("_resolved_path") or ""
+        queue_items.append({
+            "batch_id": batch_id, "image_type": a.get("image_type", ""),
+            "image_path": path, "image_prompt": "",
+            "overlay_text": a.get("overlay_text", ""),
+            "adset_id": adset_id,
+        })
+    database.add_to_delivery_queue(queue_items, uid)
+
+    # 2. 后台投放
+    _delivery_events[batch_id] = threading.Event()
+    _delivery_queues[batch_id] = []
+
+    def _run():
+        completed = 0
+        failed = 0
+        try:
+            _push_event(batch_id, "start", {"total": total})
+            is_sharing = (params.get("is_adset_budget_sharing_enabled") == 1)
+            campaign_daily = params.get("campaign_daily_budget") or None
+            for i, cid in enumerate(campaign_ids):
+                fb_cid, err = meta_api.create_campaign(
+                    act_id, token, f"{params.get('campaign_name_prefix','Campaign')}-{i+1}",
+                    objective=params.get("objective", "OUTCOME_SALES"),
+                    status="PAUSED", special_ad_categories=[],
+                    is_adset_budget_sharing_enabled=is_sharing, daily_budget=campaign_daily)
+                if err:
+                    failed += 1
+                    _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"建系列失败: {err}"})
+                    continue
+                database.update_delivery_campaign_fb_id(cid, fb_cid)
+                for j in range(n2):
+                    adset_id = adset_ids[i * n2 + j]
+                    fb_adset_id, err = meta_api.create_adset(
+                        act_id, token, f"{params.get('adset_name_prefix','Adset')}-{i+1}-{j+1}", fb_cid,
+                        targeting=json.loads(params.get("targeting_json") or "{}"),
+                        daily_budget=(params.get("adset_daily_budget") or None) if not campaign_daily else None,
+                        bid_strategy=params.get("bid_strategy", "LOWEST_COST_WITHOUT_CAP"),
+                        billing_event=params.get("billing_event", "IMPRESSIONS"),
+                        optimization_goal=params.get("optimization_goal", "OFFSITE_CONVERSIONS"),
+                        promoted_object={"pixel_id": params.get("pixel_id"), "custom_event_type": params.get("custom_event_type", "PURCHASE")} if params.get("pixel_id") else None,
+                        destination_type=params.get("destination_type", "WEBSITE"),
+                        attribution_spec=json.loads(params.get("attribution_spec_json") or "[]") or None,
+                        bid_amount=params.get("bid_amount") or None,
+                        status="PAUSED")
+                    if err:
+                        failed += 1
+                        _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"建广告组失败: {err}"})
+                        continue
+                    database.update_delivery_adset_fb_id(adset_id, fb_adset_id)
+                    for k in range(n3):
+                        idx = i * n2 * n3 + j * n3 + k
+                        asset = assets[idx]
+                        path = asset.get("_resolved_path", "")
+                        is_video = path.lower().endswith(".mp4")
+                        image_hash = None
+                        video_id = None
+                        if is_video:
+                            video_id, err = meta_api.upload_ad_video(act_id, token, path)
+                        else:
+                            image_hash, err = meta_api.upload_ad_image(act_id, token, path)
+                        if err:
+                            failed += 1
+                            _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"上传创意失败: {err}"})
+                            continue
+                        headline = _random.choice(headlines) if headlines else ""
+                        fb_ad_id, err = meta_api.create_ad(
+                            act_id, token, ad_name, fb_adset_id,
+                            creative_name=ad_name, page_id=params.get("page_id", ""),
+                            image_hash=image_hash, video_id=video_id,
+                            message=params.get("message", ""), link_url=params.get("link_url", ""),
+                            call_to_action_type=params.get("call_to_action", "LEARN_MORE"),
+                            headline=headline, status="PAUSED")
+                        if err:
+                            failed += 1
+                            _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"建广告失败: {err}"})
+                            continue
+                        completed += 1
+                        _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "current_id": idx, "fb_ad_id": fb_ad_id})
+            _push_event(batch_id, "complete", {"completed": completed, "failed": failed})
+        except Exception as e:
+            _push_event(batch_id, "complete", {"completed": completed, "failed": failed, "error": str(e)[:200]})
+        finally:
+            _delivery_events[batch_id].set()
+
+    executor = ThreadPoolExecutor(max_workers=1)
+    executor.submit(_run)
+    executor.shutdown(wait=False)
+    return batch_id, None
