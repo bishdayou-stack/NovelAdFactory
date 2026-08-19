@@ -1106,7 +1106,10 @@
         </div>
         <!-- Step 2 选素材 -->
         <div id="dwStep2" class="card-dark p-6 space-y-4" hidden>
-          <h2 class="text-sm font-bold text-white">Step 2 · 选素材（需 <span id="dwNeedN" class="text-indigo-400"></span> 张）</h2>
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-bold text-white">Step 2 · 选素材（需 <span id="dwNeedN" class="text-indigo-400"></span> 张）</h2>
+            <button onclick="dwLoadFromAssets()" class="rounded-lg border border-indigo-500 px-3 py-1.5 text-xs text-indigo-400 hover:bg-indigo-500/10 transition-all cursor-pointer bg-transparent">从素材浏览加载</button>
+          </div>
           <div id="dwAssetPool" class="grid grid-cols-4 gap-2 max-h-80 overflow-y-auto"></div>
           <div id="dwAssetSelected" class="text-xs text-slate-400"></div>
           <div class="flex justify-between"><button onclick="dwGoto(1)" class="rounded-lg border border-slate-700 px-5 py-2.5 text-sm text-slate-300">上一步</button><button onclick="dwGoto(3)" class="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white">下一步</button></div>
@@ -3770,11 +3773,28 @@
       return JSON.stringify(spec);
     }
 
+    function dwLoadFromAssets() {
+      if (!allAssetsData || !allAssetsData.length) { alert('素材浏览暂无素材，请先到素材浏览页加载'); return; }
+      var assets = [];
+      allAssetsData.forEach(function(item) {
+        (item.images || []).forEach(function(src) {
+          assets.push({ image_url: src, image_type: 'text_single', overlay_text: '' });
+        });
+        (item.videos || []).forEach(function(src) {
+          assets.push({ image_url: src, image_type: 'scroll', overlay_text: '' });
+        });
+      });
+      if (!assets.length) { alert('素材浏览暂无图片或视频素材'); return; }
+      _dwAssets = assets;
+      _dwSelected = new Set();
+      dwRenderAssetPool();
+    }
+
     function dwRenderAssetPool() {
       var el = document.getElementById('dwAssetPool');
       var need = parseInt(document.getElementById('dwTotal').textContent) || 0;
       document.getElementById('dwNeedN').textContent = need;
-      if (!_dwAssets.length) { el.innerHTML = '<div class="text-xs text-slate-500 col-span-4 py-8 text-center">请先从生产中心或小说分析收集素材</div>'; return; }
+      if (!_dwAssets.length) { el.innerHTML = '<div class="text-xs text-slate-500 col-span-4 py-8 text-center">请先从生产中心/小说分析收集，或点右上角「从素材浏览加载」</div>'; return; }
       var html = '';
       _dwAssets.forEach(function(a, i){
         html += '<div class="relative cursor-pointer" onclick="dwToggleAsset(' + i + ')"><img src="' + absUrl(a.image_url) + '" class="w-full h-16 object-cover rounded-lg bg-slate-700"><div class="absolute inset-0 rounded-lg ' + (_dwSelected.has(i) ? 'ring-2 ring-indigo-500' : '') + '"></div></div>';
@@ -3805,6 +3825,7 @@
     }
 
     function dwPublishBatch() {
+      if (!document.getElementById('dwAccount').value) { alert('请选择广告账户'); return; }
       if (!document.getElementById('dwAdName').value.trim()) { alert('请填写广告名'); return; }
       var n1 = parseInt(document.getElementById('dwN1').value) || 1;
       var n2 = parseInt(document.getElementById('dwN2').value) || 1;

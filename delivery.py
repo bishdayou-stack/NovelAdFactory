@@ -17,11 +17,19 @@ _delivery_events: Dict[str, threading.Event] = {}
 
 
 def _get_token(act_id: str, user_id: int = None) -> Optional[str]:
-    """从数据库获取账户 token"""
+    """从数据库获取账户 token。优先级: BM system_token → 账户 token → 全局默认"""
     account = database.get_meta_account(act_id, user_id)
     if not account:
         return None
-    return account.get("access_token")
+    bm_id = account.get("bm_id", "")
+    token = (database.get_bm_token(bm_id) if bm_id else "") or account.get("access_token")
+    if not token:
+        try:
+            cfg = json.loads((Path(__file__).parent / "config.json").read_text(encoding="utf-8"))
+            token = cfg.get("meta", {}).get("default_access_token", "")
+        except Exception:
+            token = ""
+    return token or None
 
 
 def _push_event(batch_id: str, event_type: str, data: dict = None):
