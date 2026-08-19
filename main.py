@@ -5272,7 +5272,7 @@ async def _delivery_stream(batch_id: str):
         while True:
             try:
                 event = await asyncio.wait_for(local_queue.get(), timeout=1.0)
-                yield {"event": event["type"], "data": json.dumps(event)}
+                yield {"event": event["type"], "data": json.dumps(event.get("data", event))}
             except asyncio.TimeoutError:
                 yield {"event": "ping", "data": "{}"}
                 if delivery._delivery_events.get(batch_id, threading.Event()).is_set():

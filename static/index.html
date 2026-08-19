@@ -1090,7 +1090,7 @@
 
     <!-- 投放向导（4 步批量：账户+数量 / 选素材 / 三层设置 / 预览发布） -->
     <div id="tab-delivery-wizard" class="flex-1 bg-slate-900 overflow-y-auto px-5 py-4 min-w-0" hidden>
-      <div class="max-w-6xl mx-auto">
+      <div class="w-full">
         <div class="flex items-center gap-3 mb-4" id="dwSteps"></div>
         <!-- Step 1 账户+数量 -->
         <div id="dwStep1" class="card-dark p-6 space-y-4">
@@ -1110,7 +1110,7 @@
             <h2 class="text-sm font-bold text-white">Step 2 · 选素材（需 <span id="dwNeedN" class="text-indigo-400"></span> 张）</h2>
             <button onclick="dwLoadFromAssets()" class="rounded-lg border border-indigo-500 px-3 py-1.5 text-xs text-indigo-400 hover:bg-indigo-500/10 transition-all cursor-pointer bg-transparent">从素材浏览加载</button>
           </div>
-          <div id="dwAssetPool" class="grid grid-cols-6 gap-2 max-h-[65vh] overflow-y-auto"></div>
+          <div id="dwAssetPool" class="grid grid-cols-8 gap-2 max-h-[70vh] overflow-y-auto"></div>
           <div id="dwAssetSelected" class="text-xs text-slate-400"></div>
           <div class="flex justify-between"><button onclick="dwGoto(1)" class="rounded-lg border border-slate-700 px-5 py-2.5 text-sm text-slate-300">上一步</button><button onclick="dwGoto(3)" class="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white">下一步</button></div>
         </div>
@@ -1142,7 +1142,7 @@
           <div class="rounded-xl bg-slate-800/50 border border-slate-700 p-4 space-y-3">
             <h3 class="text-xs font-semibold text-slate-300">广告设置</h3>
             <input id="dwAdName" placeholder="广告名（所有广告同名）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white">
-            <input id="dwMessage" placeholder="广告文案" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white">
+            <textarea id="dwMessage" rows="4" placeholder="广告文案（可粘贴完整正文，保留换行与段落）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white resize-y"></textarea>
             <div><label class="mb-1 block text-xs text-slate-400">广告标题（5-10 个，随机分配）</label><div id="dwHeadlines" class="space-y-2"></div><button onclick="dwAddHeadline()" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">+ 添加标题</button></div>
             <select id="dwCTA" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="LEARN_MORE">LEARN_MORE</option><option value="SIGN_UP">SIGN_UP</option><option value="SUBSCRIBE">SUBSCRIBE</option><option value="SHOP_NOW">SHOP_NOW</option><option value="DOWNLOAD">DOWNLOAD</option></select>
           </div>
@@ -3800,7 +3800,7 @@
       if (!_dwAssets.length) { el.innerHTML = '<div class="text-xs text-slate-500 col-span-4 py-8 text-center">请先从生产中心/小说分析收集，或点右上角「从素材浏览加载」</div>'; return; }
       var html = '';
       _dwAssets.forEach(function(a, i){
-        html += '<div class="relative cursor-pointer" onclick="dwToggleAsset(' + i + ')"><img src="' + absUrl(a.image_url) + '" class="w-full h-24 object-cover rounded-lg bg-slate-700"><div class="absolute inset-0 rounded-lg ' + (_dwSelected.has(i) ? 'ring-2 ring-indigo-500' : '') + '"></div></div>';
+        html += '<div class="relative cursor-pointer" onclick="dwToggleAsset(' + i + ')"><img src="' + absUrl(a.image_url) + '" class="w-full h-32 object-cover rounded-lg bg-slate-700"><div class="absolute inset-0 rounded-lg ' + (_dwSelected.has(i) ? 'ring-2 ring-indigo-500' : '') + '"></div></div>';
       });
       el.innerHTML = html;
       dwUpdateSelected();
