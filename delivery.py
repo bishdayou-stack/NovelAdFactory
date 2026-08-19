@@ -363,7 +363,7 @@ def submit_delivery_campaign(campaign_id: int, user_id: int = None):
     return batch_id, None
 
 
-def submit_delivery_batch(params: dict, user_id: int = None) -> tuple:
+def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
     """批量投放：N1 系列 × N2 广告组 × N3 广告，全部 PAUSED。返回 (batch_id, error)。"""
     import random as _random
     act_id = params.get("ad_account_id", "")

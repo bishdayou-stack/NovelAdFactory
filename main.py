@@ -5434,7 +5434,7 @@ def _batch_publish(body: BatchPublishBody, user: dict = Depends(get_current_user
 
     params = body.model_dump()
     params["assets"] = resolved
-    batch_id, err = delivery.submit_delivery_batch(params, uid)
+    batch_id, err = delivery.submit_batch_publish(params, uid)
     if err:
         return {"success": False, "message": err}
     return {"success": True, "batch_id": batch_id}
