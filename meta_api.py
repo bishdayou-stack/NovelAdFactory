@@ -422,6 +422,7 @@ def create_ad(act_id: str, access_token: str,
               image_hash: str = None, video_id: str = None,
               message: str = "", link_url: str = "",
               call_to_action_type: str = "LEARN_MORE",
+              headline: str = "",
               status: str = "PAUSED") -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/ads"
@@ -436,6 +437,8 @@ def create_ad(act_id: str, access_token: str,
         object_story_spec["link_data"]["image_hash"] = image_hash
     if video_id:
         object_story_spec["link_data"]["video_id"] = video_id
+    if headline:
+        object_story_spec["link_data"]["name"] = headline
     if call_to_action_type:
         object_story_spec["link_data"]["call_to_action"] = {
             "type": call_to_action_type,
