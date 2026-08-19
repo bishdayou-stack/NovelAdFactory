@@ -5370,6 +5370,76 @@ def _publish_delivery_campaign(body: PublishBody, user: dict = Depends(get_curre
     return {"success": True, "batch_id": batch_id}
 
 
+class BatchAsset(BaseModel):
+    image_url: str
+    image_type: str = ""
+    overlay_text: str = ""
+
+class BatchPublishBody(BaseModel):
+    ad_account_id: str = ""
+    n_campaigns: int = 1
+    n_adsets: int = 1
+    n_ads: int = 1
+    # 系列设置
+    campaign_name_prefix: str = ""
+    objective: str = "OUTCOME_SALES"
+    budget_strategy: str = "adset"
+    is_adset_budget_sharing_enabled: int = 0
+    campaign_daily_budget: int = 0
+    page_id: str = ""
+    link_url: str = ""
+    # 广告组设置
+    adset_name_prefix: str = ""
+    pixel_id: str = ""
+    audience_id: str = ""
+    adset_daily_budget: int = 0
+    bid_strategy: str = "LOWEST_COST_WITHOUT_CAP"
+    bid_amount: int = 0
+    optimization_goal: str = "OFFSITE_CONVERSIONS"
+    billing_event: str = "IMPRESSIONS"
+    destination_type: str = "WEBSITE"
+    custom_event_type: str = "PURCHASE"
+    attribution_spec_json: str = ""
+    targeting_json: str = "{}"
+    # 广告设置
+    ad_name: str = ""
+    message: str = ""
+    headlines: List[str] = []
+    call_to_action: str = "LEARN_MORE"
+    # 素材
+    assets: List[BatchAsset] = []
+
+@app.post("/api/delivery/batch-publish")
+def _batch_publish(body: BatchPublishBody, user: dict = Depends(get_current_user)):
+    uid = _opt_user_id(user)
+    n1, n2, n3 = body.n_campaigns, body.n_adsets, body.n_ads
+    if n1 < 1 or n2 < 1 or n3 < 1:
+        return {"success": False, "message": "系列数/广告组数/广告数都必须 ≥ 1"}
+    if len(body.assets) != n1 * n2 * n3:
+        return {"success": False, "message": f"素材数 {len(body.assets)} 不等于总广告数 {n1*n2*n3}"}
+    if not body.ad_name.strip():
+        return {"success": False, "message": "广告名不能为空"}
+    if body.optimization_goal == "OFFSITE_CONVERSIONS" and not body.pixel_id:
+        return {"success": False, "message": "优化目标为站外转化时必须选择数据集（Pixel）"}
+    if body.budget_strategy == "adset" and not body.adset_daily_budget:
+        return {"success": False, "message": "广告组预算 (ABO) 模式下必须设置组日预算"}
+
+    # 解析素材本地路径
+    resolved = []
+    for a in body.assets:
+        path = delivery.resolve_output_path(a.image_url, OUTPUT_ROOT)
+        if not path:
+            return {"success": False, "message": f"无效素材路径: {a.image_url}"}
+        resolved.append({"image_type": a.image_type, "overlay_text": a.overlay_text, "_resolved_path": path})
+
+    params = body.model_dump()
+    params["assets"] = resolved
+    batch_id, err = delivery.submit_delivery_batch(params, uid)
+    if err:
+        return {"success": False, "message": err}
+    return {"success": True, "batch_id": batch_id}
+
+
 # ---- Meta 数据看板 API（独立，不混入 pingykj 看板） ----
 
 @app.get("/api/meta/summary")
