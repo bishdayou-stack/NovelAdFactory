@@ -1108,6 +1108,17 @@
             <input id="dwCampaignName" type="text" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="例如：Novel Launch - 8月">
           </div>
           <div>
+            <label class="mb-1 block text-sm font-medium text-slate-400">广告账户</label>
+            <select id="dwCampaignAccountId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" onchange="dwOnAccountChange()"></select>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-400">主页 <span class="text-slate-600 font-normal">（按所选账户联动）</span></label>
+            <div class="flex gap-2">
+              <select id="dwPageId" class="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"></select>
+              <button onclick="dwRefreshPages()" class="rounded-lg border border-slate-700 px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-800 transition-all cursor-pointer bg-transparent" title="强制重新拉取主页">🔄</button>
+            </div>
+          </div>
+          <div>
             <label class="mb-1 block text-sm font-medium text-slate-400">目标（固定）</label>
             <input type="text" value="OUTCOME_SALES（销售转化）" readonly class="w-full rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-2.5 text-sm text-slate-500">
           </div>
@@ -1121,10 +1132,6 @@
           <div id="dwCampaignBudgetWrap" style="display:none">
             <label class="mb-1 block text-sm font-medium text-slate-400">系列日预算（美元）</label>
             <input id="dwCampaignDailyBudget" type="number" min="0" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" placeholder="如 50">
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-400">主页</label>
-            <select id="dwPageId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"></select>
           </div>
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-400">落地页网址</label>
@@ -1150,7 +1157,6 @@
           <h2 class="text-sm font-bold text-white">Step 2 · 广告组</h2>
           <div class="rounded-xl bg-slate-800/50 border border-slate-700 p-4 space-y-3">
             <div><label class="mb-1 block text-sm font-medium text-slate-400">广告组名称</label><input id="dwAdsetName" type="text" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="例如：Adset 1 - 40+ 女性"></div>
-            <div><label class="mb-1 block text-sm font-medium text-slate-400">广告账户</label><select id="dwAdAccountId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"></select></div>
             <div class="grid grid-cols-2 gap-3">
               <div><label class="mb-1 block text-sm font-medium text-slate-400">数据集</label><select id="dwPixelId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"></select></div>
               <div><label class="mb-1 block text-sm font-medium text-slate-400">受众模版</label><select id="dwAudienceId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"></select></div>
@@ -3691,19 +3697,9 @@
     var _dwEs = null;           // 发布进度 EventSource
 
     function dwLoadOptions() {
-      fetch('/api/meta/pages').then(function(r){return r.json();}).then(function(d){
-        dwFillSelect('dwPageId', d || [], 'page_id', 'page_name', '选择主页');
-      }).catch(function(){});
       fetch('/api/meta/accounts').then(function(r){return r.json();}).then(function(d){
         var acc = (d && d.accounts) || d || [];
-        dwFillSelect('dwAdAccountId', acc, 'act_id', 'act_name', '选择广告账户');
-      }).catch(function(){});
-      fetch('/api/meta/pixels').then(function(r){return r.json();}).then(function(d){
-        dwFillSelect('dwPixelId', d || [], 'pixel_id', 'pixel_name', '选择数据集');
-      }).catch(function(){});
-      fetch('/api/meta/saved-audiences').then(function(r){return r.json();}).then(function(d){
-        _dwAudiences = d || [];
-        dwFillSelect('dwAudienceId', _dwAudiences, 'audience_id', 'audience_name', '选择受众模版');
+        dwFillSelect('dwCampaignAccountId', acc, 'act_id', 'act_name', '选择广告账户');
       }).catch(function(){});
     }
 
@@ -3717,6 +3713,53 @@
         html += '<option value="' + escapeHtml(String(val)) + '">' + escapeHtml(String(label)) + '</option>';
       });
       sel.innerHTML = html;
+    }
+
+    function dwLoadPages(actId, refresh) {
+      var sel = document.getElementById('dwPageId');
+      sel.innerHTML = '<option value="">加载主页中...</option>';
+      var url = '/api/meta/promote-pages?act_id=' + encodeURIComponent(actId) + (refresh ? '&refresh=1' : '');
+      fetch(url)
+        .then(function(r){ return r.json(); })
+        .then(function(d){ dwFillSelect('dwPageId', d || [], 'page_id', 'page_name', '选择主页'); })
+        .catch(function(){ sel.innerHTML = '<option value="">加载主页失败</option>'; });
+    }
+
+    function dwRefreshPages() {
+      var actId = document.getElementById('dwCampaignAccountId').value;
+      if (!actId) { alert('请先选择广告账户'); return; }
+      dwLoadPages(actId, true);
+    }
+
+    function dwLoadPixels(actId) {
+      fetch('/api/meta/account-pixels?act_id=' + encodeURIComponent(actId))
+        .then(function(r){ return r.json(); })
+        .then(function(d){ dwFillSelect('dwPixelId', d || [], 'pixel_id', 'pixel_name', '选择数据集'); })
+        .catch(function(){});
+    }
+
+    function dwLoadAudiences(actId) {
+      fetch('/api/meta/account-audiences?act_id=' + encodeURIComponent(actId))
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          _dwAudiences = d || [];
+          dwFillSelect('dwAudienceId', _dwAudiences, 'audience_id', 'audience_name', '选择受众模版');
+        })
+        .catch(function(){});
+    }
+
+    function dwOnAccountChange() {
+      var actId = document.getElementById('dwCampaignAccountId').value;
+      var sel = document.getElementById('dwPageId');
+      if (!actId) {
+        sel.innerHTML = '<option value="">请先选择广告账户</option>';
+        dwFillSelect('dwAudienceId', [], 'audience_id', 'audience_name', '选择受众模版');
+        dwFillSelect('dwPixelId', [], 'pixel_id', 'pixel_name', '选择数据集');
+        return;
+      }
+      dwLoadPages(actId, false);
+      dwLoadPixels(actId);
+      dwLoadAudiences(actId);
     }
 
     function dwOnBudgetStrategy() {
@@ -3748,6 +3791,8 @@
     function dwCreateCampaign() {
       var name = document.getElementById('dwCampaignName').value.trim();
       if (!name) { alert('请输入系列名称'); return; }
+      var adAccountId = document.getElementById('dwCampaignAccountId').value;
+      if (!adAccountId) { alert('请选择广告账户'); return; }
       var isCampaign = document.getElementById('dwBudgetStrategyCampaign').checked;
       var body = {
         name: name,
@@ -3755,6 +3800,7 @@
         budget_strategy: isCampaign ? 'campaign' : 'adset',
         is_adset_budget_sharing_enabled: isCampaign ? 1 : 0,
         daily_budget: isCampaign ? (Math.round(parseFloat(document.getElementById('dwCampaignDailyBudget').value) * 100) || 0) : 0,
+        ad_account_id: adAccountId,
         page_id: document.getElementById('dwPageId').value,
         link_url: document.getElementById('dwLinkUrl').value.trim(),
         call_to_action: document.getElementById('dwCallToAction').value
@@ -3774,13 +3820,13 @@
     function dwAddAdset() {
       if (!_dwCampaignId) { alert('请先完成 Step 1'); return; }
       var name = document.getElementById('dwAdsetName').value.trim();
-      var adAccountId = document.getElementById('dwAdAccountId').value;
       var pixelId = document.getElementById('dwPixelId').value;
       var audienceId = document.getElementById('dwAudienceId').value;
       if (!name) { alert('请输入广告组名称'); return; }
-      if (!adAccountId) { alert('请选择广告账户'); return; }
       var isCampaign = document.getElementById('dwBudgetStrategyCampaign').checked;
       var bidStrategy = document.getElementById('dwBidStrategy').value;
+      var adsetDaily = isCampaign ? 0 : (Math.round(parseFloat(document.getElementById('dwAdsetDailyBudget').value) * 100) || 0);
+      if (!isCampaign && adsetDaily <= 0) { alert('广告组预算 (ABO) 模式下必须填写组日预算'); return; }
       // 选中受众时使用其 targeting_json
       var targetingJson = '{}';
       for (var i = 0; i < _dwAudiences.length; i++) {
@@ -3789,10 +3835,9 @@
       var body = {
         campaign_id: _dwCampaignId,
         name: name,
-        ad_account_id: adAccountId,
         pixel_id: pixelId,
         audience_id: audienceId,
-        daily_budget: isCampaign ? 0 : (Math.round(parseFloat(document.getElementById('dwAdsetDailyBudget').value) * 100) || 0),
+        daily_budget: adsetDaily,
         bid_strategy: bidStrategy,
         bid_amount: bidStrategy === 'COST_CAP' ? (Math.round(parseFloat(document.getElementById('dwBidAmount').value) * 100) || 0) : 0,
         optimization_goal: document.getElementById('dwOptimizationGoal').value,
@@ -3808,7 +3853,7 @@
         .then(function(r){ return r.json(); })
         .then(function(d){
           if (d && d.success) {
-            _dwAdsets.push({ id: d.id, name: name, act_id: adAccountId });
+            _dwAdsets.push({ id: d.id, name: name });
             dwRenderAdsets();
             document.getElementById('dwAdsetName').value = '';
           } else { alert('创建广告组失败: ' + ((d && d.message) || '未知错误')); }

@@ -278,10 +278,13 @@ def submit_delivery_campaign(campaign_id: int, user_id: int = None):
     camp = dict(camp)
     adsets = [dict(a) for a in adsets]
     queue = [dict(q) for q in queue]
-    act_ids = {a.get("ad_account_id") for a in adsets if a.get("ad_account_id")}
-    if len(act_ids) > 1:
-        return "", "同一系列的广告组必须使用同一个广告账户"
-    act_id = adsets[0].get("ad_account_id", "") if adsets else ""
+    act_id = camp.get("ad_account_id", "")
+    if not act_id:
+        # 兼容旧数据：系列层无账户时回退到广告组层
+        act_ids = {a.get("ad_account_id") for a in adsets if a.get("ad_account_id")}
+        if len(act_ids) > 1:
+            return "", "同一系列的广告组必须使用同一个广告账户"
+        act_id = adsets[0].get("ad_account_id", "") if adsets else ""
     token = _get_token(act_id, user_id)
     if not act_id or not token:
         return "", "广告账户未配置或无有效 token"
@@ -303,6 +306,8 @@ def submit_delivery_campaign(campaign_id: int, user_id: int = None):
             if err:
                 _push_event(batch_id, "complete", {"completed": 0, "failed": total, "error": f"建系列失败: {err}"})
                 return
+            if fb_campaign_id:
+                database.update_delivery_campaign_fb_id(campaign_id, fb_campaign_id)
             for adset in adsets:
                 targeting = json.loads(adset.get("targeting_json") or "{}")
                 attribution = json.loads(adset.get("attribution_spec_json") or "[]") or None
@@ -310,6 +315,11 @@ def submit_delivery_campaign(campaign_id: int, user_id: int = None):
                 adset_daily = adset.get("daily_budget") or None
                 if campaign_daily:
                     adset_daily = None  # CBO：预算在系列层，组层不给预算
+                if not campaign_daily and not adset_daily:
+                    failed += 1
+                    _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total,
+                        "error": f"广告组 {adset.get('name','')} 未设置预算（ABO 模式需设置组日预算）"})
+                    continue
                 fb_adset_id, err = meta_api.create_adset(
                     act_id, token, adset.get("name", ""), fb_campaign_id,
                     targeting=targeting, daily_budget=adset_daily,

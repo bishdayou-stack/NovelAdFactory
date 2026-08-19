@@ -273,6 +273,8 @@ def download_file(url: str, dest_path: str, timeout: int = 30) -> Tuple[bool, Op
 def upload_ad_image(act_id: str, access_token: str,
                     image_path: str) -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
+    if not image_path or not os.path.isfile(image_path):
+        return None, f"素材文件不存在: {image_path}"
     filename = os.path.basename(image_path)
     with open(image_path, "rb") as f:
         img_data = f.read()
@@ -292,6 +294,8 @@ def upload_ad_image(act_id: str, access_token: str,
 def upload_ad_video(act_id: str, access_token: str,
                     video_path: str) -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
+    if not video_path or not os.path.isfile(video_path):
+        return None, f"素材文件不存在: {video_path}"
     filename = os.path.basename(video_path)
     with open(video_path, "rb") as f:
         video_data = f.read()

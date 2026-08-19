@@ -4914,6 +4914,81 @@ async def _set_meta_sync_interval(request: Request, user: dict = Depends(get_cur
 
 # ---- Meta 资产：主页 / 数据集 / 受众模版 ----
 
+@app.get("/api/meta/promote-pages")
+def _get_promote_pages(act_id: str = Query(default=""), refresh: int = Query(default=0),
+                       user: dict = Depends(get_current_user)):
+    """按广告账户拉取主页（主页不跨账户通用）。首次实时拉取后缓存到本地，后续读缓存；refresh=1 强制刷新。"""
+    if not act_id:
+        return []
+    # 先读本地缓存（除非强制刷新）
+    if not refresh:
+        cached = database.get_cached_account_pages(act_id)
+        if cached is not None:
+            return cached
+    account = database.get_meta_account(act_id, _opt_user_id(user))
+    if not account:
+        return []
+    # 未命中：实时拉 Meta 并写缓存
+    bm_id = account.get("bm_id", "")
+    token = (database.get_bm_token(bm_id) if bm_id else "") or account.get("access_token") or _load_meta_default_token()
+    if not token:
+        return []
+    pages, err = meta_api.discover_pages(token)
+    if err:
+        return []
+    result = [{"page_id": p.get("id", ""), "page_name": p.get("name", "")} for p in (pages or [])]
+    database.cache_account_pages(act_id, result)
+    return result
+
+@app.get("/api/meta/account-pixels")
+def _get_account_pixels(act_id: str = Query(default=""), refresh: int = Query(default=0),
+                        user: dict = Depends(get_current_user)):
+    """按广告账户拉取数据集（Pixel）。首次实时拉取后缓存，后续读缓存；refresh=1 强制刷新。"""
+    if not act_id:
+        return []
+    if not refresh:
+        cached = database.get_cached_account_pixels(act_id)
+        if cached is not None:
+            return cached
+    account = database.get_meta_account(act_id, _opt_user_id(user))
+    if not account:
+        return []
+    bm_id = account.get("bm_id", "")
+    token = (database.get_bm_token(bm_id) if bm_id else "") or account.get("access_token") or _load_meta_default_token()
+    if not token:
+        return []
+    pixels, err = meta_api.get_pixels(act_id, token)
+    if err:
+        return []
+    result = [{"pixel_id": p.get("id", ""), "pixel_name": p.get("name", "")} for p in (pixels or [])]
+    database.cache_account_pixels(act_id, result)
+    return result
+
+@app.get("/api/meta/account-audiences")
+def _get_account_audiences(act_id: str = Query(default=""), refresh: int = Query(default=0),
+                           user: dict = Depends(get_current_user)):
+    """按广告账户拉取受众模版。首次实时拉取后缓存，后续读缓存；refresh=1 强制刷新。"""
+    if not act_id:
+        return []
+    if not refresh:
+        cached = database.get_cached_account_audiences(act_id)
+        if cached is not None:
+            return cached
+    account = database.get_meta_account(act_id, _opt_user_id(user))
+    if not account:
+        return []
+    bm_id = account.get("bm_id", "")
+    token = (database.get_bm_token(bm_id) if bm_id else "") or account.get("access_token") or _load_meta_default_token()
+    if not token:
+        return []
+    audiences, err = meta_api.get_saved_audiences(act_id, token)
+    if err:
+        return []
+    result = [{"audience_id": a.get("id", ""), "audience_name": a.get("name", ""),
+               "targeting_json": json.dumps(a.get("targeting") or {})} for a in (audiences or [])]
+    database.cache_account_audiences(act_id, result)
+    return result
+
 @app.get("/api/meta/pages")
 def _get_meta_pages(user: dict = Depends(get_current_user)):
     return database.get_meta_pages(_opt_user_id(user))
@@ -5003,8 +5078,8 @@ def _import_meta_audiences(body: ImportAudiencesBody, user: dict = Depends(get_c
     return {"success": True, "count": len(body.audiences)}
 
 @app.get("/api/meta/saved-audiences")
-def _get_meta_saved_audiences(user: dict = Depends(get_current_user)):
-    return database.get_meta_saved_audiences(_opt_user_id(user))
+def _get_meta_saved_audiences(act_id: str = Query(default=""), user: dict = Depends(get_current_user)):
+    return database.get_meta_saved_audiences(_opt_user_id(user), act_id=act_id or None)
 
 
 # ---- 投放模板管理 API ----
@@ -5218,6 +5293,7 @@ class DeliveryCampaignBody(BaseModel):
     budget_strategy: str = "adset"          # 'adset'(ABO) | 'campaign'(CBO)
     is_adset_budget_sharing_enabled: int = 0
     daily_budget: int = 0
+    ad_account_id: str = ""
     page_id: str = ""
     link_url: str = ""
     call_to_action: str = "LEARN_MORE"
@@ -5225,8 +5301,8 @@ class DeliveryCampaignBody(BaseModel):
 @app.post("/api/delivery/campaigns")
 def _create_delivery_campaign(body: DeliveryCampaignBody, user: dict = Depends(get_current_user)):
     cid = database.create_delivery_campaign(body.name, body.objective, body.budget_strategy,
-        body.is_adset_budget_sharing_enabled, body.daily_budget, body.page_id,
-        body.link_url, body.call_to_action, _opt_user_id(user))
+        body.is_adset_budget_sharing_enabled, body.daily_budget, body.ad_account_id,
+        body.page_id, body.link_url, body.call_to_action, _opt_user_id(user))
     return {"success": True, "id": cid}
 
 @app.get("/api/delivery/campaigns")

@@ -880,6 +880,28 @@ def init_db() -> None:
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS meta_account_pages (
+                act_id TEXT NOT NULL,
+                page_id TEXT NOT NULL,
+                page_name TEXT DEFAULT '',
+                cached_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (act_id, page_id)
+            );
+            CREATE TABLE IF NOT EXISTS meta_account_pixels (
+                act_id TEXT NOT NULL,
+                pixel_id TEXT NOT NULL,
+                pixel_name TEXT DEFAULT '',
+                cached_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (act_id, pixel_id)
+            );
+            CREATE TABLE IF NOT EXISTS meta_account_audiences (
+                act_id TEXT NOT NULL,
+                audience_id TEXT NOT NULL,
+                audience_name TEXT DEFAULT '',
+                targeting_json TEXT DEFAULT '{}',
+                cached_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (act_id, audience_id)
+            );
             CREATE TABLE IF NOT EXISTS meta_pixels (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 pixel_id TEXT UNIQUE NOT NULL,
@@ -904,6 +926,7 @@ def init_db() -> None:
                 budget_strategy TEXT DEFAULT 'adset',
                 is_adset_budget_sharing_enabled INTEGER DEFAULT 0,
                 daily_budget INTEGER DEFAULT 0,
+                ad_account_id TEXT DEFAULT '',
                 page_id TEXT DEFAULT '',
                 link_url TEXT DEFAULT '',
                 call_to_action TEXT DEFAULT 'LEARN_MORE',
@@ -941,6 +964,11 @@ def init_db() -> None:
         dq_cols = [r["name"] for r in conn.execute("PRAGMA table_info(delivery_queue)").fetchall()]
         if "adset_id" not in dq_cols:
             conn.execute("ALTER TABLE delivery_queue ADD COLUMN adset_id INTEGER DEFAULT 0")
+
+        # 迁移：delivery_campaigns 加 ad_account_id 列（账户上移到系列层）
+        dc_cols = [r["name"] for r in conn.execute("PRAGMA table_info(delivery_campaigns)").fetchall()]
+        if "ad_account_id" not in dc_cols:
+            conn.execute("ALTER TABLE delivery_campaigns ADD COLUMN ad_account_id TEXT DEFAULT ''")
 
 # ====== 用户管理 CRUD ======
 
@@ -1728,6 +1756,69 @@ def get_meta_pages(user_id=None):
             rows = conn.execute("SELECT * FROM meta_pages ORDER BY id DESC").fetchall()
         return [dict(r) for r in rows]
 
+def get_cached_account_pages(act_id):
+    """读取账户主页缓存。返回 [{"page_id","page_name"}]，未缓存返回 None。"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT page_id, page_name FROM meta_account_pages WHERE act_id = ? ORDER BY page_id",
+            (act_id,)).fetchall()
+        if not rows:
+            return None
+        return [dict(r) for r in rows]
+
+def cache_account_pages(act_id, pages):
+    """写入账户主页缓存。pages: [{"page_id","page_name"}]。"""
+    if not pages:
+        return
+    with get_conn() as conn:
+        for p in pages:
+            conn.execute(
+                "INSERT OR REPLACE INTO meta_account_pages (act_id, page_id, page_name, cached_at) "
+                "VALUES (?,?,?,CURRENT_TIMESTAMP)",
+                (act_id, p.get("page_id", ""), p.get("page_name", "")))
+
+def get_cached_account_pixels(act_id):
+    """读取账户数据集缓存。返回 [{"pixel_id","pixel_name"}]，未缓存返回 None。"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT pixel_id, pixel_name FROM meta_account_pixels WHERE act_id = ? ORDER BY pixel_id",
+            (act_id,)).fetchall()
+        if not rows:
+            return None
+        return [dict(r) for r in rows]
+
+def cache_account_pixels(act_id, pixels):
+    """写入账户数据集缓存。pixels: [{"pixel_id","pixel_name"}]。"""
+    if not pixels:
+        return
+    with get_conn() as conn:
+        for p in pixels:
+            conn.execute(
+                "INSERT OR REPLACE INTO meta_account_pixels (act_id, pixel_id, pixel_name, cached_at) "
+                "VALUES (?,?,?,CURRENT_TIMESTAMP)",
+                (act_id, p.get("pixel_id", ""), p.get("pixel_name", "")))
+
+def get_cached_account_audiences(act_id):
+    """读取账户受众模版缓存。返回 [{"audience_id","audience_name","targeting_json"}]，未缓存返回 None。"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT audience_id, audience_name, targeting_json FROM meta_account_audiences WHERE act_id = ? ORDER BY audience_id",
+            (act_id,)).fetchall()
+        if not rows:
+            return None
+        return [dict(r) for r in rows]
+
+def cache_account_audiences(act_id, audiences):
+    """写入账户受众模版缓存。audiences: [{"audience_id","audience_name","targeting_json"}]。"""
+    if not audiences:
+        return
+    with get_conn() as conn:
+        for a in audiences:
+            conn.execute(
+                "INSERT OR REPLACE INTO meta_account_audiences "
+                "(act_id, audience_id, audience_name, targeting_json, cached_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)",
+                (act_id, a.get("audience_id", ""), a.get("audience_name", ""), a.get("targeting_json", "{}")))
+
 def upsert_meta_pixel(pixel_id, pixel_name="", act_id="", user_id=None):
     uid = user_id or 1
     with get_conn() as conn:
@@ -1756,28 +1847,37 @@ def upsert_meta_saved_audience(audience_id, audience_name="", act_id="", targeti
                 act_id=excluded.act_id, targeting_json=excluded.targeting_json, user_id=excluded.user_id
         """, (audience_id, audience_name, act_id, targeting_json, uid))
 
-def get_meta_saved_audiences(user_id=None):
+def get_meta_saved_audiences(user_id=None, act_id=None):
     with get_conn() as conn:
+        where = []
+        params = []
         if user_id is not None:
-            rows = conn.execute("SELECT * FROM meta_saved_audiences WHERE user_id = ? ORDER BY id DESC", (user_id,)).fetchall()
-        else:
-            rows = conn.execute("SELECT * FROM meta_saved_audiences ORDER BY id DESC").fetchall()
+            where.append("user_id = ?")
+            params.append(user_id)
+        if act_id:
+            where.append("act_id = ?")
+            params.append(act_id)
+        where_clause = (" WHERE " + " AND ".join(where)) if where else ""
+        rows = conn.execute(
+            f"SELECT * FROM meta_saved_audiences{where_clause} ORDER BY id DESC", params
+        ).fetchall()
         return [dict(r) for r in rows]
 
 
 # ====== 投放向导：系列 / 广告组 CRUD ======
 
 def create_delivery_campaign(name, objective="OUTCOME_SALES", budget_strategy="adset",
-                             is_adset_budget_sharing_enabled=0, daily_budget=0, page_id="",
-                             link_url="", call_to_action="LEARN_MORE", user_id=None):
+                             is_adset_budget_sharing_enabled=0, daily_budget=0, ad_account_id="",
+                             page_id="", link_url="", call_to_action="LEARN_MORE", user_id=None):
     uid = user_id or 1
     with get_conn() as conn:
         cur = conn.execute("""
             INSERT INTO delivery_campaigns (name, objective, budget_strategy,
-                is_adset_budget_sharing_enabled, daily_budget, page_id, link_url, call_to_action, user_id)
-            VALUES (?,?,?,?,?,?,?,?,?)""",
+                is_adset_budget_sharing_enabled, daily_budget, ad_account_id, page_id,
+                link_url, call_to_action, user_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (name, objective, budget_strategy, is_adset_budget_sharing_enabled,
-             daily_budget, page_id, link_url, call_to_action, uid))
+             daily_budget, ad_account_id, page_id, link_url, call_to_action, uid))
         return cur.lastrowid
 
 def get_delivery_campaigns(user_id=None):
@@ -1818,6 +1918,11 @@ def get_delivery_adsets(campaign_id):
 def update_delivery_adset_fb_id(adset_id, fb_adset_id):
     with get_conn() as conn:
         conn.execute("UPDATE delivery_adsets SET fb_adset_id = ? WHERE id = ?", (fb_adset_id, adset_id))
+
+def update_delivery_campaign_fb_id(campaign_id, fb_campaign_id):
+    with get_conn() as conn:
+        conn.execute("UPDATE delivery_campaigns SET fb_campaign_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                     (fb_campaign_id, campaign_id))
 
 
 # ====== 阶段统计快照 ======
