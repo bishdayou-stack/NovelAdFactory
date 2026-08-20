@@ -123,7 +123,11 @@ def _http_request(method: str, url: str, params: dict = None, data: dict = None,
                     # 错误码 2 (Service temporarily unavailable) 等更久，最多重试 5 次
                     time.sleep(5 if err_code == 2 else (2 ** attempt))
                     continue
-                return None, f"API 错误 [{err_code}]: {err_msg}"
+                subcode = err.get("error_subcode", "")
+                user_msg = err.get("error_user_msg", "") or err_msg
+                if subcode:
+                    return None, f"API 错误 [{err_code}/{subcode}]: {user_msg}"
+                return None, f"API 错误 [{err_code}]: {user_msg}"
 
             return parsed, None
 
@@ -351,7 +355,8 @@ def create_campaign(act_id: str, access_token: str,
                     status: str = "PAUSED",
                     special_ad_categories: list = None,
                     is_adset_budget_sharing_enabled=None,
-                    daily_budget=None) -> Tuple[Optional[str], Optional[str]]:
+                    daily_budget=None,
+                    bid_strategy: str = None) -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/campaigns"
     body = {
@@ -364,6 +369,9 @@ def create_campaign(act_id: str, access_token: str,
     # Meta v25.0 不再支持 is_adset_budget_sharing_enabled 字段（CBO 由 campaign 层 daily_budget 实现）
     if daily_budget:
         body["daily_budget"] = str(daily_budget)
+    # Meta v25.0 竞价策略已迁移到 campaign 层（CBO 模式）
+    if bid_strategy:
+        body["bid_strategy"] = bid_strategy
     data, err = _http_request("POST", url, data=body)
     if err:
         return None, err
@@ -381,6 +389,7 @@ def create_adset(act_id: str, access_token: str,
                  destination_type: str = "WEBSITE",
                  attribution_spec: dict = None,
                  bid_amount: int = None,
+                 bid_constraints: dict = None,
                  status: str = "PAUSED") -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/adsets"
@@ -409,6 +418,8 @@ def create_adset(act_id: str, access_token: str,
         body["attribution_spec"] = json.dumps(attribution_spec)
     if bid_amount:
         body["bid_amount"] = str(bid_amount)
+    if bid_constraints:
+        body["bid_constraints"] = json.dumps(bid_constraints)
 
     data, err = _http_request("POST", url, data=body)
     if err:
@@ -422,7 +433,9 @@ def create_ad(act_id: str, access_token: str,
               message: str = "", link_url: str = "",
               call_to_action_type: str = "LEARN_MORE",
               headline: str = "",
-              status: str = "PAUSED") -> Tuple[Optional[str], Optional[str]]:
+              status: str = "PAUSED",
+              advantage_creative: int = None,
+              multi_advertiser: int = None) -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/ads"
     object_story_spec = {
@@ -444,13 +457,35 @@ def create_ad(act_id: str, access_token: str,
             "value": {"link": link_url},
         }
 
+    creative_obj = {
+        "name": creative_name,
+        "object_story_spec": object_story_spec,
+    }
+    # 进阶赋能型素材文案（Advantage+ 文案增强）：OPT_IN 开启 / OPT_OUT 关闭
+    # 注意：普通链接广告用 advantage_plus_creative.customizations.text_extraction，
+    # standard_enhancements 字段在本账户会报 Invalid parameter。
+    if advantage_creative is not None:
+        creative_obj["degrees_of_freedom_spec"] = {
+            "creative_features_spec": {
+                "advantage_plus_creative": {
+                    "customizations": {
+                        "text_extraction": {
+                            "enroll_status": "OPT_IN" if advantage_creative else "OPT_OUT"
+                        }
+                    }
+                }
+            }
+        }
+    # 多广告主广告：默认关闭需显式 OPT_OUT（Meta 2024-08 后不传默认 OPT_IN）
+    if multi_advertiser is not None:
+        creative_obj["contextual_multi_ads"] = {
+            "enroll_status": "OPT_IN" if multi_advertiser else "OPT_OUT"
+        }
+
     body = {
         "name": name,
         "adset_id": adset_id,
-        "creative": json.dumps({
-            "name": creative_name,
-            "object_story_spec": object_story_spec,
-        }),
+        "creative": json.dumps(creative_obj),
         "status": status,
         "access_token": access_token,
     }

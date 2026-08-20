@@ -4933,6 +4933,8 @@ def _get_promote_pages(act_id: str = Query(default=""), refresh: int = Query(def
     token = (database.get_bm_token(bm_id) if bm_id else "") or account.get("access_token") or _load_meta_default_token()
     if not token:
         return []
+    # 主页数据源用 promote_pages：只返回「该账户真正能推广」的主页，
+    # 避免 /me/accounts 混入 token 管理但账户不能推广的页（会 1815645 页不匹配）。
     pages, err = meta_api.get_promote_pages(act_id, token)
     if err:
         return []
@@ -5380,6 +5382,7 @@ class BatchPublishBody(BaseModel):
     n_campaigns: int = 1
     n_adsets: int = 1
     n_ads: int = 1
+    status: str = "PAUSED"  # 投放状态：PAUSED（草稿/关闭）或 ACTIVE（开启）
     # 系列设置
     campaign_name_prefix: str = ""
     objective: str = "OUTCOME_SALES"
@@ -5401,11 +5404,15 @@ class BatchPublishBody(BaseModel):
     custom_event_type: str = "PURCHASE"
     attribution_spec_json: str = ""
     targeting_json: str = "{}"
+    roas: float = 0  # 广告花费回报目标（LOWEST_COST_WITH_MIN_ROAS 时使用）
+    advantage_audience: int = 1  # 客户生命周期策略（Advantage+ 受众），默认开启
     # 广告设置
     ad_name: str = ""
     message: str = ""
     headlines: List[str] = []
     call_to_action: str = "LEARN_MORE"
+    advantage_creative: int = 1  # 进阶赋能型素材文案（Advantage+ 标准增强），默认开启
+    multi_advertiser: int = 0  # 多广告主广告，默认关闭
     # 素材
     assets: List[BatchAsset] = []
 

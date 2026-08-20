@@ -454,15 +454,32 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
             _push_event(batch_id, "start", {"total": total})
             is_sharing = (params.get("is_adset_budget_sharing_enabled") == 1)
             campaign_daily = params.get("campaign_daily_budget") or None
+            bid_strategy = params.get("bid_strategy", "LOWEST_COST_WITHOUT_CAP")
             ad_bid_amount = params.get("bid_amount") or None
-            if campaign_daily and not ad_bid_amount:
+            bid_constraints = None
+            optimization_goal = params.get("optimization_goal", "OFFSITE_CONVERSIONS")
+            status = params.get("status", "PAUSED")  # 投放状态：PAUSED 草稿 / ACTIVE 开启
+            if bid_strategy == "LOWEST_COST_WITH_MIN_ROAS":
+                # 广告花费回报目标：用 bid_constraints.roas_average_floor（ROAS × 10000）
+                # 且必须价值优化（VALUE），不能用站外转化
+                optimization_goal = "VALUE"
+                roas = params.get("roas") or 0
+                if roas:
+                    bid_constraints = {"roas_average_floor": int(float(roas) * 10000)}
+                ad_bid_amount = None
+            elif campaign_daily and not ad_bid_amount and bid_strategy == "LOWEST_COST_WITHOUT_CAP":
                 ad_bid_amount = 500  # CBO 模式 Meta v25 要求竞价金额（5 美元）
+            # 客户生命周期策略（Advantage+ 受众）：默认开启，自动扩展受众
+            targeting = json.loads(params.get("targeting_json") or "{}")
+            if params.get("advantage_audience", 1):
+                targeting["targeting_automation"] = {"advantage_audience": 1}
             for i, cid in enumerate(campaign_ids):
                 fb_cid, err = meta_api.create_campaign(
                     act_id, token, f"{params.get('campaign_name_prefix','Campaign')}-{i+1}",
                     objective=params.get("objective", "OUTCOME_SALES"),
-                    status="PAUSED", special_ad_categories=[],
-                    is_adset_budget_sharing_enabled=is_sharing, daily_budget=campaign_daily)
+                    status=status, special_ad_categories=[],
+                    is_adset_budget_sharing_enabled=is_sharing, daily_budget=campaign_daily,
+                    bid_strategy=bid_strategy)
                 if err:
                     failed += n2 * n3
                     _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"建系列失败: {err}"})
@@ -472,16 +489,17 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                     adset_id = adset_ids[i * n2 + j]
                     fb_adset_id, err = meta_api.create_adset(
                         act_id, token, f"{params.get('adset_name_prefix','Adset')}-{i+1}-{j+1}", fb_cid,
-                        targeting=json.loads(params.get("targeting_json") or "{}"),
+                        targeting=targeting,
                         daily_budget=(params.get("adset_daily_budget") or None) if not campaign_daily else None,
-                        bid_strategy=params.get("bid_strategy", "LOWEST_COST_WITHOUT_CAP"),
+                        bid_strategy=bid_strategy,
                         billing_event=params.get("billing_event", "IMPRESSIONS"),
-                        optimization_goal=params.get("optimization_goal", "OFFSITE_CONVERSIONS"),
+                        optimization_goal=optimization_goal,
                         promoted_object={"pixel_id": params.get("pixel_id"), "custom_event_type": params.get("custom_event_type", "PURCHASE")} if params.get("pixel_id") else None,
                         destination_type=params.get("destination_type", "WEBSITE"),
                         attribution_spec=json.loads(params.get("attribution_spec_json") or "[]") or None,
                         bid_amount=ad_bid_amount,
-                        status="PAUSED")
+                        bid_constraints=bid_constraints,
+                        status=status)
                     if err:
                         failed += n3
                         _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"建广告组失败: {err}"})
@@ -509,7 +527,9 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                             image_hash=image_hash, video_id=video_id,
                             message=params.get("message", ""), link_url=params.get("link_url", ""),
                             call_to_action_type=params.get("call_to_action", "LEARN_MORE"),
-                            headline=headline, status="PAUSED")
+                            headline=headline, status=status,
+                            advantage_creative=params.get("advantage_creative", 1),
+                            multi_advertiser=params.get("multi_advertiser", 0))
                         if err:
                             failed += 1
                             _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"建广告失败: {err}"})
