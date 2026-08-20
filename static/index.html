@@ -1131,10 +1131,13 @@
             <h3 class="text-xs font-semibold text-slate-300">广告组设置</h3>
             <input id="dwAdsetPrefix" placeholder="广告组名前缀" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white">
             <div id="dwAdsetDailyBudgetWrap"><input id="dwAdsetDailyBudget" type="number" min="0" placeholder="组日预算（美元，ABO 必填）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></div>
-            <select id="dwBidStrategy" onchange="dwOnBidStrategy()" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="LOWEST_COST_WITHOUT_CAP">最低成本（LOWEST_COST_WITHOUT_CAP）</option><option value="COST_CAP">成本上限（COST_CAP）</option></select>
-            <div id="dwBidAmountWrap" hidden><input id="dwBidAmount" type="number" min="0" placeholder="单次成效目标费用（美元）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></div>
+            <select id="dwBidStrategy" onchange="dwOnBidStrategy()" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="LOWEST_COST_WITHOUT_CAP">最低成本（最高数量或价值）</option><option value="COST_CAP">单次成效费用目标</option><option value="LOWEST_COST_WITH_MIN_ROAS">广告花费回报目标（ROAS）</option><option value="LOWEST_COST_WITH_BID_CAP">竞价上限</option></select>
+            <div id="dwBidAmountWrap" hidden><input id="dwBidAmount" type="number" min="0" placeholder="竞价金额（美元）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></div>
+            <div id="dwRoasWrap" hidden><label class="mb-1 block text-xs text-slate-400">最低广告花费回报（ROAS，如 2.0 = 200%；此策略自动使用「价值优化」目标）</label><input id="dwRoas" type="number" min="0" step="0.01" placeholder="2.0" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></div>
             <div><label class="mb-1 block text-xs text-slate-400">归因窗口</label><div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-300"><label class="inline-flex items-center gap-1.5"><input type="checkbox" id="dwAttrClick" checked>点击 7 天</label><label class="inline-flex items-center gap-1.5"><input type="checkbox" id="dwAttrView" checked>浏览 1 天</label><label class="inline-flex items-center gap-1.5"><input type="checkbox" id="dwAttrEngaged" checked>互动观看 1 天</label></div></div>
-            <select id="dwOptimizationGoal" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="OFFSITE_CONVERSIONS">OFFSITE_CONVERSIONS（站外转化）</option><option value="LINK_CLICKS">LINK_CLICKS（链接点击）</option><option value="LANDING_PAGE_VIEWS">LANDING_PAGE_VIEWS（落地页浏览）</option></select>
+            <select id="dwOptimizationGoal" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="OFFSITE_CONVERSIONS">站外转化</option><option value="LINK_CLICKS">链接点击</option><option value="LANDING_PAGE_VIEWS">落地页浏览</option></select>
+            <div><label class="mb-1 block text-xs text-slate-400">转化事件（购物为默认）</label><select id="dwConversionEvent" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="PURCHASE">购物</option><option value="ADD_TO_CART">加入购物车</option><option value="INITIATED_CHECKOUT">发起结账</option><option value="VIEW_CONTENT">内容浏览</option><option value="LEAD">线索</option></select></div>
+            <label class="inline-flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" id="dwAdvantageAudience" checked> 客户生命周期策略（Advantage+ 受众，自动扩展找更多转化）</label>
             <select id="dwPixelId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></select>
             <select id="dwAudienceId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></select>
           </div>
@@ -1143,8 +1146,10 @@
             <h3 class="text-xs font-semibold text-slate-300">广告设置</h3>
             <input id="dwAdName" placeholder="广告名（所有广告同名）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white">
             <textarea id="dwMessage" rows="4" placeholder="广告文案（可粘贴完整正文，保留换行与段落）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white resize-y"></textarea>
-            <div><label class="mb-1 block text-xs text-slate-400">广告标题（5-10 个，随机分配）</label><div id="dwHeadlines" class="space-y-2"></div><button onclick="dwAddHeadline()" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">+ 添加标题</button></div>
-            <select id="dwCTA" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="LEARN_MORE">LEARN_MORE</option><option value="SIGN_UP">SIGN_UP</option><option value="SUBSCRIBE">SUBSCRIBE</option><option value="SHOP_NOW">SHOP_NOW</option><option value="DOWNLOAD">DOWNLOAD</option></select>
+            <div><label class="mb-1 block text-xs text-slate-400">广告标题（5-10 个，随机分配）</label><div id="dwHeadlines" class="space-y-2"></div><div class="flex gap-2"><button onclick="dwAddHeadline()" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">+ 添加标题</button><button onclick="dwSaveHeadlines()" class="rounded-lg border border-emerald-600 px-3 py-1.5 text-xs text-emerald-400">保存标题库（下次自动加载）</button></div></div>
+            <div><label class="mb-1 block text-xs text-slate-400">行动号召（CTA）</label><select id="dwCTA" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="LEARN_MORE">了解更多</option><option value="SHOP_NOW">立即购买</option><option value="SIGN_UP">注册</option><option value="SUBSCRIBE">订阅</option><option value="DOWNLOAD">下载</option><option value="CONTACT_US">联系我们</option></select></div>
+            <label class="inline-flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" id="dwAdvantageCreative" checked> 进阶赋能型素材文案（Advantage+ 标准增强，让 Meta 自动优化文案/标题）</label>
+            <label class="inline-flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" id="dwMultiAdvertiser"> 多广告主广告</label>
           </div>
           <div class="flex justify-between"><button onclick="dwGoto(2)" class="rounded-lg border border-slate-700 px-5 py-2.5 text-sm text-slate-300">上一步</button><button onclick="dwGoto(4)" class="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white">下一步</button></div>
         </div>
@@ -1152,6 +1157,13 @@
         <div id="dwStep4" class="card-dark p-6 space-y-4" hidden>
           <h2 class="text-sm font-bold text-white">Step 4 · 预览 + 发布</h2>
           <div id="dwPreview" class="text-sm text-slate-300"></div>
+          <div class="rounded-xl bg-slate-800/50 border border-slate-700 p-4">
+            <label class="mb-2 block text-xs text-slate-400">投放状态</label>
+            <div class="flex gap-6 text-sm text-slate-300">
+              <label class="inline-flex items-center gap-2"><input type="radio" name="dwStatus" value="PAUSED" checked> 关闭（存草稿，不投放）</label>
+              <label class="inline-flex items-center gap-2"><input type="radio" name="dwStatus" value="ACTIVE"> 开启（立即投放）</label>
+            </div>
+          </div>
           <div id="dwPublishProgress" class="text-xs text-slate-400"></div>
           <div class="flex justify-between"><button onclick="dwGoto(3)" class="rounded-lg border border-slate-700 px-5 py-2.5 text-sm text-slate-300">上一步</button><button onclick="dwPublishBatch()" class="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white">发布到 Meta</button></div>
         </div>
@@ -3648,6 +3660,7 @@
     var _dwAssets = [];        // 素材池 [{image_url, image_type, overlay_text}]
     var _dwSelected = new Set(); // 已选素材索引
     var _dwAudiences = [];      // 受众模版缓存 [{audience_id, audience_name, targeting_json}]
+    var _dwErrors = [];         // 投放过程累积的错误信息
     var _dwEs = null;           // 发布进度 EventSource
     var _dwPublishBtn = null;   // 发布按钮引用（完成后恢复）
 
@@ -3712,6 +3725,10 @@
 
     function dwGoto(step) {
       dwCalcTotal();
+      if (step === 3) {
+        var total = parseInt(document.getElementById('dwTotal').textContent) || 0;
+        if (_dwSelected.size !== total) { alert('素材数 ' + _dwSelected.size + ' 不等于总广告数 ' + total + '，请选满 ' + total + ' 张'); return; }
+      }
       ['dwStep1','dwStep2','dwStep3','dwStep4'].forEach(function(id, i){
         document.getElementById(id).hidden = (i + 1) !== step;
       });
@@ -3743,20 +3760,39 @@
       if (needEl) needEl.textContent = total;
     }
 
-    function dwRenderHeadlines() {
-      var el = document.getElementById('dwHeadlines');
-      el.innerHTML = '';
-      for (var i = 0; i < 5; i++) el.appendChild(dwHeadlineInput());
+    function dwHeadlineLibKey() { return 'dw_headline_lib'; }
+
+    function dwLoadHeadlineLib() {
+      try { return JSON.parse(localStorage.getItem(dwHeadlineLibKey()) || '[]'); } catch (e) { return []; }
     }
 
-    function dwHeadlineInput() {
+    function dwRenderHeadlines() {
+      var el = document.getElementById('dwHeadlines');
+      var lib = dwLoadHeadlineLib();
+      el.innerHTML = '';
+      // 标题库不足 5 个时补空框，超过 5 个只取前 5 个
+      var vals = lib.slice(0, 5);
+      while (vals.length < 5) vals.push('');
+      for (var i = 0; i < vals.length; i++) el.appendChild(dwHeadlineInput(vals[i]));
+    }
+
+    function dwHeadlineInput(v) {
       var inp = document.createElement('input');
       inp.className = 'w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-white';
       inp.placeholder = '标题';
+      if (v) inp.value = v;
       return inp;
     }
 
-    function dwAddHeadline() { document.getElementById('dwHeadlines').appendChild(dwHeadlineInput()); }
+    function dwAddHeadline() { document.getElementById('dwHeadlines').appendChild(dwHeadlineInput('')); }
+
+    function dwSaveHeadlines() {
+      var vals = [];
+      document.querySelectorAll('#dwHeadlines input').forEach(function(inp){ var v = inp.value.trim(); if (v) vals.push(v); });
+      if (vals.length < 1) { alert('请至少填写 1 个标题再保存'); return; }
+      localStorage.setItem(dwHeadlineLibKey(), JSON.stringify(vals));
+      alert('已保存 ' + vals.length + ' 个标题到标题库，下次投放自动加载');
+    }
 
     function dwOnBudgetStrategy() {
       var isCbo = document.getElementById('dwBudgetStrategy').value === 'campaign';
@@ -3765,7 +3801,9 @@
     }
 
     function dwOnBidStrategy() {
-      document.getElementById('dwBidAmountWrap').hidden = document.getElementById('dwBidStrategy').value !== 'COST_CAP';
+      var s = document.getElementById('dwBidStrategy').value;
+      document.getElementById('dwBidAmountWrap').hidden = !(s === 'COST_CAP' || s === 'LOWEST_COST_WITH_BID_CAP');
+      document.getElementById('dwRoasWrap').hidden = s !== 'LOWEST_COST_WITH_MIN_ROAS';
     }
 
     function dwBuildAttributionSpec() {
@@ -3800,14 +3838,20 @@
       if (!_dwAssets.length) { el.innerHTML = '<div class="text-xs text-slate-500 col-span-4 py-8 text-center">请先从生产中心/小说分析收集，或点右上角「从素材浏览加载」</div>'; return; }
       var html = '';
       _dwAssets.forEach(function(a, i){
-        html += '<div class="relative cursor-pointer" onclick="dwToggleAsset(' + i + ')"><img src="' + absUrl(a.image_url) + '" class="w-full h-32 object-cover rounded-lg bg-slate-700"><div class="absolute inset-0 rounded-lg ' + (_dwSelected.has(i) ? 'ring-2 ring-indigo-500' : '') + '"></div></div>';
+        var sel = _dwSelected.has(i);
+        html += '<div class="relative cursor-pointer bg-slate-900 rounded-lg overflow-hidden border ' + (sel ? 'border-indigo-500' : 'border-slate-700') + '" onclick="dwToggleAsset(' + i + ')"><img src="' + absUrl(a.image_url) + '" class="w-full h-32 object-contain" loading="lazy"><div class="absolute inset-0 ' + (sel ? 'bg-indigo-500/10' : '') + '"></div>' + (sel ? '<div class="absolute top-1 right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs flex items-center justify-center">✓</div>' : '') + '</div>';
       });
       el.innerHTML = html;
       dwUpdateSelected();
     }
 
     function dwToggleAsset(i) {
-      if (_dwSelected.has(i)) _dwSelected.delete(i); else _dwSelected.add(i);
+      var need = parseInt(document.getElementById('dwTotal').textContent) || 0;
+      if (_dwSelected.has(i)) { _dwSelected.delete(i); }
+      else {
+        if (_dwSelected.size >= need) { alert('最多只能选 ' + need + ' 张素材（已选满）'); return; }
+        _dwSelected.add(i);
+      }
       dwRenderAssetPool();
     }
 
@@ -3847,9 +3891,11 @@
           targetingJson = _dwAudiences[i].targeting_json || '{}'; break;
         }
       }
+      var status = (document.querySelector('input[name="dwStatus"]:checked') || {}).value || 'PAUSED';
       var body = {
         ad_account_id: document.getElementById('dwAccount').value,
         n_campaigns: n1, n_adsets: n2, n_ads: n3,
+        status: status,
         campaign_name_prefix: document.getElementById('dwCampaignPrefix').value,
         budget_strategy: document.getElementById('dwBudgetStrategy').value,
         is_adset_budget_sharing_enabled: document.getElementById('dwBudgetStrategy').value === 'campaign' ? 1 : 0,
@@ -3859,9 +3905,12 @@
         adset_name_prefix: document.getElementById('dwAdsetPrefix').value,
         adset_daily_budget: Math.round(parseFloat(document.getElementById('dwAdsetDailyBudget').value) * 100) || 0,
         bid_strategy: document.getElementById('dwBidStrategy').value,
-        bid_amount: document.getElementById('dwBidStrategy').value === 'COST_CAP' ? (Math.round(parseFloat(document.getElementById('dwBidAmount').value) * 100) || 0) : 0,
+        bid_amount: (document.getElementById('dwBidStrategy').value === 'COST_CAP' || document.getElementById('dwBidStrategy').value === 'LOWEST_COST_WITH_BID_CAP') ? (Math.round(parseFloat(document.getElementById('dwBidAmount').value) * 100) || 0) : 0,
+        roas: parseFloat(document.getElementById('dwRoas').value) || 0,
         attribution_spec_json: dwBuildAttributionSpec(),
         optimization_goal: document.getElementById('dwOptimizationGoal').value,
+        custom_event_type: document.getElementById('dwConversionEvent').value,
+        advantage_audience: document.getElementById('dwAdvantageAudience').checked ? 1 : 0,
         pixel_id: document.getElementById('dwPixelId').value,
         audience_id: document.getElementById('dwAudienceId').value,
         targeting_json: targetingJson,
@@ -3869,6 +3918,8 @@
         message: document.getElementById('dwMessage').value,
         headlines: headlines,
         call_to_action: document.getElementById('dwCTA').value,
+        advantage_creative: document.getElementById('dwAdvantageCreative').checked ? 1 : 0,
+        multi_advertiser: document.getElementById('dwMultiAdvertiser').checked ? 1 : 0,
         assets: assets
       };
       var btn = event.target; btn.disabled = true; btn.textContent = '提交中...';
@@ -3919,6 +3970,7 @@
 
     function dwOpenStream(batchId) {
       if (_dwEs) { _dwEs.close(); }
+      _dwErrors = [];
       _dwEs = new EventSource('/api/delivery/stream/' + batchId);
       var prog = document.getElementById('dwPublishProgress');
       _dwEs.addEventListener('start', function(e){
@@ -3927,13 +3979,19 @@
       });
       _dwEs.addEventListener('progress', function(e){
         var d = JSON.parse(e.data);
-        prog.innerHTML = '<div class="text-xs text-indigo-400">已投放 ' + d.completed + '/' + d.total + '（失败 ' + (d.failed || 0) + '）...</div>';
+        if (d.error) _dwErrors.push(d.error);
+        var html = '<div class="text-xs text-indigo-400">已投放 ' + d.completed + '/' + d.total + '（失败 ' + (d.failed || 0) + '）...</div>';
+        if (_dwErrors.length) html += '<div class="text-xs text-red-400 mt-1 max-h-40 overflow-y-auto">' + _dwErrors.slice(-5).map(function(x){ return escapeHtml(x); }).join('<br>') + '</div>';
+        prog.innerHTML = html;
       });
       _dwEs.addEventListener('complete', function(e){
         var d = JSON.parse(e.data);
+        if (d.error) _dwErrors.push(d.error);
         var n = d.completed || 0;
         var extra = (d.failed && d.failed > 0) ? '，失败 ' + d.failed + ' 条' : '';
-        prog.innerHTML = '<div class="text-xs text-emerald-400 font-semibold">已创建 ' + n + ' 条广告（PAUSED）' + extra + '</div>';
+        var html = '<div class="text-xs text-emerald-400 font-semibold">已创建 ' + n + ' 条广告（PAUSED）' + extra + '</div>';
+        if (_dwErrors.length) html += '<div class="text-xs text-red-400 mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap">' + _dwErrors.map(function(x){ return escapeHtml(x); }).join('<br>') + '</div>';
+        prog.innerHTML = html;
         _dwEs.close(); _dwEs = null;
         if (_dwPublishBtn) { _dwPublishBtn.disabled = false; _dwPublishBtn.textContent = '发布到 Meta'; }
       });
