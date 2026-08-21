@@ -81,13 +81,18 @@ def get_summary(start_date: str = None, end_date: str = None, account: str = Non
         _add_user_filter(order_where, order_params, user_id)
 
         order_row = conn.execute(
-            f"SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS total_amount FROM orders WHERE {' AND '.join(order_where)}",
+            f"SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS total_amount, "
+            f"SUM(CASE WHEN json_extract(extra_data, '$.rechargeCoins') IS NOT NULL THEN 1 ELSE 0 END) AS coin_count, "
+            f"SUM(CASE WHEN json_extract(extra_data, '$.rechargeCoins') IS NULL THEN 1 ELSE 0 END) AS subscribe_count "
+            f"FROM orders WHERE {' AND '.join(order_where)}",
             order_params
         ).fetchone()
 
         total_spend = row["total_spend"] or 0
         total_revenue = order_row["total_amount"] or 0
         order_count = order_row["cnt"] or 0
+        subscribe_count = order_row["subscribe_count"] or 0
+        coin_count = order_row["coin_count"] or 0
 
         roi = round(total_revenue / total_spend, 2) if total_spend > 0 else 0
         cpa = round(total_spend / order_count, 2) if order_count > 0 else 0
@@ -97,6 +102,8 @@ def get_summary(start_date: str = None, end_date: str = None, account: str = Non
             "total_revenue": round(total_revenue, 2),
             "roi": roi,
             "order_count": order_count,
+            "subscribe_count": subscribe_count,
+            "coin_count": coin_count,
             "cpa": cpa,
             "active_days": row["active_days"] or 0,
             "account_count": row["account_count"] or 0,
@@ -321,6 +328,7 @@ def get_orders(start_date: str = None, end_date: str = None, keyword: str = None
             SELECT o.order_id, o.order_date, o.amount, o.status, o.ad_account, o.synced_at,
                    json_extract(o.extra_data, '$.campaignLinkId_dictText') AS promotion_link_name,
                    json_extract(o.extra_data, '$.adId') AS ad_id,
+                   CASE WHEN json_extract(o.extra_data, '$.rechargeCoins') IS NOT NULL THEN '金币' ELSE '订阅' END AS order_type,
                    json_extract(o.customer_info, '$.novelName') AS novel_name,
                    json_extract(o.customer_info, '$.novelId') AS novel_id,
                    o.user_id, CASE WHEN u.display_name IS NOT NULL AND u.display_name != '' THEN u.display_name ELSE COALESCE(u.username, '') END AS user_name

@@ -4927,18 +4927,20 @@ def _get_promote_pages(act_id: str = Query(default=""), refresh: int = Query(def
             return cached
     account = database.get_meta_account(act_id, _opt_user_id(user))
     if not account:
-        return []
+        return {"error": "账户不存在，请先在 Meta 管理中心导入该账户"}
     # 未命中：实时拉 Meta 并写缓存
     bm_id = account.get("bm_id", "")
     token = (database.get_bm_token(bm_id) if bm_id else "") or account.get("access_token") or _load_meta_default_token()
     if not token:
-        return []
+        return {"error": "该账户未配置有效 token，请到 BM 管理页面补充 system_token"}
     # 主页数据源用 promote_pages：只返回「该账户真正能推广」的主页，
     # 避免 /me/accounts 混入 token 管理但账户不能推广的页（会 1815645 页不匹配）。
     pages, err = meta_api.get_promote_pages(act_id, token)
     if err:
-        return []
+        return {"error": "拉取主页失败：" + err}
     result = [{"page_id": p.get("id", ""), "page_name": p.get("name", "")} for p in (pages or [])]
+    if not result:
+        return {"error": "该账户未获取到主页：请确认 BM 的 System Token 已在 Meta 后台授权主页（ADVERTISE 权限）"}
     database.cache_account_pages(act_id, result)
     return result
 
@@ -4954,15 +4956,17 @@ def _get_account_pixels(act_id: str = Query(default=""), refresh: int = Query(de
             return cached
     account = database.get_meta_account(act_id, _opt_user_id(user))
     if not account:
-        return []
+        return {"error": "账户不存在，请先在 Meta 管理中心导入该账户"}
     bm_id = account.get("bm_id", "")
     token = (database.get_bm_token(bm_id) if bm_id else "") or account.get("access_token") or _load_meta_default_token()
     if not token:
-        return []
+        return {"error": "该账户未配置有效 token，请到 BM 管理页面补充 system_token"}
     pixels, err = meta_api.get_pixels(act_id, token)
     if err:
-        return []
+        return {"error": "拉取数据集失败：" + err}
     result = [{"pixel_id": p.get("id", ""), "pixel_name": p.get("name", "")} for p in (pixels or [])]
+    if not result:
+        return {"error": "该账户未获取到数据集：请确认 token 已在 Meta 后台授权数据集（Pixel）"}
     database.cache_account_pixels(act_id, result)
     return result
 
@@ -4978,16 +4982,18 @@ def _get_account_audiences(act_id: str = Query(default=""), refresh: int = Query
             return cached
     account = database.get_meta_account(act_id, _opt_user_id(user))
     if not account:
-        return []
+        return {"error": "账户不存在，请先在 Meta 管理中心导入该账户"}
     bm_id = account.get("bm_id", "")
     token = (database.get_bm_token(bm_id) if bm_id else "") or account.get("access_token") or _load_meta_default_token()
     if not token:
-        return []
+        return {"error": "该账户未配置有效 token，请到 BM 管理页面补充 system_token"}
     audiences, err = meta_api.get_saved_audiences(act_id, token)
     if err:
-        return []
+        return {"error": "拉取受众模版失败：" + err}
     result = [{"audience_id": a.get("id", ""), "audience_name": a.get("name", ""),
                "targeting_json": json.dumps(a.get("targeting") or {})} for a in (audiences or [])]
+    if not result:
+        return {"error": "该账户未获取到受众模版：请确认受众在该 BM 内且 token 有权限"}
     database.cache_account_audiences(act_id, result)
     return result
 
