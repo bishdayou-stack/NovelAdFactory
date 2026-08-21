@@ -654,7 +654,7 @@
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">总消耗</div><div id="kpiSpend" class="text-xl font-bold text-slate-800 mt-1">-</div></div>
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">总收入</div><div id="kpiRevenue" class="text-xl font-bold text-emerald-600 mt-1">-</div></div>
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">ROI</div><div id="kpiRoi" class="text-xl font-bold text-indigo-600 mt-1">-</div></div>
-        <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">成功订单</div><div id="kpiOrders" class="text-xl font-bold text-violet-600 mt-1">-</div></div>
+        <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">成功订单</div><div id="kpiOrders" class="text-xl font-bold text-violet-600 mt-1">-</div><div id="kpiOrdersBreakdown" class="text-[10px] text-slate-500 mt-1 leading-tight whitespace-pre-line"></div></div>
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">单次成效成本</div><div id="kpiCpa" class="text-xl font-bold text-amber-600 mt-1">-</div></div>
       </div>
 
@@ -703,7 +703,7 @@
             <h3 class="text-xs font-semibold text-slate-700">最近订单</h3>
             <div id="dashOrderPager" class="flex items-center gap-1"></div>
           </div>
-          <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-100 text-slate-500 text-left"><th class="pb-1.5 font-medium">订单号</th><th class="pb-1.5 font-medium">日期 <span class="text-[9px] text-slate-400">时区</span></th><th class="pb-1.5 font-medium">所属推广链接</th><th class="pb-1.5 font-medium">书籍</th><th class="pb-1.5 font-medium">广告ID</th><th class="pb-1.5 font-medium">书城账户</th><th class="pb-1.5 font-medium text-right">金额</th><th class="pb-1.5 font-medium">状态</th></tr></thead><tbody id="dashOrderBody"></tbody></table></div>
+          <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-100 text-slate-500 text-left"><th class="pb-1.5 font-medium">订单号</th><th class="pb-1.5 font-medium">日期 <span class="text-[9px] text-slate-400">时区</span></th><th class="pb-1.5 font-medium">所属推广链接</th><th class="pb-1.5 font-medium">书籍</th><th class="pb-1.5 font-medium">订单类型</th><th class="pb-1.5 font-medium">书城账户</th><th class="pb-1.5 font-medium text-right">金额</th><th class="pb-1.5 font-medium">状态</th></tr></thead><tbody id="dashOrderBody"></tbody></table></div>
         </div>
       </div>
 
@@ -3683,31 +3683,60 @@
       sel.innerHTML = html;
     }
 
+    function dwAssetError(selId, msg) {
+      var sel = document.getElementById(selId);
+      sel.innerHTML = '<option value="">⚠ 加载失败</option>';
+      sel.classList.add('border-red-500');
+      var hint = document.getElementById(selId + 'Hint');
+      if (!hint) {
+        hint = document.createElement('div');
+        hint.id = selId + 'Hint';
+        hint.className = 'text-xs text-red-400 mt-1 leading-snug';
+        sel.parentNode.insertBefore(hint, sel.nextSibling);
+      }
+      hint.textContent = '⚠ ' + msg;
+    }
+
     function dwLoadPages(actId, refresh) {
       var sel = document.getElementById('dwPageId');
       sel.innerHTML = '<option value="">加载主页中...</option>';
+      sel.classList.remove('border-red-500');
+      var h = document.getElementById('dwPageIdHint'); if (h) h.remove();
       var url = '/api/meta/promote-pages?act_id=' + encodeURIComponent(actId) + (refresh ? '&refresh=1' : '');
       fetch(url)
         .then(function(r){ return r.json(); })
-        .then(function(d){ dwFillSelect('dwPageId', d || [], 'page_id', 'page_name', '选择主页'); })
-        .catch(function(){ sel.innerHTML = '<option value="">加载主页失败</option>'; });
+        .then(function(d){
+          if (d && d.error) { dwAssetError('dwPageId', d.error); return; }
+          dwFillSelect('dwPageId', d || [], 'page_id', 'page_name', '选择主页');
+        })
+        .catch(function(){ dwAssetError('dwPageId', '网络错误，加载主页失败'); });
     }
 
     function dwLoadPixels(actId) {
+      var sel = document.getElementById('dwPixelId');
+      sel.classList.remove('border-red-500');
+      var h = document.getElementById('dwPixelIdHint'); if (h) h.remove();
       fetch('/api/meta/account-pixels?act_id=' + encodeURIComponent(actId))
         .then(function(r){ return r.json(); })
-        .then(function(d){ dwFillSelect('dwPixelId', d || [], 'pixel_id', 'pixel_name', '选择数据集'); })
-        .catch(function(){});
+        .then(function(d){
+          if (d && d.error) { dwAssetError('dwPixelId', d.error); return; }
+          dwFillSelect('dwPixelId', d || [], 'pixel_id', 'pixel_name', '选择数据集');
+        })
+        .catch(function(){ dwAssetError('dwPixelId', '网络错误，加载数据集失败'); });
     }
 
     function dwLoadAudiences(actId) {
+      var sel = document.getElementById('dwAudienceId');
+      sel.classList.remove('border-red-500');
+      var h = document.getElementById('dwAudienceIdHint'); if (h) h.remove();
       fetch('/api/meta/account-audiences?act_id=' + encodeURIComponent(actId))
         .then(function(r){ return r.json(); })
         .then(function(d){
+          if (d && d.error) { dwAssetError('dwAudienceId', d.error); return; }
           _dwAudiences = d || [];
           dwFillSelect('dwAudienceId', _dwAudiences, 'audience_id', 'audience_name', '选择受众模版');
         })
-        .catch(function(){});
+        .catch(function(){ dwAssetError('dwAudienceId', '网络错误，加载受众模版失败'); });
     }
 
     function dwOnAccountChange() {
@@ -4535,6 +4564,13 @@
         document.getElementById('kpiRevenue').textContent = '¥' + (d.total_revenue || 0).toLocaleString();
         document.getElementById('kpiRoi').textContent = (d.roi || 0).toFixed(2);
         document.getElementById('kpiOrders').textContent = (d.order_count || 0).toLocaleString();
+        var _subN = d.subscribe_count || 0, _coinN = d.coin_count || 0, _totN = d.order_count || 0;
+        var _break = [];
+        if (_totN > 0) {
+          if (_subN > 0) _break.push('订阅首充 <b>' + _subN + '</b> 单 · ' + (_subN / _totN * 100).toFixed(2) + '%');
+          if (_coinN > 0) _break.push('金币首充 <b>' + _coinN + '</b> 单 · ' + (_coinN / _totN * 100).toFixed(2) + '%');
+        }
+        document.getElementById('kpiOrdersBreakdown').innerHTML = _break.join('<br>');
         document.getElementById('kpiCpa').textContent = '¥' + ((d.cpa || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
       }).catch(function() {});
 
@@ -4600,7 +4636,7 @@
           var html = data.map(function(r, i) {
             sumAmount += (r.amount||0);
             var novelInfo = r.novel_id || '-';
-            return '<tr class="' + (i%2?'bg-slate-50/50':'') + '"><td class="py-1 font-mono text-[11px] text-slate-600">'+(r.order_id||'')+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.order_date||'')+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.promotion_link_name||'-')+'</td><td class="py-1 text-slate-600 text-[11px]">'+escapeHtml(novelInfo)+'</td><td class="py-1 font-mono text-[11px] text-slate-400">'+(r.ad_id||'-')+'</td><td class="py-1 text-slate-500 text-xs">'+escapeHtml(r.user_name||'-')+'</td><td class="py-1 text-right text-slate-700">¥'+(r.amount||0).toLocaleString()+'</td><td class="py-1 text-slate-500">'+(r.status||'')+'</td></tr>';
+            return '<tr class="' + (i%2?'bg-slate-50/50':'') + '"><td class="py-1 font-mono text-[11px] text-slate-600">'+(r.order_id||'')+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.order_date||'')+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.promotion_link_name||'-')+'</td><td class="py-1 text-slate-600 text-[11px]">'+escapeHtml(novelInfo)+'</td><td class="py-1 text-[11px] ' + (r.order_type === '金币' ? 'text-amber-600' : 'text-sky-600') + '">' + (r.order_type || '-') + '</td><td class="py-1 text-slate-500 text-xs">'+escapeHtml(r.user_name||'-')+'</td><td class="py-1 text-right text-slate-700">¥'+(r.amount||0).toLocaleString()+'</td><td class="py-1 text-slate-500">'+(r.status||'')+'</td></tr>';
           }).join('');
           html += '<tr class="border-t-2 border-slate-300 bg-slate-100 font-semibold text-xs">' +
             '<td class="py-2 text-slate-700">合计</td><td class="py-2 text-slate-500" colspan="5">' + data.length + ' 笔订单</td>' +
