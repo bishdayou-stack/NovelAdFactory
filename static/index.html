@@ -966,6 +966,26 @@
           <tbody></tbody>
         </table>
       </div>
+
+      <!-- 账户资产区域 -->
+      <div class="card-dark p-4 mt-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white">账户资产（主页 / 数据集 / 受众）</h3>
+          <button id="btnRefreshAssets" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] text-white hover:bg-emerald-500 cursor-pointer border-0" onclick="refreshMetaAssets()">手动更新资产</button>
+        </div>
+        <div id="metaAssetsMsg" class="text-[11px] text-slate-500 mb-2"></div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-[12px]" id="metaAssetsTable">
+            <thead><tr>
+              <th class="text-left text-slate-400 py-1 font-medium">账户</th>
+              <th class="text-left text-slate-400 py-1 font-medium">主页</th>
+              <th class="text-left text-slate-400 py-1 font-medium">数据集</th>
+              <th class="text-left text-slate-400 py-1 font-medium">受众模版</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- ====== Tab: 素材画廊 ====== -->
@@ -3665,7 +3685,7 @@
     var _dwPublishBtn = null;   // 发布按钮引用（完成后恢复）
 
     function dwLoadOptions() {
-      fetch('/api/meta/accounts').then(function(r){return r.json();}).then(function(d){
+      fetch('/api/meta/accounts?mine=1').then(function(r){return r.json();}).then(function(d){
         var acc = (d && d.accounts) || d || [];
         dwFillSelect('dwAccount', acc, 'act_id', 'act_name', '选择广告账户');
       }).catch(function(){});
@@ -7225,6 +7245,7 @@
       loadAppTable();
       loadBmTable();
       loadGlobalProxy();
+      loadMetaAssets();
     }
 
     function loadGlobalProxy() {
@@ -7246,6 +7267,53 @@
         el.hidden = false;
         setTimeout(function() { el.hidden = true; }, 2000);
       }
+    }
+
+    // ---- 账户资产 ----
+
+    function loadMetaAssets() {
+      fetch('/api/meta/assets').then(function(r) { return r.json(); }).then(function(data) {
+        var tbody = document.getElementById('metaAssetsTable').querySelector('tbody');
+        if (!data || !data.length) {
+          tbody.innerHTML = '<tr><td colspan="4" class="text-slate-500 py-4 text-center">暂无账户资产，点击右上角「手动更新资产」拉取</td></tr>';
+          return;
+        }
+        var html = '';
+        data.forEach(function(a) {
+          var pages = (a.pages || []).map(function(p){ return p.page_name || p.page_id; }).join('、');
+          var pixels = (a.pixels || []).map(function(p){ return p.pixel_name || p.pixel_id; }).join('、');
+          var auds = (a.audiences || []).map(function(x){ return x.audience_name || x.audience_id; }).join('、');
+          html += '<tr class="border-b border-slate-800 align-top">' +
+            '<td class="py-2 text-white">' + escapeHtml(a.act_name || a.act_id) + '<div class="text-[10px] text-slate-500 font-mono">' + escapeHtml(a.act_id) + '</div></td>' +
+            '<td class="py-2 text-slate-400">' + (pages ? escapeHtml(pages) : '<span class="text-slate-600">-</span>') + '</td>' +
+            '<td class="py-2 text-slate-400">' + (pixels ? escapeHtml(pixels) : '<span class="text-slate-600">-</span>') + '</td>' +
+            '<td class="py-2 text-slate-400">' + (auds ? escapeHtml(auds) : '<span class="text-slate-600">-</span>') + '</td></tr>';
+        });
+        tbody.innerHTML = html;
+      }).catch(function(){});
+    }
+
+    function refreshMetaAssets() {
+      var btn = document.getElementById('btnRefreshAssets');
+      var msg = document.getElementById('metaAssetsMsg');
+      btn.disabled = true; btn.textContent = '更新中...';
+      msg.textContent = '正在拉取资产，账户较多时可能需要一些时间...';
+      fetch('/api/meta/assets/refresh', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+        btn.disabled = false; btn.textContent = '手动更新资产';
+        var parts = ['已更新 ' + (d.accounts || 0) + ' 个账户'];
+        if (d.pages) parts.push('主页 ' + d.pages);
+        if (d.pixels) parts.push('数据集 ' + d.pixels);
+        if (d.audiences) parts.push('受众 ' + d.audiences);
+        msg.textContent = parts.join(' · ');
+        if (d.errors && d.errors.length) {
+          msg.textContent += '（' + d.errors.length + ' 个账户有错误）';
+          console.warn('资产更新错误:', d.errors);
+        }
+        loadMetaAssets();
+      }).catch(function(e) {
+        btn.disabled = false; btn.textContent = '手动更新资产';
+        msg.textContent = '更新失败: ' + e;
+      });
     }
 
     // ---- App 管理 ----
