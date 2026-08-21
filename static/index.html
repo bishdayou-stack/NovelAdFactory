@@ -1125,7 +1125,13 @@
             <input id="dwCampaignPrefix" placeholder="系列名前缀" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white">
             <select id="dwBudgetStrategy" onchange="dwOnBudgetStrategy()" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="adset">广告组预算 (ABO)</option><option value="campaign">系列预算 (CBO)</option></select>
             <input id="dwCampaignDailyBudget" type="number" min="0" placeholder="系列日预算（美元，CBO 必填）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white" hidden>
-            <select id="dwPageId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></select>
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-sm font-medium text-slate-400">主页</label>
+                <button type="button" onclick="dwRefreshPages()" class="text-[11px] text-indigo-400 hover:text-indigo-300 cursor-pointer bg-transparent border-0">刷新主页</button>
+              </div>
+              <select id="dwPageId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></select>
+            </div>
             <input id="dwLinkUrl" placeholder="落地页网址" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white">
           </div>
           <!-- 广告组设置 -->
@@ -3712,6 +3718,12 @@
           dwFillSelect('dwPageId', d || [], 'page_id', 'page_name', '选择主页');
         })
         .catch(function(){ dwAssetError('dwPageId', '网络错误，加载主页失败'); });
+    }
+
+    function dwRefreshPages() {
+      var actId = document.getElementById('dwAccount').value;
+      if (!actId) { alert('请先选择广告账户'); return; }
+      dwLoadPages(actId, true);
     }
 
     function dwLoadPixels(actId) {
