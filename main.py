@@ -4629,9 +4629,13 @@ class MetaAccountBody(BaseModel):
     bm_id: str = ""
 
 @app.get("/api/meta/accounts")
-def _get_meta_accounts(user: dict = Depends(get_current_user)):
-    uid = _opt_user_id(user)
-    accounts = database.get_meta_accounts(uid)
+def _get_meta_accounts(mine: int = Query(default=0), user: dict = Depends(get_current_user)):
+    if mine:
+        # 只看自己的账户：admin 看未分配的，普通用户看自己的（投放向导用）
+        accounts = database.get_own_meta_accounts(user["id"], user.get("role") == "admin")
+    else:
+        uid = _opt_user_id(user)
+        accounts = database.get_meta_accounts(uid)
 
     # 预加载所有 BM 配置，用于解析 BM 真实名称
     bm_configs = {}
@@ -4996,6 +5000,80 @@ def _get_account_audiences(act_id: str = Query(default=""), refresh: int = Query
         return {"error": "该账户未获取到受众模版：请确认受众在该 BM 内且 token 有权限"}
     database.cache_account_audiences(act_id, result)
     return result
+
+
+@app.get("/api/meta/assets")
+def _get_meta_assets(user: dict = Depends(get_current_user)):
+    """返回当前用户自己的账户的资产列表（主页/数据集/受众，从缓存读）。"""
+    is_admin = user.get("role") == "admin"
+    accounts = database.get_own_meta_accounts(user["id"], is_admin)
+    result = []
+    for a in accounts:
+        act_id = a.get("act_id", "")
+        result.append({
+            "act_id": act_id,
+            "act_name": a.get("act_name", ""),
+            "bm_id": a.get("bm_id", "") or "未归类",
+            "pages": database.get_cached_account_pages(act_id) or [],
+            "pixels": database.get_cached_account_pixels(act_id) or [],
+            "audiences": database.get_cached_account_audiences(act_id) or [],
+        })
+    return result
+
+
+@app.post("/api/meta/assets/refresh")
+def _refresh_meta_assets(user: dict = Depends(get_current_user)):
+    """手动刷新当前用户自己的账户的资产（主页/数据集/受众），写缓存。"""
+    is_admin = user.get("role") == "admin"
+    accounts = database.get_own_meta_accounts(user["id"], is_admin)
+
+    def _refresh_one(a):
+        act_id = a.get("act_id", "")
+        if not act_id:
+            return 0, 0, 0, []
+        bm_id = a.get("bm_id", "")
+        token = (database.get_bm_token(bm_id) if bm_id else "") or a.get("access_token") or _load_meta_default_token()
+        if not token:
+            return 0, 0, 0, [f"{act_id}: 未配置有效 token"]
+        npages = npixels = nauds = 0
+        errs = []
+        pages, err = meta_api.get_promote_pages(act_id, token)
+        if err:
+            errs.append(f"{act_id} 主页: {err}")
+        else:
+            presult = [{"page_id": p.get("id", ""), "page_name": p.get("name", "")} for p in (pages or [])]
+            database.cache_account_pages(act_id, presult)
+            npages = len(presult)
+        pixels, err = meta_api.get_pixels(act_id, token)
+        if err:
+            errs.append(f"{act_id} 数据集: {err}")
+        else:
+            pixel_result = [{"pixel_id": p.get("id", ""), "pixel_name": p.get("name", "")} for p in (pixels or [])]
+            database.cache_account_pixels(act_id, pixel_result)
+            npixels = len(pixel_result)
+        audiences, err = meta_api.get_saved_audiences(act_id, token)
+        if err:
+            errs.append(f"{act_id} 受众: {err}")
+        else:
+            aresult = [{"audience_id": a2.get("id", ""), "audience_name": a2.get("name", ""),
+                        "targeting_json": json.dumps(a2.get("targeting") or {})} for a2 in (audiences or [])]
+            database.cache_account_audiences(act_id, aresult)
+            nauds = len(aresult)
+        return npages, npixels, nauds, errs
+
+    from concurrent.futures import ThreadPoolExecutor
+    total_pages = total_pixels = total_audiences = 0
+    errors = []
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for npages, npixels, nauds, errs in pool.map(_refresh_one, accounts):
+            total_pages += npages
+            total_pixels += npixels
+            total_audiences += nauds
+            errors.extend(errs)
+    return {"success": True, "accounts": len(accounts),
+            "pages": total_pages, "pixels": total_pixels, "audiences": total_audiences,
+            "errors": errors}
+
 
 @app.get("/api/meta/pages")
 def _get_meta_pages(user: dict = Depends(get_current_user)):

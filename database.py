@@ -1669,6 +1669,19 @@ def get_meta_accounts(user_id: int = None) -> List[Dict[str, Any]]:
             ).fetchall()
         return [dict(r) for r in rows]
 
+def get_own_meta_accounts(user_id: int, is_admin: bool) -> List[Dict[str, Any]]:
+    """只看自己的账户：admin 看未分配的（user_id IS NULL），普通用户看 user_id=自己"""
+    with get_conn() as conn:
+        if is_admin:
+            rows = conn.execute(
+                "SELECT * FROM meta_accounts WHERE user_id IS NULL ORDER BY created_at DESC"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM meta_accounts WHERE user_id = ? ORDER BY created_at DESC", (user_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
 def get_meta_account(act_id: str, user_id: int = None) -> Optional[Dict[str, Any]]:
     with get_conn() as conn:
         if user_id is not None:
