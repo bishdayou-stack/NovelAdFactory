@@ -5002,75 +5002,87 @@ def _get_account_audiences(act_id: str = Query(default=""), refresh: int = Query
     return result
 
 
-@app.get("/api/meta/assets")
-def _get_meta_assets(user: dict = Depends(get_current_user)):
-    """返回当前用户自己的账户的资产列表（主页/数据集/受众，从缓存读）。"""
-    is_admin = user.get("role") == "admin"
-    accounts = database.get_own_meta_accounts(user["id"], is_admin)
+@app.get("/api/bm/assets")
+def _get_bm_assets(user: dict = Depends(get_current_user)):
+    """返回当前用户自己的 BM 的资产（主页/数据集/受众，从缓存读）。"""
+    uid = user["id"] if user.get("role") != "admin" else None
+    bms = database.get_bm_configs(uid)
     result = []
-    for a in accounts:
-        act_id = a.get("act_id", "")
+    for bm in bms:
+        bm_id = bm.get("bm_id", "")
+        assets = database.get_bm_assets(bm_id)
         result.append({
-            "act_id": act_id,
-            "act_name": a.get("act_name", ""),
-            "bm_id": a.get("bm_id", "") or "未归类",
-            "pages": database.get_cached_account_pages(act_id) or [],
-            "pixels": database.get_cached_account_pixels(act_id) or [],
-            "audiences": database.get_cached_account_audiences(act_id) or [],
+            "bm_id": bm_id,
+            "bm_name": bm.get("bm_name", ""),
+            "account_count": bm.get("account_count", 0),
+            "pages": (assets.get("pages") if assets else None),
+            "pixels": (assets.get("pixels") if assets else None),
+            "audiences": (assets.get("audiences") if assets else None),
         })
     return result
 
 
-@app.post("/api/meta/assets/refresh")
-def _refresh_meta_assets(user: dict = Depends(get_current_user)):
-    """手动刷新当前用户自己的账户的资产（主页/数据集/受众），写缓存。"""
-    is_admin = user.get("role") == "admin"
-    accounts = database.get_own_meta_accounts(user["id"], is_admin)
+@app.post("/api/bm/assets/refresh")
+def _refresh_bm_assets(bm_id: str = Query(default=""), user: dict = Depends(get_current_user)):
+    """手动刷新 BM 的资产（用 BM 的 system_token 拉主页/数据集/受众），写缓存。bm_id 为空则刷新全部。"""
+    uid = user["id"] if user.get("role") != "admin" else None
+    bms = database.get_bm_configs(uid)
+    if bm_id:
+        bms = [b for b in bms if b.get("bm_id") == bm_id]
 
-    def _refresh_one(a):
-        act_id = a.get("act_id", "")
-        if not act_id:
-            return 0, 0, 0, []
-        bm_id = a.get("bm_id", "")
-        token = (database.get_bm_token(bm_id) if bm_id else "") or a.get("access_token") or _load_meta_default_token()
+    def _refresh_one(bm):
+        bm_id = bm.get("bm_id", "")
+        token = bm.get("system_token", "")
         if not token:
-            return 0, 0, 0, [f"{act_id}: 未配置有效 token"]
+            return bm_id, 0, 0, 0, [f"{bm_id}: 未配置 token"]
         npages = npixels = nauds = 0
         errs = []
-        pages, err = meta_api.get_promote_pages(act_id, token)
+        pages = []
+        pages_raw, err = meta_api.discover_pages(token)
         if err:
-            errs.append(f"{act_id} 主页: {err}")
+            errs.append(f"{bm_id} 主页: {err}")
         else:
-            presult = [{"page_id": p.get("id", ""), "page_name": p.get("name", "")} for p in (pages or [])]
-            database.cache_account_pages(act_id, presult)
-            npages = len(presult)
-        pixels, err = meta_api.get_pixels(act_id, token)
-        if err:
-            errs.append(f"{act_id} 数据集: {err}")
-        else:
-            pixel_result = [{"pixel_id": p.get("id", ""), "pixel_name": p.get("name", "")} for p in (pixels or [])]
-            database.cache_account_pixels(act_id, pixel_result)
-            npixels = len(pixel_result)
-        audiences, err = meta_api.get_saved_audiences(act_id, token)
-        if err:
-            errs.append(f"{act_id} 受众: {err}")
-        else:
-            aresult = [{"audience_id": a2.get("id", ""), "audience_name": a2.get("name", ""),
-                        "targeting_json": json.dumps(a2.get("targeting") or {})} for a2 in (audiences or [])]
-            database.cache_account_audiences(act_id, aresult)
-            nauds = len(aresult)
-        return npages, npixels, nauds, errs
+            pages = [{"page_id": p.get("id", ""), "page_name": p.get("name", "")} for p in (pages_raw or [])]
+            npages = len(pages)
+        pixels, audiences = [], []
+        seen_px, seen_au = set(), set()
+        for a in database.get_meta_accounts_by_bm(bm_id):
+            act_id = a.get("act_id", "")
+            if not act_id:
+                continue
+            pix, err2 = meta_api.get_pixels(act_id, token)
+            if err2:
+                errs.append(f"{act_id} 数据集: {err2}")
+            else:
+                for p in (pix or []):
+                    pid = p.get("id", "")
+                    if pid and pid not in seen_px:
+                        seen_px.add(pid)
+                        pixels.append({"pixel_id": pid, "pixel_name": p.get("name", "")})
+            aud, err3 = meta_api.get_saved_audiences(act_id, token)
+            if err3:
+                errs.append(f"{act_id} 受众: {err3}")
+            else:
+                for x in (aud or []):
+                    aid = x.get("id", "")
+                    if aid and aid not in seen_au:
+                        seen_au.add(aid)
+                        audiences.append({"audience_id": aid, "audience_name": x.get("name", "")})
+        npixels = len(pixels)
+        nauds = len(audiences)
+        database.cache_bm_assets(bm_id, {"pages": pages, "pixels": pixels, "audiences": audiences})
+        return bm_id, npages, npixels, nauds, errs
 
     from concurrent.futures import ThreadPoolExecutor
     total_pages = total_pixels = total_audiences = 0
     errors = []
     with ThreadPoolExecutor(max_workers=4) as pool:
-        for npages, npixels, nauds, errs in pool.map(_refresh_one, accounts):
+        for bm_id, npages, npixels, nauds, errs in pool.map(_refresh_one, bms):
             total_pages += npages
             total_pixels += npixels
             total_audiences += nauds
             errors.extend(errs)
-    return {"success": True, "accounts": len(accounts),
+    return {"success": True, "bms": len(bms),
             "pages": total_pages, "pixels": total_pixels, "audiences": total_audiences,
             "errors": errors}
 

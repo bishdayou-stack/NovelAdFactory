@@ -794,6 +794,12 @@ def init_db() -> None:
                 created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS meta_bm_assets (
+                bm_id         TEXT PRIMARY KEY,
+                assets_json   TEXT,
+                cached_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
         # 迁移：meta_accounts 加 bm_id（关联 BM）
@@ -2985,6 +2991,35 @@ def get_bm_configs(user_id: int = None) -> List[Dict[str, Any]]:
                 base_sql + " ORDER BY b.bm_name"
             ).fetchall()
         return [dict(r) for r in rows]
+
+
+def get_meta_accounts_by_bm(bm_id: str) -> List[Dict[str, Any]]:
+    """获取某 BM 下的广告账户"""
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM meta_accounts WHERE bm_id = ?", (bm_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def cache_bm_assets(bm_id: str, assets: Dict[str, Any]) -> None:
+    """写入某 BM 的资产缓存（主页/数据集/受众 JSON）"""
+    import json as _json
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO meta_bm_assets (bm_id, assets_json, cached_at) VALUES (?,?,CURRENT_TIMESTAMP)",
+            (bm_id, _json.dumps(assets, ensure_ascii=False)))
+
+
+def get_bm_assets(bm_id: str) -> Optional[Dict[str, Any]]:
+    """读取某 BM 的资产缓存，未缓存返回 None"""
+    import json as _json
+    with get_conn() as conn:
+        row = conn.execute("SELECT assets_json FROM meta_bm_assets WHERE bm_id = ?", (bm_id,)).fetchone()
+        if not row or not row[0]:
+            return None
+        try:
+            return _json.loads(row[0])
+        except Exception:
+            return None
 
 
 def upsert_bm_config(bm_id: str, bm_name: str, system_token: str = "",
