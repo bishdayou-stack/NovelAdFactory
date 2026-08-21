@@ -953,11 +953,13 @@
             <button id="btnAddBm" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] text-white hover:bg-indigo-500 cursor-pointer border-0">手动添加</button>
           </div>
         </div>
+        <div id="bmAssetsMsg" class="text-[11px] text-slate-500 mb-2"></div>
         <table class="w-full text-[12px]" id="bmTable">
           <thead><tr>
             <th class="text-left text-slate-400 py-1 font-medium">BM 名称</th>
             <th class="text-left text-slate-400 py-1 font-medium">BM ID</th>
             <th class="text-center text-slate-400 py-1 font-medium">账户数</th>
+            <th class="text-left text-slate-400 py-1 font-medium">资产（主页 / 数据集 / 受众）</th>
             <th class="text-center text-slate-400 py-1 font-medium">归属</th>
             <th class="text-center text-slate-400 py-1 font-medium">绑定 App</th>
             <th class="text-center text-slate-400 py-1 font-medium">Token</th>
@@ -965,26 +967,6 @@
           </tr></thead>
           <tbody></tbody>
         </table>
-      </div>
-
-      <!-- 账户资产区域 -->
-      <div class="card-dark p-4 mt-4">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-white">账户资产（主页 / 数据集 / 受众）</h3>
-          <button id="btnRefreshAssets" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] text-white hover:bg-emerald-500 cursor-pointer border-0" onclick="refreshMetaAssets()">手动更新资产</button>
-        </div>
-        <div id="metaAssetsMsg" class="text-[11px] text-slate-500 mb-2"></div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-[12px]" id="metaAssetsTable">
-            <thead><tr>
-              <th class="text-left text-slate-400 py-1 font-medium">账户</th>
-              <th class="text-left text-slate-400 py-1 font-medium">主页</th>
-              <th class="text-left text-slate-400 py-1 font-medium">数据集</th>
-              <th class="text-left text-slate-400 py-1 font-medium">受众模版</th>
-            </tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
       </div>
     </div>
 
@@ -7245,7 +7227,6 @@
       loadAppTable();
       loadBmTable();
       loadGlobalProxy();
-      loadMetaAssets();
     }
 
     function loadGlobalProxy() {
@@ -7269,49 +7250,22 @@
       }
     }
 
-    // ---- 账户资产 ----
+    // ---- BM 资产刷新 ----
 
-    function loadMetaAssets() {
-      fetch('/api/meta/assets').then(function(r) { return r.json(); }).then(function(data) {
-        var tbody = document.getElementById('metaAssetsTable').querySelector('tbody');
-        if (!data || !data.length) {
-          tbody.innerHTML = '<tr><td colspan="4" class="text-slate-500 py-4 text-center">暂无账户资产，点击右上角「手动更新资产」拉取</td></tr>';
-          return;
-        }
-        var html = '';
-        data.forEach(function(a) {
-          var pages = (a.pages || []).map(function(p){ return p.page_name || p.page_id; }).join('、');
-          var pixels = (a.pixels || []).map(function(p){ return p.pixel_name || p.pixel_id; }).join('、');
-          var auds = (a.audiences || []).map(function(x){ return x.audience_name || x.audience_id; }).join('、');
-          html += '<tr class="border-b border-slate-800 align-top">' +
-            '<td class="py-2 text-white">' + escapeHtml(a.act_name || a.act_id) + '<div class="text-[10px] text-slate-500 font-mono">' + escapeHtml(a.act_id) + '</div></td>' +
-            '<td class="py-2 text-slate-400">' + (pages ? escapeHtml(pages) : '<span class="text-slate-600">-</span>') + '</td>' +
-            '<td class="py-2 text-slate-400">' + (pixels ? escapeHtml(pixels) : '<span class="text-slate-600">-</span>') + '</td>' +
-            '<td class="py-2 text-slate-400">' + (auds ? escapeHtml(auds) : '<span class="text-slate-600">-</span>') + '</td></tr>';
-        });
-        tbody.innerHTML = html;
-      }).catch(function(){});
-    }
-
-    function refreshMetaAssets() {
-      var btn = document.getElementById('btnRefreshAssets');
-      var msg = document.getElementById('metaAssetsMsg');
+    function refreshBmAsset(bmId, btn) {
+      var msg = document.getElementById('bmAssetsMsg');
+      var oldText = btn.textContent;
       btn.disabled = true; btn.textContent = '更新中...';
-      msg.textContent = '正在拉取资产，账户较多时可能需要一些时间...';
-      fetch('/api/meta/assets/refresh', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
-        btn.disabled = false; btn.textContent = '手动更新资产';
-        var parts = ['已更新 ' + (d.accounts || 0) + ' 个账户'];
-        if (d.pages) parts.push('主页 ' + d.pages);
-        if (d.pixels) parts.push('数据集 ' + d.pixels);
-        if (d.audiences) parts.push('受众 ' + d.audiences);
-        msg.textContent = parts.join(' · ');
+      fetch('/api/bm/assets/refresh?bm_id=' + encodeURIComponent(bmId), { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+        btn.disabled = false; btn.textContent = oldText;
+        msg.textContent = '已更新 主页 ' + (d.pages || 0) + ' · 数据集 ' + (d.pixels || 0) + ' · 受众 ' + (d.audiences || 0);
         if (d.errors && d.errors.length) {
-          msg.textContent += '（' + d.errors.length + ' 个账户有错误）';
-          console.warn('资产更新错误:', d.errors);
+          msg.textContent += '（有错误，见控制台）';
+          console.warn('BM 资产更新错误:', d.errors);
         }
-        loadMetaAssets();
+        loadBmTable();
       }).catch(function(e) {
-        btn.disabled = false; btn.textContent = '手动更新资产';
+        btn.disabled = false; btn.textContent = oldText;
         msg.textContent = '更新失败: ' + e;
       });
     }
@@ -7421,13 +7375,27 @@
         var res = results[0];
         var bms = res.data || [];
         if (results.length > 1) { _allUsers = results[1] || []; }
-        fetch('/api/app/list').then(function(r2) { return r2.json(); }).then(function(res2) {
-          var apps = res2.data || [];
+        Promise.all([
+          fetch('/api/app/list').then(function(r) { return r.json(); }),
+          fetch('/api/bm/assets').then(function(r) { return r.json(); })
+        ]).then(function(rs) {
+          var apps = (rs[0] && rs[0].data) || [];
+          var assets = rs[1] || [];
+          _bmAssetsMap = {};
+          assets.forEach(function(a) { _bmAssetsMap[a.bm_id] = a; });
           renderBmConfigTable(bms, apps);
         }).catch(function() {
           renderBmTable(bms, []);
         });
       }).catch(function(e) { console.error('加载 BM 列表失败:', e); });
+    }
+
+    var _bmAssetsMap = {};
+
+    function renderBmAssetsCell(bmId) {
+      var a = _bmAssetsMap[bmId];
+      if (!a || !a.pages) return '<span class="text-slate-600">未更新</span>';
+      return '主页 ' + (a.pages.length || 0) + ' · 数据集 ' + (a.pixels || []).length + ' · 受众 ' + (a.audiences || []).length;
     }
 
     function renderBmConfigTable(bms, apps) {
@@ -7454,6 +7422,7 @@
           '<td class="py-2 text-white">' + escapeHtml(b.bm_name) + '</td>' +
           '<td class="py-2 text-slate-400 font-mono text-[11px]">' + escapeHtml(b.bm_id) + '</td>' +
           '<td class="py-2 text-center text-slate-300">' + (b.account_count || 0) + '</td>' +
+          '<td class="py-2 text-slate-400 text-[11px] leading-snug">' + renderBmAssetsCell(b.bm_id) + '</td>' +
           '<td class="py-2 text-center text-slate-300 text-[11px]">' + ownerHtml + '</td>' +
           '<td class="py-2 text-center">' +
             '<select class="rounded border border-slate-600 bg-slate-700 text-white text-[11px] px-2 py-1 focus:border-indigo-400 focus:outline-none" onchange="bindBmApp(\'' + escapeHtml(b.bm_id).replace(/'/g, "\\'") + '\', this.value)">' + appOptions + '</select>' +
@@ -7461,11 +7430,12 @@
           '<td class="py-2 text-center">' +
             '<button class="text-[10px] text-indigo-400 hover:text-indigo-300 bg-transparent border-0 cursor-pointer" onclick="editBmToken(\'' + escapeHtml(b.bm_id).replace(/'/g, "\\'") + '\')">' + tokenLabel + '</button>' +
           '</td>' +
-          '<td class="py-2 text-right">' +
+          '<td class="py-2 text-right whitespace-nowrap">' +
+            '<button class="text-[10px] text-emerald-400 hover:text-emerald-300 bg-transparent border-0 cursor-pointer mr-2" onclick="refreshBmAsset(\'' + escapeHtml(b.bm_id).replace(/'/g, "\\'") + '\', this)">更新资产</button>' +
             '<button class="text-[10px] text-red-400 hover:text-red-300 bg-transparent border-0 cursor-pointer" onclick="deleteBm(\'' + escapeHtml(b.bm_id).replace(/'/g, "\\'") + '\')">删除</button>' +
           '</td></tr>';
       });
-      document.getElementById('bmTable').querySelector('tbody').innerHTML = html || '<tr><td colspan="7" class="text-slate-500 py-4 text-center">暂无 BM</td></tr>';
+      document.getElementById('bmTable').querySelector('tbody').innerHTML = html || '<tr><td colspan="8" class="text-slate-500 py-4 text-center">暂无 BM</td></tr>';
     }
 
     function updateBmOwner(bmId, newUserId) {
