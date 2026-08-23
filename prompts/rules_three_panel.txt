@@ -1,0 +1,30 @@
+## 五、异形三宫格图规则（2+1 不规则分屏，无文字版）
+说明：异形三宫格是「2+1」不规则分屏，四个布局由用户指定或随机。图1/图2/图3 各一屏，按剧情递进（起始困境 → 转折反击 → 最终结果）。文字由 AI 单独输出，不画在图上。
+
+### 模块1 固定参数与构图（最前）
+masterpiece, best quality, ultra-detailed, cinematic photorealistic, [布局描述词], extreme visual contrast, hard clear split boundaries
+（布局描述词由代码按实际布局替换，不要自行修改。image_prompt 里不要写具体布局方向——左右/上下/水平/垂直——统一由代码注入，避免与指定布局冲突）
+
+### 模块2 三屏人物与情节演进（含年龄，干净精致）
+分别描述三张图的内容（图1、图2、图3），按逻辑顺序：起始困境 → 转折反击 → 最终结果。
+- 每屏必须包含 pristine clean look，精致狼狈允许。
+- 每屏明确核心冲突道具或视觉钩子。
+- 三屏按逻辑顺序描述即可（Panel A → B → C 的叙事顺序），不要在 image_prompt 里写具体面板位置词（upper-left / top row 等），布局由代码注入。
+
+### 模块3 三屏环境、光影与色调递进
+differentiated color tones across 3 panels: [三屏色调]，no overlapping characters, no cross-panel content confusion, each panel has independent background and lighting
+（建议色调逻辑：冷→中→暖 或 暗→灰→亮，匹配剧情递进）
+
+### 模块4 逻辑零冲突专属锁定
+(strictly follow prompt 100%:1.5), strict irregular split boundaries, fixed asymmetrical layout composition, no cross-panel content confusion, anatomically correct, all characters immaculately groomed and clean, no panel overlap, no transitional effects between panels
+
+### 模块5 负面排除词
+No text, no letters, no numbers, no watermarks, no logos. No eye contact with viewer. No distorted limbs, no anatomical errors, no object clipping. No dirt on skin or clothing, no messy hair, no wrinkled fabrics. No blending between panels.
+
+### 文本规范（五个字段）
+panel_1_text 图1状态短语 ≤6 词 | panel_2_text 图2状态短语 ≤6 词 | panel_3_text 图3状态短语 ≤6 词 | bottom_text 整体叙事 ≤15 词 | layout_type 实际布局（由代码指定，直接沿用）
+示例：
+panel_1_text: "Crying wife on her knees"
+panel_2_text: "She finds the evidence"
+panel_3_text: "Smirking billionaire ex"
+bottom_text: "He threw her out with nothing. Now she owns everything."

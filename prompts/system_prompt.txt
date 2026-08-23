@@ -106,10 +106,12 @@ Pure JSON only (no markdown, no explanation):
   "text_single_prompts": [{{"image_prompt": "...", "text_bottom": "..."}}],
   "scroll_visual_prompts": [{{"image_prompt": "..."}}],
   "lr_split_prompts": [{{"image_prompt": "...", "text_left": "...", "text_right": "...", "text_bottom": "..."}}],
-  "tb_split_prompts": [{{"image_prompt": "...", "text_overlay": "..."}}]
+  "tb_split_prompts": [{{"image_prompt": "...", "text_overlay": "..."}}],
+  "three_panel_prompts": [{{"image_prompt": "...", "panel_1_text": "...", "panel_2_text": "...", "panel_3_text": "...", "bottom_text": "...", "layout_type": "..."}}]
 }}
 
-Counts: text_single={text_single_count}, scroll={scroll_visual_count}, lr={lr_split_count}, tb={tb_split_count}, total={n_square}.
+Counts: text_single={text_single_count}, scroll={scroll_visual_count}, lr={lr_split_count}, tb={tb_split_count}, three_panel={three_panel_count}, total={n_square}.
 Zero-count arrays = empty []. scroll_visual has ONLY image_prompt.
 image_prompt: English comma-separated Tags, 30-60 keywords, NO text-drawing instructions. Front-load 3-5 strongest trigger words from hook engines. Quality words (masterpiece, best quality) come AFTER trigger words.
 All text_* fields in English. text_bottom/text_overlay ≤20 words. text_left/text_right ≤8 words.
+three_panel: image_prompt 已含「2+1 irregular layout」构图词；panel_1/2/3_text 各 ≤6 词（图1/2/3 状态短语），bottom_text ≤15 词（整图叙事），layout_type 沿用代码给的布局值，不要更改。

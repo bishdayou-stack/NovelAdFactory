@@ -848,6 +848,7 @@ _RULES_TEXT_SINGLE = _load_prompt("rules_text_single.txt")
 _RULES_SCROLL = _load_prompt("rules_scroll.txt")
 _RULES_LR_SPLIT = _load_prompt("rules_lr_split.txt")
 _RULES_TB_SPLIT = _load_prompt("rules_tb_split.txt")
+_RULES_THREE_PANEL = _load_prompt("rules_three_panel.txt")
 _RULES_VIDEO_SCRIPT = _load_prompt("rules_video_script.txt")
 
 # B层：加载视觉基因蓝图（构图原型，纯视觉参数，不含具体场景）
@@ -861,7 +862,7 @@ _FULL_RULES = _FULL_RULES_PATH.read_text(encoding="utf-8").strip() if _FULL_RULE
 NOVEL_PROMPT_RULES = _RULES_CORE
 
 
-def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scroll: int) -> str:
+def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scroll: int, three_panel: int = 0) -> str:
     """返回绘图规则：用户自定义优先 → 完整提示词文件（最新提示词.txt）→ 按需组装"""
     if user_prompt and user_prompt.strip():
         return user_prompt.strip()
@@ -876,6 +877,8 @@ def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scro
         parts.append(_RULES_LR_SPLIT)
     if tb > 0:
         parts.append(_RULES_TB_SPLIT)
+    if three_panel > 0:
+        parts.append(_RULES_THREE_PANEL)
     return "\n\n".join(p for p in parts if p)
 
 # 后缀常量
@@ -901,6 +904,38 @@ _TB_SPLIT_SUFFIX = _SUFFIX_CONFIG.get("TB_SPLIT_SUFFIX",
     "single straight horizontal divider line in center, "
     "top panel above bottom panel, "
     "forbidden left-right layout")
+
+# ===== 异形三宫格（three-panel irregular） =====
+# 四种布局：desc=嵌入提示词的布局描述词，panels=Panel A/B/C 的位置锚定词（贴图位置）
+THREE_PANEL_LAYOUTS = {
+    "vertical-two-left": {
+        "desc": "split-screen irregular 2+1 layout, VERTICAL orientation only, left column vertically stacked two square panels, right column one full-height rectangular panel, vertical split, forbidden horizontal layout, asymmetrical composition",
+        "panels": {"A": "upper-left", "B": "lower-left", "C": "right full-height"},
+    },
+    "vertical-two-right": {
+        "desc": "split-screen irregular 2+1 layout, VERTICAL orientation only, left column one full-height rectangular panel, right column vertically stacked two square panels, vertical split, forbidden horizontal layout, asymmetrical composition",
+        "panels": {"A": "left full-height", "B": "upper-right", "C": "lower-right"},
+    },
+    "horizontal-two-top": {
+        "desc": "split-screen irregular 2+1 layout, HORIZONTAL orientation only, top row horizontally stacked two square panels, bottom row one full-width rectangular panel, horizontal split, forbidden vertical layout, asymmetrical composition",
+        "panels": {"A": "upper-left", "B": "upper-right", "C": "bottom full-width"},
+    },
+    "horizontal-two-bottom": {
+        "desc": "split-screen irregular 2+1 layout, HORIZONTAL orientation only, top row one full-width rectangular panel, bottom row horizontally stacked two square panels, horizontal split, forbidden vertical layout, asymmetrical composition",
+        "panels": {"A": "top full-width", "B": "lower-left", "C": "lower-right"},
+    },
+}
+_THREE_PANEL_SUFFIX = "1:1 square composition"
+
+
+def resolve_three_panel_layout(layout: str = None) -> Tuple[str, str]:
+    """解析三宫格布局。返回 (实际布局, 警告信息)。
+    有效布局直接使用；random/None 均匀随机（四种各 25%）；无效布局报错并回退随机。"""
+    if layout and layout != "random":
+        if layout in THREE_PANEL_LAYOUTS:
+            return layout, ""
+        return random.choice(list(THREE_PANEL_LAYOUTS.keys())), f"无效布局 '{layout}'，已回退随机布局"
+    return random.choice(list(THREE_PANEL_LAYOUTS.keys())), ""
 
 # --- 并发控制 / 进度跟踪 ---
 _EXECUTOR = ThreadPoolExecutor(max_workers=4)
@@ -1050,6 +1085,8 @@ class GenerateRequest(BaseModel):
     text_single_count: int = 0
     lr_split_count: int = 0
     tb_split_count: int = 0
+    three_panel_count: int = 0
+    three_panel_layout: str = ""  # 异形三宫格布局：vertical-two-left/right、horizontal-two-top/bottom、"random"、空（空=random）
     scroll_count: int = 0
     popup_count: int = 0
     ai_scroll_count: int = 0   # AI 滚屏（AI 生成文案）
@@ -1060,6 +1097,7 @@ class GenerateRequest(BaseModel):
     text_single_text_enabled: bool = True   # 单帧图是否叠加文字
     lr_split_text_enabled: bool = True      # 左右分屏是否叠加文字
     tb_split_text_enabled: bool = True      # 上下分屏是否叠加文字
+    three_panel_text_enabled: bool = True   # 三宫格是否叠加文字
     concurrency: int = 2                     # 并发数，默认 2
 
     @model_validator(mode="before")
@@ -1118,6 +1156,14 @@ def finalize_square_prompt(kind: str, core: str, base_fallback: str) -> str:
 def finalize_scroll_visual_prompt(core: str, base_fallback: str) -> str:
     base = (core or "").strip() or (base_fallback or "").strip()
     return _dedup_prompt(f"{base}, {_SCROLL_VISUAL_SUFFIX}")
+
+
+def finalize_three_panel_prompt(core: str, layout: str, base_fallback: str) -> str:
+    """三宫格：在 base prompt 前注入模块1 前置词（含布局描述词），返回最终绘图 prompt。"""
+    base = (core or "").strip() or (base_fallback or "").strip()
+    desc = THREE_PANEL_LAYOUTS.get(layout, {}).get("desc", "")
+    prefix = f"masterpiece, best quality, ultra-detailed, cinematic photorealistic, {desc}, extreme visual contrast, hard clear split boundaries"
+    return _dedup_prompt(f"{prefix}, {base}")
 
 
 def _norm_prompt_list(x) -> List[str]:
@@ -1217,25 +1263,27 @@ def request_image_prompt_plan(
     tb_split_count: int,
     scroll_visual_count: int,
     use_templates: bool = True,
-) -> Tuple[List[dict], List[dict], List[dict], List[dict]]:
+    three_panel_count: int = 0,
+) -> Tuple[List[dict], List[dict], List[dict], List[dict], List[dict]]:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     url = api_url.rstrip("/") + "/chat/completions"
-    n_square = text_single_count + lr_split_count + tb_split_count
+    n_square = text_single_count + lr_split_count + tb_split_count + three_panel_count
     system = SYSTEM_PROMPT_TEMPLATE.format(
         text_single_count=text_single_count,
         scroll_visual_count=scroll_visual_count,
         lr_split_count=lr_split_count,
         tb_split_count=tb_split_count,
+        three_panel_count=three_panel_count,
         n_square=n_square,
     )
     # 用户消息 = 按需组装规则 + 小说内容 + （可选）模板参考
-    rules_text = _build_rules_text(user_prompt, text_single_count, lr_split_count, tb_split_count, scroll_visual_count)
+    rules_text = _build_rules_text(user_prompt, text_single_count, lr_split_count, tb_split_count, scroll_visual_count, three_panel_count)
     novel_text = (novel_content or "").strip()
-    total_images = text_single_count + lr_split_count + tb_split_count + scroll_visual_count
+    total_images = text_single_count + lr_split_count + tb_split_count + scroll_visual_count + three_panel_count
     user = (
         f"绘图规则：\n{rules_text}\n\n"
         f"小说节选：\n{novel_text}\n\n"
-        f"数量：text_single={text_single_count}, lr={lr_split_count}, tb={tb_split_count}, scroll={scroll_visual_count}"
+        f"数量：text_single={text_single_count}, lr={lr_split_count}, tb={tb_split_count}, scroll={scroll_visual_count}, three_panel={three_panel_count}"
     )
     if total_images >= 6:
         user += "\n\n【重要】共{0}张图，每张必须对应小说中不同的爆款瞬间或不同的情绪切面。严禁重复同一场景。详见系统提示词 Step 3 变体策略。".format(total_images)
@@ -1302,6 +1350,7 @@ def request_image_prompt_plan(
     ts = _extract("text_single_prompts", "single_square_prompts", "single_prompts")
     lr = _extract("lr_split_prompts")
     tb = _extract("tb_split_prompts")
+    tp = _extract("three_panel_prompts")
     legacy = data.get("square_prompts")
     if legacy and not ts and not lr and not tb:
         ts_legacy, lr_legacy, tb_legacy = _split_legacy_square_prompts(
@@ -1313,8 +1362,8 @@ def request_image_prompt_plan(
 
     # 统计有效 prompt（image_prompt 非空）
     valid_count = lambda items: sum(1 for it in items if isinstance(it, dict) and str(it.get("image_prompt", "")).strip())
-    print(f"[CHAT API] 有效prompt数: text_single={valid_count(ts)}, lr={valid_count(lr)}, tb={valid_count(tb)}, scroll={valid_count(scroll)}")
-    return ts, lr, tb, scroll
+    print(f"[CHAT API] 有效prompt数: text_single={valid_count(ts)}, lr={valid_count(lr)}, tb={valid_count(tb)}, three_panel={valid_count(tp)}, scroll={valid_count(scroll)}")
+    return ts, lr, tb, tp, scroll
 
 
 def request_image_prompt_plan_batched(
@@ -1329,20 +1378,22 @@ def request_image_prompt_plan_batched(
     scroll_visual_count: int,
     use_templates: bool = True,
     batch_size: int = 4,
-) -> Tuple[List[dict], List[dict], List[dict], List[dict]]:
+    three_panel_count: int = 0,
+) -> Tuple[List[dict], List[dict], List[dict], List[dict], List[dict]]:
     """分批调用 Chat API，每 batch_size 张图调用一次"""
     slots = (
         ["text_single"] * text_single_count
         + ["lr_split"] * lr_split_count
         + ["tb_split"] * tb_split_count
+        + ["three_panel"] * three_panel_count
         + ["scroll_visual"] * scroll_visual_count
     )
     total = len(slots)
     if total == 0:
-        return [], [], [], []
+        return [], [], [], [], []
     num_batches = (total + batch_size - 1) // batch_size
     print(f"[CHAT API] 总计 {total} 张图，分 {num_batches} 批次调用（每批 ≤{batch_size} 张）")
-    all_ts, all_lr, all_tb, all_sv = [], [], [], []
+    all_ts, all_lr, all_tb, all_tp, all_sv = [], [], [], [], []
     batch_errors = []
     novel_text = (novel_content or "").strip()
     for bi in range(num_batches):
@@ -1351,16 +1402,19 @@ def request_image_prompt_plan_batched(
         lr_c = sum(1 for s in batch_slots if s == "lr_split")
         tb_c = sum(1 for s in batch_slots if s == "tb_split")
         sv_c = sum(1 for s in batch_slots if s == "scroll_visual")
-        print(f"[CHAT API] 批次 {bi+1}/{num_batches}: text_single={ts_c}, lr={lr_c}, tb={tb_c}, scroll={sv_c}")
+        tp_c = sum(1 for s in batch_slots if s == "three_panel")
+        print(f"[CHAT API] 批次 {bi+1}/{num_batches}: text_single={ts_c}, lr={lr_c}, tb={tb_c}, three_panel={tp_c}, scroll={sv_c}")
         try:
-            ts_p, lr_p, tb_p, sv_p = request_image_prompt_plan(
+            ts_p, lr_p, tb_p, tp_p, sv_p = request_image_prompt_plan(
                 api_url, api_key, chat_model_name, novel_text, user_prompt,
                 ts_c, lr_c, tb_c, sv_c,
                 use_templates=use_templates,
+                three_panel_count=tp_c,
             )
             all_ts.extend(ts_p)
             all_lr.extend(lr_p)
             all_tb.extend(tb_p)
+            all_tp.extend(tp_p)
             all_sv.extend(sv_p)
         except Exception as e:
             err_msg = f"批次{bi+1}/{num_batches}: {e}"
@@ -1369,8 +1423,8 @@ def request_image_prompt_plan_batched(
             traceback.print_exc()
     if batch_errors:
         raise RuntimeError(f"Chat API 分批调用失败 ({len(batch_errors)}/{num_batches} 批次出错): {'; '.join(batch_errors)}")
-    print(f"[CHAT API] 分批汇总: text_single={len(all_ts)}, lr={len(all_lr)}, tb={len(all_tb)}, scroll={len(all_sv)}")
-    return all_ts, all_lr, all_tb, all_sv
+    print(f"[CHAT API] 分批汇总: text_single={len(all_ts)}, lr={len(all_lr)}, tb={len(all_tb)}, three_panel={len(all_tp)}, scroll={len(all_sv)}")
+    return all_ts, all_lr, all_tb, all_tp, all_sv
 
 
 # ====== AI 视频文案生成 ======
@@ -1659,6 +1713,60 @@ def composite_text_on_image(
     result = Image.alpha_composite(img, overlay)
     result = result.convert("RGB")
     result.save(str(image_path), "PNG")
+
+
+def composite_three_panel_text(
+    image_path: Path,
+    layout: str,
+    panel_texts: Dict[str, str],
+    bottom_text: str,
+    font_path: str = FONT_PATH,
+) -> None:
+    """三宫格文字合成：仅 bottom_text 贴整图底部（panel 短语不上屏，避免遮挡视线）。"""
+    img = Image.open(str(image_path)).convert("RGBA")
+    w, h = img.size
+    overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ov_draw = ImageDraw.Draw(overlay)
+
+    def _font(size):
+        try:
+            return ImageFont.truetype(font_path, size)
+        except Exception:
+            return ImageFont.load_default()
+
+    def _outlined(x, y, txt, fnt, anchor="mm"):
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx or dy:
+                    ov_draw.text((x + dx, y + dy), txt, font=fnt, fill=(0, 0, 0, 255), anchor=anchor)
+        ov_draw.text((x, y), txt, font=fnt, fill=(255, 255, 255, 255), anchor=anchor)
+
+    def _wrap(txt, max_w, fnt):
+        words = txt.split()
+        lines, cur = [], ""
+        for wd in words:
+            test = wd if not cur else cur + " " + wd
+            if ov_draw.textbbox((0, 0), test, font=fnt)[2] <= max_w:
+                cur = test
+            else:
+                if cur:
+                    lines.append(cur)
+                cur = wd
+        if cur:
+            lines.append(cur)
+        return lines
+
+    bt = (bottom_text or "").strip()
+    if bt:
+        bt_font = _font(max(24, int(h * 0.045)))
+        bt_lines = _wrap(bt, int(w * 0.9), bt_font)
+        lh = bt_font.size + 10
+        y_start = h - int(h * 0.07) - lh * (len(bt_lines) - 1)
+        for i, ln in enumerate(bt_lines):
+            _outlined(int(w * 0.5), y_start + i * lh, ln, bt_font)
+
+    result = Image.alpha_composite(img, overlay)
+    result.convert("RGB").save(str(image_path), "PNG")
 
 
 def draw_text_with_spacing(draw, text, position, font, fill, char_spacing):
@@ -1990,7 +2098,7 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
         fp = BASE_PATH / "ziti" / fn
         return str(fp) if fp.exists() else FONT_PATH
 
-    total_square = body.text_single_count + body.lr_split_count + body.tb_split_count
+    total_square = body.text_single_count + body.lr_split_count + body.tb_split_count + body.three_panel_count
     scroll_visual_total = body.scroll_count + body.popup_count + body.ai_scroll_count + body.ai_popup_count
     total_needed = total_square + scroll_visual_total
     total_images_expected = total_square + scroll_visual_total
@@ -2000,12 +2108,13 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
     text_single_prompts: List[dict] = []
     lr_prompts: List[dict] = []
     tb_prompts: List[dict] = []
+    three_panel_prompts: List[dict] = []
     scroll_prompts: List[dict] = []
 
     if body.api_key.strip() and body.api_url.strip() and total_needed > 0:
         try:
-            print(f"[CHAT API] 单次调用模式，共 {total_needed} 张图（text_single={body.text_single_count}, lr={body.lr_split_count}, tb={body.tb_split_count}, scroll={scroll_visual_total}）")
-            text_single_prompts, lr_prompts, tb_prompts, scroll_prompts = request_image_prompt_plan(
+            print(f"[CHAT API] 单次调用模式，共 {total_needed} 张图（text_single={body.text_single_count}, lr={body.lr_split_count}, tb={body.tb_split_count}, three_panel={body.three_panel_count}, scroll={scroll_visual_total}）")
+            text_single_prompts, lr_prompts, tb_prompts, three_panel_prompts, scroll_prompts = request_image_prompt_plan(
                 body.api_url,
                 body.api_key,
                 body.chat_model_name,
@@ -2016,14 +2125,16 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
                 body.tb_split_count,
                 scroll_visual_total,
                 use_templates=body.use_templates,
+                three_panel_count=body.three_panel_count,
             )
             chat_status = "success"
             valid_ts = sum(1 for it in text_single_prompts if isinstance(it, dict) and str(it.get("image_prompt", "")).strip())
             valid_lr = sum(1 for it in lr_prompts if isinstance(it, dict) and str(it.get("image_prompt", "")).strip())
             valid_tb = sum(1 for it in tb_prompts if isinstance(it, dict) and str(it.get("image_prompt", "")).strip())
+            valid_tp = sum(1 for it in three_panel_prompts if isinstance(it, dict) and str(it.get("image_prompt", "")).strip())
             valid_sc = sum(1 for it in scroll_prompts if isinstance(it, dict) and str(it.get("image_prompt", "")).strip())
-            total_valid = valid_ts + valid_lr + valid_tb + valid_sc
-            warnings.append(f"[OK] Chat API 返回: text_single={len(text_single_prompts)}(有效{valid_ts}), lr={len(lr_prompts)}(有效{valid_lr}), tb={len(tb_prompts)}(有效{valid_tb}), scroll={len(scroll_prompts)}(有效{valid_sc})")
+            total_valid = valid_ts + valid_lr + valid_tb + valid_tp + valid_sc
+            warnings.append(f"[OK] Chat API 返回: text_single={len(text_single_prompts)}(有效{valid_ts}), lr={len(lr_prompts)}(有效{valid_lr}), tb={len(tb_prompts)}(有效{valid_tb}), three_panel={len(three_panel_prompts)}(有效{valid_tp}), scroll={len(scroll_prompts)}(有效{valid_sc})")
             if total_valid == 0 and total_needed > 0:
                 _push_sse_event(batch_id, {"type": "error", "status": "failed", "message": "对话模型返回了空的提示词，请检查小说内容或 API 配置"})
                 _update_progress(batch_id, 0, "Chat API 返回空 prompt", "failed")
@@ -2056,7 +2167,19 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
     text_single_prompts = pad_items(text_single_prompts, body.text_single_count, base_style)
     lr_prompts = pad_items(lr_prompts, body.lr_split_count, base_style)
     tb_prompts = pad_items(tb_prompts, body.tb_split_count, base_style)
+    three_panel_prompts = pad_items(three_panel_prompts, body.three_panel_count, base_style)
     scroll_prompts = pad_items(scroll_prompts, scroll_visual_total, scroll_base)
+
+    # 三宫格布局：每张独立解析（指定布局固定 / random 各 25% 随机），记录实际使用布局用于返回
+    three_panel_layouts: Dict[int, str] = {}
+    if body.three_panel_count > 0:
+        _tp_warned = False
+        for i in range(body.three_panel_count):
+            layout, warn = resolve_three_panel_layout(body.three_panel_layout or None)
+            three_panel_layouts[i] = layout
+            if warn and not _tp_warned:
+                warnings.append(warn)
+                _tp_warned = True
 
     headers = {"Authorization": f"Bearer {body.api_key}", "Content-Type": "application/json"}
     base_url = body.api_url.rstrip("/") + "/images/generations"
@@ -2126,19 +2249,66 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
         square_jobs.append(("lr", i, f"左右分屏{i + 1}"))
     for i in range(body.tb_split_count):
         square_jobs.append(("tb", i, f"上下分屏{i + 1}"))
+    for i in range(body.three_panel_count):
+        square_jobs.append(("three_panel", i, f"异形三宫格{i + 1}"))
+
+    def _square_item(kind, idx):
+        return (
+            text_single_prompts[idx] if kind == "text_single"
+            else lr_prompts[idx] if kind == "lr"
+            else tb_prompts[idx] if kind == "tb"
+            else three_panel_prompts[idx]
+        )
+
+    def _square_final_prompt(kind, idx, item):
+        core = item.get("image_prompt", "")
+        if kind == "three_panel":
+            layout = three_panel_layouts.get(idx, "vertical-two-left")
+            return finalize_three_panel_prompt(core, layout, base_style), layout
+        return finalize_square_prompt(kind, core, base_style), None
+
+    def _composite_square(kind, idx, fpath, lab):
+        item = _square_item(kind, idx)
+        if kind == "three_panel":
+            layout = three_panel_layouts.get(idx, "vertical-two-left")
+            panel_texts = {
+                "panel_1_text": item.get("panel_1_text", ""),
+                "panel_2_text": item.get("panel_2_text", ""),
+                "panel_3_text": item.get("panel_3_text", ""),
+            }
+            bottom_text = item.get("bottom_text", "")
+            if body.three_panel_text_enabled and (any((panel_texts.values())) or bottom_text.strip()):
+                try:
+                    composite_three_panel_text(fpath, layout, panel_texts, bottom_text)
+                except Exception as e:
+                    warnings.append(f"{lab} 文字合成失败：{e}")
+        else:
+            tb_text = item.get("text_bottom", "")
+            tl_text = item.get("text_left", "")
+            tr_text = item.get("text_right", "")
+            to_text = item.get("text_overlay", "")
+            text_enabled = (
+                body.text_single_text_enabled if kind == "text_single"
+                else body.lr_split_text_enabled if kind == "lr"
+                else body.tb_split_text_enabled
+            )
+            if text_enabled and (tb_text or tl_text or tr_text or to_text):
+                try:
+                    composite_text_on_image(
+                        fpath, text_bottom=tb_text, text_left=tl_text, text_right=tr_text, text_overlay=to_text
+                    )
+                except Exception as e:
+                    warnings.append(f"{lab} 文字合成失败：{e}")
 
     # 方图生成（单任务辅助函数）
     def _generate_square_job(kind, idx, lab):
         """单个方图生成任务"""
-        item = (
-            text_single_prompts[idx] if kind == "text_single"
-            else lr_prompts[idx] if kind == "lr"
-            else tb_prompts[idx]
-        )
-        core = item.get("image_prompt", "")
-        final_p = finalize_square_prompt(kind, core, base_style)
+        item = _square_item(kind, idx)
+        final_p, layout = _square_final_prompt(kind, idx, item)
         name = fetch_image(final_p, "1024x1024", lab)
         prompt_dict = {"label": lab, "type": kind, "prompt": final_p}
+        if kind == "three_panel":
+            prompt_dict["layout_used"] = layout
         return (kind, idx, lab, name, prompt_dict)
 
     concurrency = max(1, min(getattr(body, 'concurrency', 2) or 2, 16))
@@ -2154,28 +2324,7 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
                     if name:
                         used_prompts.append(prompt_dict)
                         fpath = batch_dir / name
-                        # Extract text fields from the original item
-                        item = (
-                            text_single_prompts[idx] if kind == "text_single"
-                            else lr_prompts[idx] if kind == "lr"
-                            else tb_prompts[idx]
-                        )
-                        tb_text = item.get("text_bottom", "")
-                        tl_text = item.get("text_left", "")
-                        tr_text = item.get("text_right", "")
-                        to_text = item.get("text_overlay", "")
-                        text_enabled = (
-                            body.text_single_text_enabled if kind == "text_single"
-                            else body.lr_split_text_enabled if kind == "lr"
-                            else body.tb_split_text_enabled
-                        )
-                        if text_enabled and (tb_text or tl_text or tr_text or to_text):
-                            try:
-                                composite_text_on_image(
-                                    fpath, text_bottom=tb_text, text_left=tl_text, text_right=tr_text, text_overlay=to_text
-                                )
-                            except Exception as e:
-                                warnings.append(f"{lab} 文字合成失败：{e}")
+                        _composite_square(kind, idx, fpath, lab)
                         generated_images.append(f"/static/output/{batch_id}/{name}")
                         _push_image_ready(batch_id, f"/static/output/{batch_id}/{name}", lab)
                 except Exception as e:
@@ -2188,43 +2337,16 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
         for kind, idx, lab in square_jobs:
             if _is_batch_cancelled(batch_id):
                 break
-
-            item = (
-                text_single_prompts[idx]
-                if kind == "text_single"
-                else lr_prompts[idx]
-                if kind == "lr"
-                else tb_prompts[idx]
-            )
-            core = item.get("image_prompt", "")
-
-            final_p = finalize_square_prompt(kind, core, base_style)
-
+            item = _square_item(kind, idx)
+            final_p, layout = _square_final_prompt(kind, idx, item)
             name = fetch_image(final_p, "1024x1024", lab)
-
             if name:
-                used_prompts.append({"label": lab, "type": kind, "prompt": final_p})
+                prompt_dict = {"label": lab, "type": kind, "prompt": final_p}
+                if kind == "three_panel":
+                    prompt_dict["layout_used"] = layout
+                used_prompts.append(prompt_dict)
                 fpath = batch_dir / name
-                tb_text = item.get("text_bottom", "")
-                tl_text = item.get("text_left", "")
-                tr_text = item.get("text_right", "")
-                to_text = item.get("text_overlay", "")
-                text_enabled = (
-                    body.text_single_text_enabled if kind == "text_single"
-                    else body.lr_split_text_enabled if kind == "lr"
-                    else body.tb_split_text_enabled
-                )
-                if text_enabled and (tb_text or tl_text or tr_text or to_text):
-                    try:
-                        composite_text_on_image(
-                            fpath,
-                            text_bottom=tb_text,
-                            text_left=tl_text,
-                            text_right=tr_text,
-                            text_overlay=to_text,
-                        )
-                    except Exception as e:
-                        warnings.append(f"{lab} 文字合成失败：{e}")
+                _composite_square(kind, idx, fpath, lab)
                 generated_images.append(f"/static/output/{batch_id}/{name}")
                 _push_image_ready(batch_id, f"/static/output/{batch_id}/{name}", lab)
                 if total_images_expected > 0:
@@ -4101,6 +4223,9 @@ class AnalysisGenerateRequest(BaseModel):
     lr_split_text_enabled: bool = True
     tb_split_prompts: List[dict] = []
     tb_split_text_enabled: bool = True
+    three_panel_prompts: List[dict] = []
+    three_panel_layout: str = ""  # 异形三宫格布局（空/random=随机）
+    three_panel_text_enabled: bool = True  # 三宫格是否叠加文字
     concurrency: int = 2
 
 
@@ -4163,6 +4288,17 @@ def _run_analysis_generation(body: AnalysisGenerateRequest, batch_id: int) -> di
             errors.append(f"{label} {e}")
             return None
 
+    # 三宫格布局：每张独立解析（指定布局固定 / random 各 25% 随机）
+    three_panel_layouts: dict = {}
+    if body.three_panel_prompts:
+        _tp_warned = False
+        for i in range(len(body.three_panel_prompts)):
+            layout, warn = resolve_three_panel_layout(body.three_panel_layout or None)
+            three_panel_layouts[i] = layout
+            if warn and not _tp_warned:
+                warnings.append(warn)
+                _tp_warned = True
+
     # Build square jobs
     square_jobs: list = []
     for i, item in enumerate(body.text_single_prompts):
@@ -4171,6 +4307,8 @@ def _run_analysis_generation(body: AnalysisGenerateRequest, batch_id: int) -> di
         square_jobs.append(("lr", i, f"左右分屏{i+1}", item))
     for i, item in enumerate(body.tb_split_prompts):
         square_jobs.append(("tb", i, f"上下分屏{i+1}", item))
+    for i, item in enumerate(body.three_panel_prompts):
+        square_jobs.append(("three_panel", i, f"异形三宫格{i+1}", item))
 
     total = len(square_jobs)
     if total == 0:
@@ -4182,25 +4320,45 @@ def _run_analysis_generation(body: AnalysisGenerateRequest, batch_id: int) -> di
         if _is_batch_cancelled(batch_id):
             return None
         core = item.get("image_prompt", "")
-        final_p = finalize_square_prompt(kind, core, "")
+        if kind == "three_panel":
+            layout = three_panel_layouts.get(idx, "vertical-two-left")
+            final_p = finalize_three_panel_prompt(core, layout, "")
+        else:
+            final_p = finalize_square_prompt(kind, core, "")
         fname = _fetch_image(final_p, "1024x1024", lab)
         if fname:
             prompt_dict = {"label": lab, "type": kind, "prompt": final_p}
+            if kind == "three_panel":
+                prompt_dict["layout_used"] = three_panel_layouts.get(idx, "vertical-two-left")
             fpath = batch_dir / fname
-            tb = item.get("text_bottom", "")
-            tl = item.get("text_left", "")
-            tr = item.get("text_right", "")
-            to = item.get("text_overlay", "")
-            txt_on = (
-                body.text_single_text_enabled if kind == "text_single"
-                else body.lr_split_text_enabled if kind == "lr"
-                else body.tb_split_text_enabled
-            )
-            if txt_on and (tb or tl or tr or to):
-                try:
-                    composite_text_on_image(fpath, text_bottom=tb, text_left=tl, text_right=tr, text_overlay=to)
-                except Exception as e:
-                    warnings.append(f"{lab} 文字合成失败：{e}")
+            if kind == "three_panel":
+                layout = three_panel_layouts.get(idx, "vertical-two-left")
+                panel_texts = {
+                    "panel_1_text": item.get("panel_1_text", ""),
+                    "panel_2_text": item.get("panel_2_text", ""),
+                    "panel_3_text": item.get("panel_3_text", ""),
+                }
+                bottom_text = item.get("bottom_text", "")
+                if body.three_panel_text_enabled and (any(panel_texts.values()) or bottom_text.strip()):
+                    try:
+                        composite_three_panel_text(fpath, layout, panel_texts, bottom_text)
+                    except Exception as e:
+                        warnings.append(f"{lab} 文字合成失败：{e}")
+            else:
+                tb = item.get("text_bottom", "")
+                tl = item.get("text_left", "")
+                tr = item.get("text_right", "")
+                to = item.get("text_overlay", "")
+                txt_on = (
+                    body.text_single_text_enabled if kind == "text_single"
+                    else body.lr_split_text_enabled if kind == "lr"
+                    else body.tb_split_text_enabled
+                )
+                if txt_on and (tb or tl or tr or to):
+                    try:
+                        composite_text_on_image(fpath, text_bottom=tb, text_left=tl, text_right=tr, text_overlay=to)
+                    except Exception as e:
+                        warnings.append(f"{lab} 文字合成失败：{e}")
             generated_images.append(f"/static/output/{batch_id}/{fname}")
             _push_image_ready(batch_id, f"/static/output/{batch_id}/{fname}", lab)
             return prompt_dict
@@ -4402,6 +4560,8 @@ class AnalyzeNovelRequest(BaseModel):
     text_single_count: int = 0
     lr_split_count: int = 0
     tb_split_count: int = 0
+    three_panel_count: int = 0
+    three_panel_layout: str = ""  # 异形三宫格布局（空/random=随机）
     scroll_count: int = 0
     popup_count: int = 0
     use_templates: bool = False
@@ -4416,23 +4576,24 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
     if body.analysis_prompt.strip():
         analysis_rules = body.analysis_prompt.strip()
     else:
-        analysis_rules = _build_rules_text("", body.text_single_count, body.lr_split_count, body.tb_split_count, 0)
+        analysis_rules = _build_rules_text("", body.text_single_count, body.lr_split_count, body.tb_split_count, 0, body.three_panel_count)
 
     scroll_total = body.scroll_count + body.popup_count
-    n_square = body.text_single_count + body.lr_split_count + body.tb_split_count
+    n_square = body.text_single_count + body.lr_split_count + body.tb_split_count + body.three_panel_count
 
     system = SYSTEM_PROMPT_TEMPLATE.format(
         text_single_count=body.text_single_count,
         scroll_visual_count=scroll_total,
         lr_split_count=body.lr_split_count,
         tb_split_count=body.tb_split_count,
+        three_panel_count=body.three_panel_count,
         n_square=max(n_square, 1),
     )
 
     user_msg = (
         f"绘图规则：\n{analysis_rules}\n\n"
         f"小说节选：\n{body.novel_content[:5000]}\n\n"
-        f"数量：text_single={body.text_single_count}, lr={body.lr_split_count}, tb={body.tb_split_count}, scroll={scroll_total}"
+        f"数量：text_single={body.text_single_count}, lr={body.lr_split_count}, tb={body.tb_split_count}, three_panel={body.three_panel_count}, scroll={scroll_total}"
         f"\n\n【重要】只输出 JSON，不要生成图片。"
     )
 
