@@ -1146,6 +1146,7 @@
             <select id="dwOptimizationGoal" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="OFFSITE_CONVERSIONS">站外转化</option><option value="LINK_CLICKS">链接点击</option><option value="LANDING_PAGE_VIEWS">落地页浏览</option></select>
             <div><label class="mb-1 block text-xs text-slate-400">转化事件（购物为默认）</label><select id="dwConversionEvent" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="PURCHASE">购物</option><option value="ADD_TO_CART">加入购物车</option><option value="INITIATED_CHECKOUT">发起结账</option><option value="VIEW_CONTENT">内容浏览</option><option value="LEAD">线索</option></select></div>
             <label class="inline-flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" id="dwAdvantageAudience" checked> Advantage+ 受众（自动扩展找更多转化）</label>
+            <div><label class="mb-1 block text-xs text-slate-400">平台版位（全选 = 自动版位）</label><div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-300"><label class="inline-flex items-center gap-1.5"><input type="checkbox" class="dwPlacement" data-p="facebook" checked> Facebook</label><label class="inline-flex items-center gap-1.5"><input type="checkbox" class="dwPlacement" data-p="instagram" checked> Instagram</label><label class="inline-flex items-center gap-1.5"><input type="checkbox" class="dwPlacement" data-p="audience_network"> Audience Network</label><label class="inline-flex items-center gap-1.5"><input type="checkbox" class="dwPlacement" data-p="messenger"> Messenger</label><label class="inline-flex items-center gap-1.5"><input type="checkbox" class="dwPlacement" data-p="whatsapp"> WhatsApp</label><label class="inline-flex items-center gap-1.5"><input type="checkbox" class="dwPlacement" data-p="threads"> Threads</label></div></div>
             <select id="dwPixelId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></select>
             <select id="dwAudienceId" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"></select>
           </div>
@@ -3857,6 +3858,44 @@
       return JSON.stringify(spec);
     }
 
+    function dwBuildPlacements() {
+      var sel = {};
+      document.querySelectorAll('.dwPlacement').forEach(function(cb) {
+        sel[cb.getAttribute('data-p')] = cb.checked;
+      });
+      var platforms = ['facebook', 'instagram', 'audience_network', 'messenger', 'whatsapp', 'threads'];
+      if (platforms.every(function(k) { return sel[k]; })) return '';  // 全选 = 自动版位
+
+      var pp = [], placements = {};
+      if (sel.facebook) {
+        pp.push('facebook');
+        placements.facebook_positions = ['feed', 'story', 'facebook_reels', 'facebook_reels_overlay', 'search', 'instream_video', 'right_hand_column', 'marketplace'];
+      }
+      if (sel.instagram) {
+        pp.push('instagram');
+        placements.instagram_positions = ['stream', 'story', 'reels', 'ig_search', 'explore', 'profile_feed'];
+      }
+      if (sel.audience_network) {
+        pp.push('audience_network');
+        placements.audience_network_positions = ['classic', 'rewarded_video', 'in_stream_video'];
+      }
+      if (sel.messenger) {
+        pp.push('messenger');
+        placements.messenger_positions = ['story', 'messenger_home', 'sponsored_messages'];
+      }
+      if (sel.whatsapp) {
+        pp.push('whatsapp');
+        placements.whatsapp_positions = ['status'];
+      }
+      if (sel.threads) {
+        pp.push('threads');
+        placements.threads_positions = ['threads_feed'];
+      }
+      if (!pp.length) return '';  // 全不选 = 自动版位
+      placements.publisher_platforms = pp;
+      return JSON.stringify(placements);
+    }
+
     function dwLoadFromAssets() {
       if (!allAssetsData || !allAssetsData.length) { alert('素材浏览暂无素材，请先到素材浏览页加载'); return; }
       var assets = [];
@@ -3954,6 +3993,7 @@
         optimization_goal: document.getElementById('dwOptimizationGoal').value,
         custom_event_type: document.getElementById('dwConversionEvent').value,
         advantage_audience: document.getElementById('dwAdvantageAudience').checked ? 1 : 0,
+        placements_json: dwBuildPlacements(),
         pixel_id: document.getElementById('dwPixelId').value,
         audience_id: document.getElementById('dwAudienceId').value,
         targeting_json: targetingJson,
@@ -6524,9 +6564,16 @@
         items.forEach(function(a) {
           _galItems[a.ad_id] = a;
           var roiColor = roiColorClass(a.roi, true);
-          var img = a.thumb
-            ? '<img src="' + a.thumb + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'<div class=&quot;flex items-center justify-center h-full text-slate-600 text-xs&quot;>无图</div>\'">'
-            : '<div class="flex items-center justify-center h-full text-slate-600 text-xs">' + (a.video_id ? '🎬 视频' : '无图') + '</div>';
+          var media;
+          if (a.video_url) {
+            media = '<video src="' + a.video_url + '" poster="' + (a.thumb || '') + '" class="w-full h-full object-cover" muted loop playsinline preload="metadata" onmouseenter="this.play()" onmouseleave="this.pause()"></video>' +
+                    '<span class="absolute top-1.5 right-1.5 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">🎬 视频</span>';
+          } else if (a.thumb) {
+            media = '<img src="' + a.thumb + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'<div class=&quot;flex items-center justify-center h-full text-slate-600 text-xs&quot;>无图</div>\'">' +
+                    (a.video_id ? '<span class="absolute top-1.5 right-1.5 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">🎬 视频</span>' : '');
+          } else {
+            media = '<div class="flex items-center justify-center h-full text-slate-600 text-xs">' + (a.video_id ? '🎬 视频' : '无图') + '</div>';
+          }
           var ownerTag = (isAdmin && a.user_name)
             ? '<div class="text-[10px] text-indigo-300 truncate mb-0.5">👤 ' + escapeHtml(a.user_name) + '</div>'
             : '';
@@ -6547,7 +6594,7 @@
             hitBtn = '<button class="mt-1.5 w-full text-[10px] py-1 rounded bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-0 cursor-pointer transition-all" onclick="galleryHitToggle(this.getAttribute(\'data-ad\'), this)"' + adAttr + ' data-state="">⭐ 推爆款</button>';
           }
           html += '<div class="bg-slate-800 rounded-lg overflow-hidden border border-slate-700 hover:border-indigo-500 transition-all">' +
-            '<div class="aspect-square bg-slate-900">' + img + '</div>' +
+            '<div class="relative aspect-square bg-slate-900">' + media + '</div>' +
             '<div class="p-2">' +
               ownerTag +
               acctTag +
@@ -6947,12 +6994,22 @@
     // ====== 爆款素材库 ======
     var _hitPage = 1;
 
+    // 爆款素材库每页 3 行：按响应式列数动态计算每页数量
+    function getHitCols() {
+      var w = window.innerWidth;
+      if (w >= 1280) return 8;   // xl:grid-cols-8
+      if (w >= 1024) return 6;   // lg:grid-cols-6
+      if (w >= 768) return 5;    // md:grid-cols-5
+      if (w >= 640) return 4;    // sm:grid-cols-4
+      return 3;                  // grid-cols-3
+    }
+
     function loadHitGallery(page) {
       page = page || 1;
       _hitPage = page;
       var sort = document.getElementById('hitGallerySort').value;
       var keyword = document.getElementById('hitGallerySearch').value.trim();
-      var params = 'page=' + page + '&page_size=15&sort_by=' + sort + '&sort_order=DESC';
+      var params = 'page=' + page + '&page_size=' + (getHitCols() * 3) + '&sort_by=' + sort + '&sort_order=DESC';
       if (keyword) params += '&keyword=' + encodeURIComponent(keyword);
 
       fetch('/api/hit-materials?' + params).then(function(r) { return r.json(); }).then(function(res) {
@@ -7266,19 +7323,24 @@
 
     function refreshBmAsset(bmId, btn) {
       var msg = document.getElementById('bmAssetsMsg');
+      if (!_bmTokenMap[bmId]) {
+        if (msg) { msg.textContent = '⚠ 该 BM 未填写 System Token，请先点击 Token 列设置'; msg.className = 'text-[11px] text-amber-400 mb-2'; }
+        alert('该 BM 未填写 System Token，请先点击「Token」列设置后再更新资产');
+        return;
+      }
       var oldText = btn.textContent;
       btn.disabled = true; btn.textContent = '更新中...';
       fetch('/api/bm/assets/refresh?bm_id=' + encodeURIComponent(bmId), { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
         btn.disabled = false; btn.textContent = oldText;
-        msg.textContent = '已更新 主页 ' + (d.pages || 0) + ' · 数据集 ' + (d.pixels || 0) + ' · 受众 ' + (d.audiences || 0);
-        if (d.errors && d.errors.length) {
-          msg.textContent += '（有错误，见控制台）';
-          console.warn('BM 资产更新错误:', d.errors);
-        }
+        var summary = '✅ 已更新 主页 ' + (d.pages || 0) + ' · 数据集 ' + (d.pixels || 0) + ' · 受众 ' + (d.audiences || 0);
+        var hasErr = d.errors && d.errors.length;
+        if (hasErr) summary += '（' + d.errors.join('；') + '）';
+        if (msg) { msg.textContent = summary; msg.className = 'text-[11px] mb-2 ' + (hasErr ? 'text-amber-400' : 'text-emerald-400'); }
         loadBmTable();
       }).catch(function(e) {
         btn.disabled = false; btn.textContent = oldText;
-        msg.textContent = '更新失败: ' + e;
+        if (msg) { msg.textContent = '更新失败: ' + e; msg.className = 'text-[11px] text-red-400 mb-2'; }
+        alert('更新失败: ' + e);
       });
     }
 
@@ -7386,6 +7448,8 @@
       Promise.all(promises).then(function(results) {
         var res = results[0];
         var bms = res.data || [];
+        _bmTokenMap = {};
+        bms.forEach(function(b) { _bmTokenMap[b.bm_id] = !!b.system_token; });
         if (results.length > 1) { _allUsers = results[1] || []; }
         Promise.all([
           fetch('/api/app/list').then(function(r) { return r.json(); }),
@@ -7397,12 +7461,13 @@
           assets.forEach(function(a) { _bmAssetsMap[a.bm_id] = a; });
           renderBmConfigTable(bms, apps);
         }).catch(function() {
-          renderBmTable(bms, []);
+          renderBmConfigTable(bms, []);
         });
       }).catch(function(e) { console.error('加载 BM 列表失败:', e); });
     }
 
     var _bmAssetsMap = {};
+    var _bmTokenMap = {};
 
     function renderBmAssetsCell(bmId) {
       var a = _bmAssetsMap[bmId];
@@ -7497,9 +7562,10 @@
           method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
         }).then(function(r) { return r.json(); }).then(function(d) {
           if (d.success) {
-            var el = document.getElementById('bmFormMsg');
-            if (el) { el.hidden = false; setTimeout(function() { el.hidden = true; }, 2000); }
+            closeBmModal();
             loadBmTable();
+            var msg = document.getElementById('bmAssetsMsg');
+            if (msg) { msg.textContent = '✅ BM 保存成功' + (token ? '（Token 已设置）' : ''); }
           } else {
             alert('保存失败: ' + (d.detail || '未知错误'));
           }
@@ -7563,9 +7629,10 @@
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
       }).then(function(r) { return r.json(); }).then(function(d) {
         if (d.success) {
-          var el = document.getElementById('bmFormMsg');
-          if (el) { el.hidden = false; setTimeout(function() { el.hidden = true; }, 2000); }
+          closeBmModal();
           loadBmTable();
+          var msg = document.getElementById('bmAssetsMsg');
+          if (msg) { msg.textContent = '✅ BM 添加成功' + (token ? '（Token 已设置）' : ''); }
         } else {
           alert('保存失败: ' + (d.detail || '未知错误'));
         }

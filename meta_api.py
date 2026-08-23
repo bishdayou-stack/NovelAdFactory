@@ -212,6 +212,18 @@ def get_ads_with_creative(act_id: str, access_token: str,
         next_url = d.get("paging", {}).get("next")
     return all_data, None
 
+def get_video_source(video_id: str, access_token: str) -> Tuple[Optional[str], Optional[str]]:
+    """获取视频的可播放 mp4 地址（source）。失败返回 (None, err)。"""
+    if not video_id:
+        return None, None
+    _check_rate("video_source")
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{video_id}"
+    data, err = _http_request("GET", url, params={"access_token": access_token, "fields": "source"})
+    if err:
+        return None, err
+    src = (data or {}).get("source", "")
+    return (src or None), None
+
 def get_entity_statuses(act_id: str, access_token: str,
                         level: str) -> Tuple[Optional[List[Dict]], Optional[str]]:
     """拉取某层级所有实体的投放状态。level: campaign/adset/ad。
@@ -287,7 +299,7 @@ def upload_ad_image(act_id: str, access_token: str,
         "access_token": access_token,
         "filename": filename,
         "file": (filename, img_data),
-    })
+    }, timeout=180)
     if err:
         return None, err
     images = data.get("images", {})
@@ -308,7 +320,7 @@ def upload_ad_video(act_id: str, access_token: str,
         "access_token": access_token,
         "title": filename,
         "source": (filename, video_data),
-    })
+    }, timeout=600)
     if err:
         return None, err
     return data.get("id", ""), None
@@ -366,9 +378,12 @@ def create_campaign(act_id: str, access_token: str,
         "special_ad_categories": json.dumps(special_ad_categories or []),
         "access_token": access_token,
     }
-    # Meta v25.0 不再支持 is_adset_budget_sharing_enabled 字段（CBO 由 campaign 层 daily_budget 实现）
     if daily_budget:
         body["daily_budget"] = str(daily_budget)
+    # Meta v25.0：ABO 模式（无系列预算）必须显式指定 is_adset_budget_sharing_enabled（True/False），
+    # 否则报 4834011；False = 广告组各自独立预算（不共享 20%）。
+    if is_adset_budget_sharing_enabled is not None:
+        body["is_adset_budget_sharing_enabled"] = "true" if is_adset_budget_sharing_enabled else "false"
     # Meta v25.0 竞价策略已迁移到 campaign 层（CBO 模式）
     if bid_strategy:
         body["bid_strategy"] = bid_strategy
@@ -390,6 +405,7 @@ def create_adset(act_id: str, access_token: str,
                  attribution_spec: dict = None,
                  bid_amount: int = None,
                  bid_constraints: dict = None,
+                 placements: dict = None,
                  status: str = "PAUSED") -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/adsets"
@@ -420,6 +436,8 @@ def create_adset(act_id: str, access_token: str,
         body["bid_amount"] = str(bid_amount)
     if bid_constraints:
         body["bid_constraints"] = json.dumps(bid_constraints)
+    if placements:
+        body["placements"] = json.dumps(placements)
 
     data, err = _http_request("POST", url, data=body)
     if err:

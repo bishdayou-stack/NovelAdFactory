@@ -1209,11 +1209,11 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
 
 
 def _sync_meta_creatives(act_id: str, access_token: str, from_date: str, user_id: int) -> int:
-    """拉取账户广告素材，仅对近期有投放数据的广告下载缩略图到本地缓存。返回缓存数量。"""
+    """拉取账户广告素材：下载缩略图到本地缓存，并拉取视频广告的可播放地址。返回缓存数量。"""
     ad_ids = set(database.get_meta_ad_ids_with_stats(act_id, user_id, since_date=from_date))
     if not ad_ids:
         return 0
-    # 检查是否已有缓存，有则跳过 API 调用
+    # 检查是否已有缓存，有则跳过 API 调用（缩略图缺失 或 视频缺播放地址 时才拉）
     cache_dir = Path(__file__).parent / "static" / "meta_creatives"
     cache_dir.mkdir(parents=True, exist_ok=True)
     missing = [aid for aid in ad_ids if not (cache_dir / f"{aid}.jpg").exists()]
@@ -1244,11 +1244,16 @@ def _sync_meta_creatives(act_id: str, access_token: str, from_date: str, user_id
                 if ok:
                     local_rel = f"meta_creatives/{fname}"
                     cached += 1
+        # 视频广告（有 video_id 无 image_url）→ 拉可播放地址
+        video_url = ""
+        if video_id and not image_url:
+            src, _verr = meta_api.get_video_source(video_id, access_token)
+            video_url = src or ""
         database.upsert_meta_ad_creative({
             "ad_id": ad_id, "ad_account": act_id, "ad_name": ad.get("name", ""),
             "adset_id": ad.get("adset_id", ""), "campaign_id": ad.get("campaign_id", ""),
             "thumbnail_url": thumb, "image_url": image_url, "video_id": video_id,
-            "local_path": local_rel,
+            "video_url": video_url, "local_path": local_rel,
         }, user_id)
     return cached
 

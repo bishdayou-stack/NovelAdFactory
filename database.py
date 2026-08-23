@@ -528,6 +528,7 @@ def init_db() -> None:
                 thumbnail_url TEXT,
                 image_url TEXT,
                 video_id TEXT,
+                video_url TEXT,
                 local_path TEXT,
                 user_id INTEGER DEFAULT 1,
                 synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -771,6 +772,11 @@ def init_db() -> None:
                 conn.execute("ALTER TABLE hit_materials ADD COLUMN ad_id TEXT DEFAULT ''")
             except Exception:
                 pass
+
+        # 迁移：meta_ad_creatives 增加 video_url（视频播放地址，素材画廊展示视频用）
+        existing_c = {r["name"] for r in conn.execute("PRAGMA table_info('meta_ad_creatives')").fetchall()}
+        if "video_url" not in existing_c:
+            conn.execute("ALTER TABLE meta_ad_creatives ADD COLUMN video_url TEXT DEFAULT ''")
 
         # 迁移：app_config 表 + bm_config 表（BM 管理 + 多应用支持）
         conn.executescript("""
@@ -2547,20 +2553,22 @@ def upsert_meta_ad_creative(rec: Dict[str, Any], user_id: int = None) -> None:
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO meta_ad_creatives (ad_id, ad_account, ad_name, adset_id, campaign_id,
-                thumbnail_url, image_url, video_id, local_path, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                thumbnail_url, image_url, video_id, video_url, local_path, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(ad_id, user_id) DO UPDATE SET
                 ad_account=excluded.ad_account, ad_name=excluded.ad_name,
                 adset_id=excluded.adset_id, campaign_id=excluded.campaign_id,
                 thumbnail_url=excluded.thumbnail_url, image_url=excluded.image_url,
                 video_id=excluded.video_id,
+                video_url=COALESCE(NULLIF(excluded.video_url, ''), meta_ad_creatives.video_url),
                 local_path=COALESCE(NULLIF(excluded.local_path, ''), meta_ad_creatives.local_path),
                 synced_at=CURRENT_TIMESTAMP
         """, (
             ad_id, rec.get("ad_account", ""), rec.get("ad_name", ""),
             rec.get("adset_id", ""), rec.get("campaign_id", ""),
             rec.get("thumbnail_url", ""), rec.get("image_url", ""),
-            rec.get("video_id", ""), rec.get("local_path", ""), uid,
+            rec.get("video_id", ""), rec.get("video_url", ""),
+            rec.get("local_path", ""), uid,
         ))
 
 def upsert_meta_entity_statuses(level: str, rows: List[Dict[str, Any]],

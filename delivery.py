@@ -305,8 +305,9 @@ def submit_delivery_campaign(campaign_id: int, user_id: int = None):
         failed = 0
         try:
             _push_event(batch_id, "start", {"total": total})
-            is_sharing = (camp.get("is_adset_budget_sharing_enabled") == 1)
             campaign_daily = camp.get("daily_budget") or None
+            # Meta v25：ABO 必须 is_adset_budget_sharing_enabled=True，CBO 必须 False（同 batch-publish）
+            is_sharing = (campaign_daily is None)
             fb_campaign_id, err = meta_api.create_campaign(
                 act_id, token, camp.get("name", ""), objective=camp.get("objective", "OUTCOME_SALES"),
                 status="PAUSED", special_ad_categories=[],
@@ -452,13 +453,16 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
         failed = 0
         try:
             _push_event(batch_id, "start", {"total": total})
-            is_sharing = (params.get("is_adset_budget_sharing_enabled") == 1)
             campaign_daily = params.get("campaign_daily_budget") or None
+            # Meta v25：ABO（无系列预算）必须 is_adset_budget_sharing_enabled=True（Advantage 系列预算共享 20%），
+            # CBO（有系列预算）必须 False。这里按「是否有系列日预算」推导，不依赖前端的旧字段。
+            is_sharing = (campaign_daily is None)
             bid_strategy = params.get("bid_strategy", "LOWEST_COST_WITHOUT_CAP")
             ad_bid_amount = params.get("bid_amount") or None
             bid_constraints = None
             optimization_goal = params.get("optimization_goal", "OFFSITE_CONVERSIONS")
             status = params.get("status", "PAUSED")  # 投放状态：PAUSED 草稿 / ACTIVE 开启
+            placements = json.loads(params.get("placements_json") or "{}") or None
             if bid_strategy == "LOWEST_COST_WITH_MIN_ROAS":
                 # 广告花费回报目标：用 bid_constraints.roas_average_floor（ROAS × 10000）
                 # 且必须价值优化（VALUE），不能用站外转化
@@ -469,8 +473,12 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                 ad_bid_amount = None
             elif campaign_daily and not ad_bid_amount and bid_strategy == "LOWEST_COST_WITHOUT_CAP":
                 ad_bid_amount = 500  # CBO 模式 Meta v25 要求竞价金额（5 美元）
-            # 客户生命周期策略（Advantage+ 受众）：默认开启，自动扩展受众
+            # 客户生命周期策略（Advantage+ 受众）：默认开启，自动扩展受众。
+            # 注意：版位必须合并进 targeting 对象（publisher_platforms / facebook_positions 等），
+            # 独立的 placements 字段会被 Meta v25 忽略（已实测：传非法值都不报错）。
             targeting = json.loads(params.get("targeting_json") or "{}")
+            if placements:
+                targeting.update(placements)
             if params.get("advantage_audience", 1):
                 targeting["targeting_automation"] = {"advantage_audience": 1}
             for i, cid in enumerate(campaign_ids):

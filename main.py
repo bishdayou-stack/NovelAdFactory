@@ -5502,6 +5502,7 @@ class BatchPublishBody(BaseModel):
     targeting_json: str = "{}"
     roas: float = 0  # 广告花费回报目标（LOWEST_COST_WITH_MIN_ROAS 时使用）
     advantage_audience: int = 1  # 客户生命周期策略（Advantage+ 受众），默认开启
+    placements_json: str = ""  # 平台版位（手动版位时非空）
     # 广告设置
     ad_name: str = ""
     message: str = ""
