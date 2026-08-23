@@ -1113,6 +1113,7 @@
             <button onclick="dwLoadFromAssets()" class="rounded-lg border border-indigo-500 px-3 py-1.5 text-xs text-indigo-400 hover:bg-indigo-500/10 transition-all cursor-pointer bg-transparent">从素材浏览加载</button>
           </div>
           <div id="dwAssetPool" class="grid grid-cols-8 gap-2 max-h-[70vh] overflow-y-auto"></div>
+          <div id="dwAssetPager" class="flex items-center justify-center gap-2 text-xs text-slate-400"></div>
           <div id="dwAssetSelected" class="text-xs text-slate-400"></div>
           <div class="flex justify-between"><button onclick="dwGoto(1)" class="rounded-lg border border-slate-700 px-5 py-2.5 text-sm text-slate-300">上一步</button><button onclick="dwGoto(3)" class="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white">下一步</button></div>
         </div>
@@ -2513,6 +2514,7 @@
       Object.keys(_assetSelect).forEach(function(k){ assets.push(_assetSelect[k]); });
       if (!assets.length) { alert('请先勾选要投放的素材'); return; }
       _dwAssets = assets;
+      _dwAssetPage = 1;
       switchTab('delivery-wizard');
     }
 
@@ -3668,6 +3670,8 @@
     // ====== 投放向导 (Delivery Wizard) 4 步批量 ======
     var _dwAssets = [];        // 素材池 [{image_url, image_type, overlay_text}]
     var _dwSelected = new Set(); // 已选素材索引
+    var _dwAssetPage = 1;       // 素材池当前页
+    var _dwAssetPageSize = 64;  // 素材池每页数量（8 列 × 8 行）
     var _dwAudiences = [];      // 受众模版缓存 [{audience_id, audience_name, targeting_json}]
     var _dwErrors = [];         // 投放过程累积的错误信息
     var _dwEs = null;           // 发布进度 EventSource
@@ -3911,6 +3915,7 @@
         if (!assets.length) { alert('素材浏览暂无图片或视频素材'); return; }
         _dwAssets = assets;
         _dwSelected = new Set();
+        _dwAssetPage = 1;
         dwRenderAssetPool();
       };
       if (allAssetsData && allAssetsData.length) { build(); return; }
@@ -3934,14 +3939,50 @@
       var el = document.getElementById('dwAssetPool');
       var need = parseInt(document.getElementById('dwTotal').textContent) || 0;
       document.getElementById('dwNeedN').textContent = need;
-      if (!_dwAssets.length) { el.innerHTML = '<div class="text-xs text-slate-500 col-span-4 py-8 text-center">请先从生产中心/小说分析收集，或点右上角「从素材浏览加载」</div>'; return; }
+      if (!_dwAssets.length) {
+        el.innerHTML = '<div class="text-xs text-slate-500 col-span-4 py-8 text-center">请先从生产中心/小说分析收集，或点右上角「从素材浏览加载」</div>';
+        document.getElementById('dwAssetPager').innerHTML = '';
+        dwUpdateSelected();
+        return;
+      }
+      var total = _dwAssets.length;
+      var totalPages = Math.ceil(total / _dwAssetPageSize);
+      if (_dwAssetPage > totalPages) _dwAssetPage = totalPages;
+      var start = (_dwAssetPage - 1) * _dwAssetPageSize;
+      var end = Math.min(start + _dwAssetPageSize, total);
       var html = '';
-      _dwAssets.forEach(function(a, i){
+      for (var i = start; i < end; i++) {
+        var a = _dwAssets[i];
         var sel = _dwSelected.has(i);
-        html += '<div class="relative cursor-pointer bg-slate-900 rounded-lg overflow-hidden border ' + (sel ? 'border-indigo-500' : 'border-slate-700') + '" onclick="dwToggleAsset(' + i + ')"><img src="' + absUrl(a.image_url) + '" class="w-full h-32 object-contain" loading="lazy"><div class="absolute inset-0 ' + (sel ? 'bg-indigo-500/10' : '') + '"></div>' + (sel ? '<div class="absolute top-1 right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs flex items-center justify-center">✓</div>' : '') + '</div>';
-      });
+        // 图片用缩略图加速加载（400px JPEG，几十 KB），失败回退原图；视频保持原样
+        var full = absUrl(a.image_url);
+        var isImg = /\.png$/i.test(full);
+        var src = isImg ? full.replace(/\.png$/i, '_thumb.jpg') : full;
+        var imgTag = '<img src="' + src + '" class="w-full h-32 object-contain" loading="lazy"';
+        if (isImg) {
+          var safeFull = full.replace(/'/g, "\\'");
+          imgTag += ' onerror="if(this.src.indexOf(\'_thumb.jpg\')!==-1&&this.getAttribute(\'data-fb\')!==\'1\'){this.setAttribute(\'data-fb\',\'1\');this.src=\'' + safeFull + '\';}"';
+        }
+        imgTag += '>';
+        html += '<div class="relative cursor-pointer bg-slate-900 rounded-lg overflow-hidden border ' + (sel ? 'border-indigo-500' : 'border-slate-700') + '" onclick="dwToggleAsset(' + i + ')">' + imgTag + '<div class="absolute inset-0 ' + (sel ? 'bg-indigo-500/10' : '') + '"></div>' + (sel ? '<div class="absolute top-1 right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs flex items-center justify-center">✓</div>' : '') + '</div>';
+      }
       el.innerHTML = html;
+      dwRenderAssetPager(total, totalPages);
       dwUpdateSelected();
+    }
+
+    function dwRenderAssetPager(total, totalPages) {
+      var pager = document.getElementById('dwAssetPager');
+      if (totalPages <= 1) { pager.innerHTML = ''; return; }
+      var html = '<button class="px-2 py-0.5 rounded border border-slate-700 text-slate-300 hover:text-white' + (_dwAssetPage <= 1 ? ' opacity-30' : '') + '" ' + (_dwAssetPage > 1 ? 'onclick="dwAssetGo(' + (_dwAssetPage - 1) + ')"' : '') + '>◀ 上一页</button>';
+      html += '<span class="px-2">第 ' + _dwAssetPage + ' / ' + totalPages + ' 页（共 ' + total + ' 张）</span>';
+      html += '<button class="px-2 py-0.5 rounded border border-slate-700 text-slate-300 hover:text-white' + (_dwAssetPage >= totalPages ? ' opacity-30' : '') + '" ' + (_dwAssetPage < totalPages ? 'onclick="dwAssetGo(' + (_dwAssetPage + 1) + ')"' : '') + '>下一页 ▶</button>';
+      pager.innerHTML = html;
+    }
+
+    function dwAssetGo(page) {
+      _dwAssetPage = page;
+      dwRenderAssetPool();
     }
 
     function dwToggleAsset(i) {
