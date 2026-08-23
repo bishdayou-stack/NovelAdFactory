@@ -3897,20 +3897,37 @@
     }
 
     function dwLoadFromAssets() {
-      if (!allAssetsData || !allAssetsData.length) { alert('素材浏览暂无素材，请先到素材浏览页加载'); return; }
-      var assets = [];
-      allAssetsData.forEach(function(item) {
-        (item.images || []).forEach(function(src) {
-          assets.push({ image_url: src, image_type: 'text_single', overlay_text: '' });
+      var build = function() {
+        if (!allAssetsData || !allAssetsData.length) { alert('素材浏览暂无素材'); return; }
+        var assets = [];
+        allAssetsData.forEach(function(item) {
+          (item.images || []).forEach(function(src) {
+            assets.push({ image_url: src, image_type: 'text_single', overlay_text: '' });
+          });
+          (item.videos || []).forEach(function(src) {
+            assets.push({ image_url: src, image_type: 'scroll', overlay_text: '' });
+          });
         });
-        (item.videos || []).forEach(function(src) {
-          assets.push({ image_url: src, image_type: 'scroll', overlay_text: '' });
+        if (!assets.length) { alert('素材浏览暂无图片或视频素材'); return; }
+        _dwAssets = assets;
+        _dwSelected = new Set();
+        dwRenderAssetPool();
+      };
+      if (allAssetsData && allAssetsData.length) { build(); return; }
+      // 未访问过「素材浏览」页时 allAssetsData 还是空的，这里直接拉取历史素材，避免用户必须先切到素材浏览页
+      fetch("/api/history?limit=500").then(function(r) { return r.json(); }).then(function(d) {
+        var items = (d.history || []).map(function(item) {
+          return {
+            batch_id: item.batch_id, novel_id: item.novel_id, status: item.status,
+            message: item.message, images: item.image_urls || [], videos: item.video_urls || [],
+            used_prompts: item.used_prompts || [], user_id: item.user_id, user_name: item.user_name,
+            created_at: item.created_at, updated_at: item.updated_at, progress: item.progress,
+          };
         });
-      });
-      if (!assets.length) { alert('素材浏览暂无图片或视频素材'); return; }
-      _dwAssets = assets;
-      _dwSelected = new Set();
-      dwRenderAssetPool();
+        items.sort(function(a, b) { return (parseInt(b.batch_id)||0) - (parseInt(a.batch_id)||0); });
+        allAssetsData = items;
+        build();
+      }).catch(function(e) { alert('加载素材失败: ' + e); });
     }
 
     function dwRenderAssetPool() {
