@@ -909,23 +909,31 @@ _TB_SPLIT_SUFFIX = _SUFFIX_CONFIG.get("TB_SPLIT_SUFFIX",
 # 四种布局：desc=嵌入提示词的布局描述词，panels=Panel A/B/C 的位置锚定词（贴图位置）
 THREE_PANEL_LAYOUTS = {
     "vertical-two-left": {
-        "desc": "split-screen irregular 2+1 layout, VERTICAL orientation only, left column vertically stacked two square panels, right column one full-height rectangular panel, vertical split, forbidden horizontal layout, asymmetrical composition",
+        "desc": "vertical split screen only, single vertical divider line, LEFT side split by a horizontal line into top and bottom two panels, RIGHT side one full-height panel, 2 panels on left 1 panel on right, forbidden horizontal layout",
         "panels": {"A": "upper-left", "B": "lower-left", "C": "right full-height"},
     },
     "vertical-two-right": {
-        "desc": "split-screen irregular 2+1 layout, VERTICAL orientation only, left column one full-height rectangular panel, right column vertically stacked two square panels, vertical split, forbidden horizontal layout, asymmetrical composition",
+        "desc": "vertical split screen only, single vertical divider line, RIGHT side split by a horizontal line into top and bottom two panels, LEFT side one full-height panel, 1 panel on left 2 panels on right, forbidden horizontal layout",
         "panels": {"A": "left full-height", "B": "upper-right", "C": "lower-right"},
     },
     "horizontal-two-top": {
-        "desc": "split-screen irregular 2+1 layout, HORIZONTAL orientation only, top row horizontally stacked two square panels, bottom row one full-width rectangular panel, horizontal split, forbidden vertical layout, asymmetrical composition",
+        "desc": "horizontal split screen only, single horizontal divider line, TOP side split by a vertical line into left and right two panels, BOTTOM side one full-width panel, 2 panels on top 1 panel on bottom, forbidden vertical layout",
         "panels": {"A": "upper-left", "B": "upper-right", "C": "bottom full-width"},
     },
     "horizontal-two-bottom": {
-        "desc": "split-screen irregular 2+1 layout, HORIZONTAL orientation only, top row one full-width rectangular panel, bottom row horizontally stacked two square panels, horizontal split, forbidden vertical layout, asymmetrical composition",
+        "desc": "horizontal split screen only, single horizontal divider line, BOTTOM side split by a vertical line into left and right two panels, TOP side one full-width panel, 1 panel on top 2 panels on bottom, forbidden vertical layout",
         "panels": {"A": "top full-width", "B": "lower-left", "C": "lower-right"},
     },
 }
 _THREE_PANEL_SUFFIX = "1:1 square composition"
+
+# 结尾短提醒（与 desc 措辞不同，避免被 _dedup_prompt 去重，用于末尾二次强调布局）
+_THREE_PANEL_HINT = {
+    "vertical-two-left": "exactly 3 panels, left 2 right 1",
+    "vertical-two-right": "exactly 3 panels, left 1 right 2",
+    "horizontal-two-top": "exactly 3 panels, top 2 bottom 1",
+    "horizontal-two-bottom": "exactly 3 panels, top 1 bottom 2",
+}
 
 
 def resolve_three_panel_layout(layout: str = None) -> Tuple[str, str]:
@@ -1159,11 +1167,12 @@ def finalize_scroll_visual_prompt(core: str, base_fallback: str) -> str:
 
 
 def finalize_three_panel_prompt(core: str, layout: str, base_fallback: str) -> str:
-    """三宫格：在 base prompt 前注入模块1 前置词（含布局描述词），返回最终绘图 prompt。"""
+    """三宫格：布局描述词放最前（最强调）+ 结尾短提醒，确保图像模型严格按布局生成。"""
     base = (core or "").strip() or (base_fallback or "").strip()
     desc = THREE_PANEL_LAYOUTS.get(layout, {}).get("desc", "")
-    prefix = f"masterpiece, best quality, ultra-detailed, cinematic photorealistic, {desc}, extreme visual contrast, hard clear split boundaries"
-    return _dedup_prompt(f"{prefix}, {base}")
+    hint = _THREE_PANEL_HINT.get(layout, "exactly 3 panels")
+    prefix = f"{desc}, masterpiece, best quality, ultra-detailed, cinematic photorealistic, extreme visual contrast, hard clear split boundaries"
+    return _dedup_prompt(f"{prefix}, {base}, {hint}")
 
 
 def _norm_prompt_list(x) -> List[str]:
