@@ -647,21 +647,27 @@ def get_user_ranking(start_date: str = None, end_date: str = None) -> List[Dict[
         """
         ad_rows = conn.execute(ads_sql, params_ads).fetchall()
 
-        # 按用户汇总成功订单的实际收入（来自 orders 表）
+        # 按用户汇总成功订单的实际收入（来自 orders 表）+ 订阅/金币拆分
         order_sql = f"""
-            SELECT o.user_id, COUNT(*) AS order_count, COALESCE(SUM(o.amount), 0) AS total_revenue
+            SELECT o.user_id, COUNT(*) AS order_count, COALESCE(SUM(o.amount), 0) AS total_revenue,
+                   SUM(CASE WHEN json_extract(o.extra_data, '$.rechargeCoins') IS NOT NULL THEN 1 ELSE 0 END) AS coin_count,
+                   SUM(CASE WHEN json_extract(o.extra_data, '$.rechargeCoins') IS NULL THEN 1 ELSE 0 END) AS subscribe_count
             FROM orders o
             WHERE {' AND '.join(where_orders)}
             GROUP BY o.user_id
         """
         order_rows = conn.execute(order_sql, params_orders).fetchall()
-        order_map = {r["user_id"]: (r["order_count"], r["total_revenue"]) for r in order_rows}
+        order_map = {r["user_id"]: r for r in order_rows}
 
         results = []
         for r in ad_rows:
             uid = r["user_id"]
             spend = r["total_spend"] or 0
-            orders, order_revenue = order_map.get(uid, (0, 0))
+            orow = order_map.get(uid)
+            orders = orow["order_count"] if orow else 0
+            order_revenue = orow["total_revenue"] if orow else 0
+            coin_count = orow["coin_count"] if orow else 0
+            subscribe_count = orow["subscribe_count"] if orow else 0
             roi = round(order_revenue / spend, 2) if spend > 0 else 0
             cpa = round(spend / orders, 2) if orders > 0 else 0
             results.append({
@@ -671,6 +677,8 @@ def get_user_ranking(start_date: str = None, end_date: str = None) -> List[Dict[
                 "total_revenue": round(order_revenue, 2),
                 "roi": roi,
                 "order_count": orders,
+                "subscribe_count": subscribe_count,
+                "coin_count": coin_count,
                 "cpa": cpa,
             })
 
