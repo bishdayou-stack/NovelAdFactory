@@ -6436,16 +6436,50 @@
       el.innerHTML = '<div class="text-slate-500 text-center py-8">加载中...</div>';
       var qp = '?account=' + encodeURIComponent(_campPageAccount) + '&start=' + range.start + '&end=' + range.end;
       fetch('/api/meta/campaigns' + qp).then(function(r) { return r.json(); }).then(function(res) {
-        var rows = res.data || [];
-        var html = '<table class="w-full"><thead><tr>' +
-          '<th class="text-center" style="width:72px">投放状态</th>' +
-          '<th class="text-left">广告系列</th><th class="text-left">归属人</th><th class="text-right">消耗</th><th class="text-right">转化</th>' +
-          '<th class="text-right">转化金额</th><th class="text-right">ROI</th><th class="text-right">转化成本</th>' +
-          '<th class="text-right">千展成本</th><th class="text-right">点击率</th><th class="text-right">展示</th><th class="text-right">点击</th>' +
-          '<th class="text-right">加购</th><th class="text-right">发起结账</th>' +
-          '</tr></thead><tbody>';
-        var isMulti = (_campPageAccount || '').indexOf(',') >= 0;
-        rows.forEach(function(c) {
+        _campRows = res.data || [];
+        el.innerHTML = buildCampTable();
+        applyCampStatusFilter();
+      }).catch(function() { el.innerHTML = '<div class="text-red-400 text-center py-6">加载失败</div>'; });
+    }
+
+    // ====== 广告系列表格排序（默认消耗从高到低）======
+    var CAMP_SORTABLE = [['spend', '消耗'], ['purchases', '转化'], ['purchase_value', '转化金额'],
+      ['roi', 'ROI'], ['cpa', '转化成本'], ['cpm', '千展成本'], ['ctr', '点击率'],
+      ['impressions', '展示'], ['clicks', '点击'], ['add_to_cart', '加购'], ['initiate_checkout', '发起结账']];
+    var _campRows = [], _campSortKey = 'spend', _campSortDir = 'desc';
+
+    function campSortBy(key) {
+      if (_campSortKey === key) {
+        _campSortDir = (_campSortDir === 'desc') ? 'asc' : 'desc';
+      } else {
+        _campSortKey = key; _campSortDir = 'desc';
+      }
+      if (_campRows.length) {
+        document.getElementById('campPageTable').innerHTML = buildCampTable();
+        applyCampStatusFilter();
+      }
+    }
+
+    function campSortableHead() {
+      var h = '<th class="text-center" style="width:72px">投放状态</th>' +
+        '<th class="text-left">广告系列</th><th class="text-left">归属人</th>';
+      CAMP_SORTABLE.forEach(function(f) {
+        var active = _campSortKey === f[0];
+        var arrow = active ? (_campSortDir === 'desc' ? ' ▼' : ' ▲') : '';
+        h += '<th class="text-right ' + (active ? 'text-indigo-300' : 'hover:text-white') +
+          ' cursor-pointer select-none" title="点击排序" onclick="campSortBy(\'' + f[0] + '\')">' + f[1] + arrow + '</th>';
+      });
+      return h;
+    }
+
+    function buildCampTable() {
+      var rows = _campRows.slice().sort(function(a, b) {
+        var va = parseFloat(a[_campSortKey]) || 0, vb = parseFloat(b[_campSortKey]) || 0;
+        return _campSortDir === 'desc' ? vb - va : va - vb;
+      });
+      var html = '<table class="w-full"><thead><tr>' + campSortableHead() + '</tr></thead><tbody>';
+      var isMulti = (_campPageAccount || '').indexOf(',') >= 0;
+      rows.forEach(function(c) {
           var cid = c.campaign_id || '';
           var cacct = encodeURIComponent(c.ad_account || _campPageAccount);
           var acctBadge = (isMulti && c.ad_account) ? '<span class="inline-block px-1 rounded bg-sky-500/20 text-sky-300 text-[10px] mr-1 align-middle">🏢 ' + escapeHtml(campAcctName(c.ad_account)) + '</span>' : '';
@@ -6464,9 +6498,7 @@
         });
         if (!rows.length) html += '<tr><td colspan="14" class="text-center text-slate-500 py-6">该账户暂无系列数据（需同步后生成）</td></tr>';
         html += '</tbody></table>';
-        el.innerHTML = html;
-        applyCampStatusFilter();
-      }).catch(function() { el.innerHTML = '<div class="text-red-400 text-center py-6">加载失败</div>'; });
+      return html;
     }
 
     function applyCampStatusFilter() {
