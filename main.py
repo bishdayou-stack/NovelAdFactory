@@ -905,6 +905,9 @@ _TB_SPLIT_SUFFIX = _SUFFIX_CONFIG.get("TB_SPLIT_SUFFIX",
     "top panel above bottom panel, "
     "forbidden left-right layout")
 
+# 种族锁定：所有素材面向欧美白人女性，禁止出现亚洲面孔（追加到每个最终绘图 prompt 末尾）
+_ETHNICITY_LOCK = "all characters Caucasian white European, no Asian faces, no Asian facial features"
+
 # ===== 异形三宫格（three-panel irregular） =====
 # 四种布局：desc=嵌入提示词的布局描述词，panels=Panel A/B/C 的位置锚定词（贴图位置）
 THREE_PANEL_LAYOUTS = {
@@ -1158,12 +1161,12 @@ def finalize_square_prompt(kind: str, core: str, base_fallback: str) -> str:
     else:
         result = base
 
-    return _dedup_prompt(result)
+    return _dedup_prompt(f"{result}, {_ETHNICITY_LOCK}")
 
 
 def finalize_scroll_visual_prompt(core: str, base_fallback: str) -> str:
     base = (core or "").strip() or (base_fallback or "").strip()
-    return _dedup_prompt(f"{base}, {_SCROLL_VISUAL_SUFFIX}")
+    return _dedup_prompt(f"{base}, {_SCROLL_VISUAL_SUFFIX}, {_ETHNICITY_LOCK}")
 
 
 def finalize_three_panel_prompt(core: str, layout: str, base_fallback: str) -> str:
@@ -1172,7 +1175,7 @@ def finalize_three_panel_prompt(core: str, layout: str, base_fallback: str) -> s
     desc = THREE_PANEL_LAYOUTS.get(layout, {}).get("desc", "")
     hint = _THREE_PANEL_HINT.get(layout, "exactly 3 panels")
     prefix = f"{desc}, masterpiece, best quality, ultra-detailed, cinematic photorealistic, extreme visual contrast, hard clear split boundaries"
-    return _dedup_prompt(f"{prefix}, {base}, {hint}")
+    return _dedup_prompt(f"{prefix}, {base}, {hint}, {_ETHNICITY_LOCK}")
 
 
 def _norm_prompt_list(x) -> List[str]:
@@ -4492,7 +4495,7 @@ def api_generate_from_prompts(body: PromptGenerateRequest, user: dict = Depends(
             if not prompt.strip():
                 continue
             size = body.sizes[i] if i < len(body.sizes) else "1024x1024"
-            clean_prompt = prompt.strip()
+            clean_prompt = _dedup_prompt(f"{prompt.strip()}, {_ETHNICITY_LOCK}")
 
             payload = {"model": body.image_model_name, "prompt": clean_prompt, "size": size, "n": 1}
             try:
