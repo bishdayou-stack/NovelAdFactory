@@ -5455,10 +5455,10 @@
       });
       if (!selected.length) { alert('请勾选账户'); return; }
       var token = document.getElementById('discoverTokenInput').value.trim();
-      var bmName = (document.getElementById('discoverBmNameInput') || {}).value || '';
-      // 手动填的 BM 名称覆盖空的 business_name
+      var bmName = ((document.getElementById('discoverBmNameInput') || {}).value || '').trim();
+      // 手动填的 BM 名称：覆盖所有选中账户的 BM 归属（business_name + bm_id 都覆盖）
       if (bmName) {
-        selected.forEach(function(a) { if (!a.business_name || a.business_name === '未归类') a.business_name = bmName; });
+        selected.forEach(function(a) { a.business_name = bmName; a.bm_id = bmName; });
       }
       var resp = await fetch('/api/meta/accounts/import', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
