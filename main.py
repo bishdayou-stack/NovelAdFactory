@@ -144,6 +144,7 @@ import scraper
 import analytics
 import meta_api
 import delivery
+import video_gen
 
 # ====== 认证系统 ======
 
@@ -850,6 +851,7 @@ _RULES_LR_SPLIT = _load_prompt("rules_lr_split.txt")
 _RULES_TB_SPLIT = _load_prompt("rules_tb_split.txt")
 _RULES_THREE_PANEL = _load_prompt("rules_three_panel.txt")
 _RULES_VIDEO_SCRIPT = _load_prompt("rules_video_script.txt")
+_RULES_COLLAGE = _load_prompt("rules_cinematic_collage.txt")
 
 # B层：加载视觉基因蓝图（构图原型，纯视觉参数，不含具体场景）
 _ARCHETYPES, _ARCHETYPES_FOOTER = _load_archetypes()
@@ -862,12 +864,15 @@ _FULL_RULES = _FULL_RULES_PATH.read_text(encoding="utf-8").strip() if _FULL_RULE
 NOVEL_PROMPT_RULES = _RULES_CORE
 
 
-def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scroll: int, three_panel: int = 0) -> str:
-    """返回绘图规则：用户自定义优先 → 完整提示词文件（最新提示词.txt）→ 按需组装"""
+def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scroll: int, three_panel: int = 0, cinematic_collage: bool = False) -> str:
+    """返回绘图规则：用户自定义优先 → 完整提示词文件（最新提示词.txt）→ 按需组装。
+    cinematic_collage=True 时追加电影叙事拼贴风模块（用户自定义/完整规则模式下也追加，保证开关生效）"""
     if user_prompt and user_prompt.strip():
-        return user_prompt.strip()
+        base = user_prompt.strip()
+        return f"{base}\n\n{_RULES_COLLAGE}" if cinematic_collage and _RULES_COLLAGE else base
     if _FULL_RULES:
-        return _FULL_RULES
+        base = _FULL_RULES
+        return f"{base}\n\n{_RULES_COLLAGE}" if cinematic_collage and _RULES_COLLAGE else base
     parts = [_RULES_CORE, _RULES_SHARED]
     if text_single > 0:
         parts.append(_RULES_TEXT_SINGLE)
@@ -879,6 +884,8 @@ def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scro
         parts.append(_RULES_TB_SPLIT)
     if three_panel > 0:
         parts.append(_RULES_THREE_PANEL)
+    if cinematic_collage and _RULES_COLLAGE:
+        parts.append(_RULES_COLLAGE)
     return "\n\n".join(p for p in parts if p)
 
 # 后缀常量
@@ -907,6 +914,19 @@ _TB_SPLIT_SUFFIX = _SUFFIX_CONFIG.get("TB_SPLIT_SUFFIX",
 
 # 种族锁定：所有素材面向欧美白人女性，禁止出现亚洲面孔（追加到每个最终绘图 prompt 末尾）
 _ETHNICITY_LOCK = "all characters Caucasian white European, no Asian faces, no Asian facial features"
+
+# 电影叙事拼贴风：开关开启时追加到最终 prompt（主场景+叠影次场景/道具叙事/暗调电影光/下1/3留字区）
+_COLLAGE_SUFFIX = (
+    "cinematic narrative collage composition, one dominant main scene blended with 1-2 secondary "
+    "vignette overlays (glass reflection overlay of another character watching, torn-paper edge inset, "
+    "mirror reflection of an alternate fate, drifting smoke transition with embedded memories, "
+    "or scene framed inside a giant ring), overlays advance the story not decorative, "
+    "moody low-key cinematic lighting, luxurious penthouse interior, marble and candlelight, "
+    "night city window light, warm-cool contrast, rich shadow detail, film still quality, "
+    "readable English document props in frame (divorce agreement papers, legal petition, manila envelope, "
+    "black credit card, suitcase, pregnancy test with two pink lines), "
+    "clean negative space in lower third for serif caption overlay, forbidden split-screen layout"
+)
 
 # ===== 异形三宫格（three-panel irregular） =====
 # 四种布局：desc=嵌入提示词的布局描述词，panels=Panel A/B/C 的位置锚定词（贴图位置）
@@ -1105,6 +1125,7 @@ class GenerateRequest(BaseModel):
     scroll_style: dict = {}
     popup_style: dict = {}
     use_templates: bool = False  # 默认不参考爆款模板
+    cinematic_collage: bool = False  # 电影叙事拼贴风（单帧图/滚屏底图生效）
     text_single_text_enabled: bool = True   # 单帧图是否叠加文字
     lr_split_text_enabled: bool = True      # 左右分屏是否叠加文字
     tb_split_text_enabled: bool = True      # 上下分屏是否叠加文字
@@ -1149,7 +1170,7 @@ def _dedup_prompt(p: str) -> str:
     return ", ".join(result)
 
 
-def finalize_square_prompt(kind: str, core: str, base_fallback: str) -> str:
+def finalize_square_prompt(kind: str, core: str, base_fallback: str, collage: bool = False) -> str:
     base = (core or "").strip() or (base_fallback or "").strip()
 
     if kind == "text_single":
@@ -1161,21 +1182,25 @@ def finalize_square_prompt(kind: str, core: str, base_fallback: str) -> str:
     else:
         result = base
 
-    return _dedup_prompt(f"{result}, {_ETHNICITY_LOCK}")
+    # 拼贴风只作用于单帧图（左右/上下分屏的硬分割布局与叠影拼贴矛盾，不叠加）
+    extra = f", {_COLLAGE_SUFFIX}" if (collage and kind == "text_single") else ""
+    return _dedup_prompt(f"{result}, {_ETHNICITY_LOCK}{extra}")
 
 
-def finalize_scroll_visual_prompt(core: str, base_fallback: str) -> str:
+def finalize_scroll_visual_prompt(core: str, base_fallback: str, collage: bool = False) -> str:
     base = (core or "").strip() or (base_fallback or "").strip()
-    return _dedup_prompt(f"{base}, {_SCROLL_VISUAL_SUFFIX}, {_ETHNICITY_LOCK}")
+    extra = f", {_COLLAGE_SUFFIX}" if collage else ""
+    return _dedup_prompt(f"{base}, {_SCROLL_VISUAL_SUFFIX}, {_ETHNICITY_LOCK}{extra}")
 
 
-def finalize_three_panel_prompt(core: str, layout: str, base_fallback: str) -> str:
+def finalize_three_panel_prompt(core: str, layout: str, base_fallback: str, collage: bool = False) -> str:
     """三宫格：布局描述词放最前（最强调）+ 结尾短提醒，确保图像模型严格按布局生成。"""
     base = (core or "").strip() or (base_fallback or "").strip()
     desc = THREE_PANEL_LAYOUTS.get(layout, {}).get("desc", "")
     hint = _THREE_PANEL_HINT.get(layout, "exactly 3 panels")
     prefix = f"{desc}, masterpiece, best quality, ultra-detailed, cinematic photorealistic, extreme visual contrast, hard clear split boundaries"
-    return _dedup_prompt(f"{prefix}, {base}, {hint}, {_ETHNICITY_LOCK}")
+    extra = f", {_COLLAGE_SUFFIX}" if collage else ""
+    return _dedup_prompt(f"{prefix}, {base}, {hint}, {_ETHNICITY_LOCK}{extra}")
 
 
 def _norm_prompt_list(x) -> List[str]:
@@ -1276,6 +1301,7 @@ def request_image_prompt_plan(
     scroll_visual_count: int,
     use_templates: bool = True,
     three_panel_count: int = 0,
+    cinematic_collage: bool = False,
 ) -> Tuple[List[dict], List[dict], List[dict], List[dict], List[dict]]:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     url = api_url.rstrip("/") + "/chat/completions"
@@ -1289,7 +1315,7 @@ def request_image_prompt_plan(
         n_square=n_square,
     )
     # 用户消息 = 按需组装规则 + 小说内容 + （可选）模板参考
-    rules_text = _build_rules_text(user_prompt, text_single_count, lr_split_count, tb_split_count, scroll_visual_count, three_panel_count)
+    rules_text = _build_rules_text(user_prompt, text_single_count, lr_split_count, tb_split_count, scroll_visual_count, three_panel_count, cinematic_collage)
     novel_text = (novel_content or "").strip()
     total_images = text_single_count + lr_split_count + tb_split_count + scroll_visual_count + three_panel_count
     user = (
@@ -1391,6 +1417,7 @@ def request_image_prompt_plan_batched(
     use_templates: bool = True,
     batch_size: int = 4,
     three_panel_count: int = 0,
+    cinematic_collage: bool = False,
 ) -> Tuple[List[dict], List[dict], List[dict], List[dict], List[dict]]:
     """分批调用 Chat API，每 batch_size 张图调用一次"""
     slots = (
@@ -1422,6 +1449,7 @@ def request_image_prompt_plan_batched(
                 ts_c, lr_c, tb_c, sv_c,
                 use_templates=use_templates,
                 three_panel_count=tp_c,
+                cinematic_collage=cinematic_collage,
             )
             all_ts.extend(ts_p)
             all_lr.extend(lr_p)
@@ -2138,6 +2166,7 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
                 scroll_visual_total,
                 use_templates=body.use_templates,
                 three_panel_count=body.three_panel_count,
+                cinematic_collage=body.cinematic_collage,
             )
             chat_status = "success"
             valid_ts = sum(1 for it in text_single_prompts if isinstance(it, dict) and str(it.get("image_prompt", "")).strip())
@@ -2277,7 +2306,7 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
         if kind == "three_panel":
             layout = three_panel_layouts.get(idx, "vertical-two-left")
             return finalize_three_panel_prompt(core, layout, base_style), layout
-        return finalize_square_prompt(kind, core, base_style), None
+        return finalize_square_prompt(kind, core, base_style, collage=body.cinematic_collage), None
 
     def _composite_square(kind, idx, fpath, lab):
         item = _square_item(kind, idx)
@@ -2369,7 +2398,7 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
     def _generate_scroll_job(i):
         """单个滚屏竖图生成任务"""
         item = scroll_prompts[i] if i < len(scroll_prompts) else {"image_prompt": scroll_base}
-        p = finalize_scroll_visual_prompt(item.get("image_prompt", ""), scroll_base)
+        p = finalize_scroll_visual_prompt(item.get("image_prompt", ""), scroll_base, collage=body.cinematic_collage)
         if "9:16" not in p.lower():
             p += ", 9:16 vertical portrait composition"
         if i < body.scroll_count:
@@ -2791,6 +2820,254 @@ def api_progress_detail(batch_id: int):
     return progress
 
 
+# ====== 视频生成（小说 → 镜头脚本 → 视频模型 → 拼接）======
+
+class VideoAnalyzeRequest(BaseModel):
+    novel_content: str
+    shot_count: int = Field(default=6, ge=4, le=8)
+    api_key: str = ""            # 与其它生成接口一致：前端传配置管理页的密钥
+    api_url: str = ""
+    chat_model_name: str = ""
+
+
+class VideoGenerateRequest(BaseModel):
+    novel_content: str = ""
+    script: list = []            # 已有脚本则跳过步骤1
+    video_model: str = ""        # 前端传配置管理的视频模型
+    shot_count: int = Field(default=6, ge=4, le=8)
+    aspect_ratio: str = "16:9"
+    novel_id: str = ""
+    auto_assemble: bool = False   # 生成结束后是否自动拼接完整视频
+    api_key: str = ""
+    api_url: str = ""
+    chat_model_name: str = ""
+
+
+def _video_config(user: dict, api_key: str = "", api_url: str = "") -> dict:
+    """视频生成配置：密钥/地址用请求传入的（=配置管理页的值），为空回落全局；
+    模型名以配置管理为准：用户级配置 → 全局配置（请求体不参与，配置页是唯一来源）"""
+    cfg = _load_config()
+    uid = _opt_user_id(user)
+    user_cfg = {}
+    if uid:
+        try:
+            user_cfg = database.get_user_config(uid) or {}
+        except Exception:
+            user_cfg = {}
+    chat_model = (user_cfg.get("chat_model_name") or "").strip() or (cfg.get("chat_model_name") or "").strip()
+    video_model = ((user_cfg.get("video_model_name") or "").strip()
+                   or (cfg.get("video_model_name") or "").strip()
+                   or "sora-2")
+    key = (api_key or "").strip() or cfg.get("api_key", "")
+    url = (api_url or "").strip() or cfg.get("api_url", "")
+    return {
+        "api_url": url,
+        "api_key": key,
+        "chat_api_url": url,
+        "chat_api_key": key,
+        "chat_model_name": chat_model,
+        "video_model": video_model,
+    }
+
+
+_VIDEO_STATE: Dict[int, dict] = {}          # batch_id -> 进度快照
+_VIDEO_STATE_LOCK = threading.Lock()
+
+
+def _video_step_text(state: dict) -> str:
+    stage = state.get("stage", "")
+    if stage == "script":
+        return "正在生成镜头脚本..."
+    if stage == "assemble":
+        return "正在拼接完整视频..."
+    shots = state.get("shots") or []
+    done = sum(1 for s in shots if s.get("state") in ("done", "failed"))
+    return f"镜头 {done}/{len(shots)} 完成"
+
+
+def _video_progress_cb(batch_id: int):
+    def cb(state: dict):
+        with _VIDEO_STATE_LOCK:
+            _VIDEO_STATE[batch_id] = state
+        try:
+            (OUTPUT_ROOT / str(batch_id) / "_progress.json").write_text(
+                json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+        # 同步进全局运行任务表（历史记录「运行中」列表 + SSE）
+        status = state.get("status", "running")
+        shots = state.get("shots") or []
+        done = sum(1 for s in shots if s.get("state") in ("done", "failed"))
+        pct = int(done / len(shots) * 100) if shots else (10 if state.get("stage") == "script" else 5)
+        with _BATCH_PROGRESS_LOCK:
+            _BATCH_PROGRESS[batch_id] = {
+                "batch_id": batch_id,
+                "percent": pct,
+                "step": _video_step_text(state),
+                "status": status if status != "done" else "success",
+                "updated_at": datetime.now().isoformat(),
+            }
+        try:
+            _push_sse_event(batch_id, {"type": "video_progress", "batch_id": batch_id,
+                                       "percent": pct, "step": _video_step_text(state), "status": status})
+        except Exception:
+            pass
+    return cb
+
+
+def _finalize_video_meta(batch_id: int) -> None:
+    """视频批次结束时把结果写进 _meta.json，使其进入历史记录体系"""
+    with _VIDEO_STATE_LOCK:
+        state = _VIDEO_STATE.get(batch_id) or {}
+    if not state:
+        try:
+            state = json.loads((OUTPUT_ROOT / str(batch_id) / "_progress.json").read_text(encoding="utf-8"))
+        except Exception:
+            state = {}
+    batch_dir = OUTPUT_ROOT / str(batch_id)
+    meta_path = batch_dir / "_meta.json"
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+    except Exception:
+        meta = {}
+
+    shots = state.get("shots") or []
+    done = [s for s in shots if s.get("state") == "done"]
+    status = state.get("status", "running")
+    if status == "cancelled":
+        final = "cancelled"
+    elif status == "error" and not done:
+        final = "failed"
+    elif done and len(done) == len(shots):
+        final = "success"
+    elif done:
+        final = "partial"
+    else:
+        final = "failed"
+
+    # 视频文件列表（片段 + 拼接）
+    vids = [s["file"] for s in done if s.get("file")]
+    if state.get("full_video"):
+        vids.append(state["full_video"])
+
+    # 提示词记录（镜头脚本 → 与图片批次的 used_prompts 同构）
+    used_prompts = []
+    for s in state.get("script") or []:
+        used_prompts.append({
+            "label": f"镜头{s.get('shot_id', '?')} · {s.get('shot_type', '')} / {s.get('camera_movement', '')} · {s.get('duration_seconds', '?')}s",
+            "type": "video_shot",
+            "prompt": (s.get("visual_prompt") or "") + (f"\n\n音效提示: {s['audio_cue']}" if s.get("audio_cue") else ""),
+        })
+
+    meta.update({
+        "batch_id": str(batch_id),
+        "status": final,
+        "message": f"{len(done)}/{len(shots)} 镜头完成" if shots else (state.get("errors") or ["未知错误"])[-1],
+        "videos": vids,
+        "images": [],
+        "errors": state.get("errors", []),
+        "warnings": [],
+        "chat_status": "success" if state.get("script") else meta.get("chat_status", ""),
+        "used_prompts": used_prompts,
+        "video_model": meta.get("video_model", ""),
+        "source": "video",
+        "updated_at": datetime.now().isoformat(),
+    })
+    try:
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        print(f"[VIDEO] 写入 meta 失败: {e}")
+
+
+@app.post("/api/video/analyze")
+def api_video_analyze(body: VideoAnalyzeRequest, user: dict = Depends(get_current_user)):
+    """步骤1 only：小说原文 → 镜头分解脚本 JSON（同步返回）"""
+    cfg = _video_config(user, body.api_key, body.api_url)
+    if not body.novel_content.strip():
+        raise HTTPException(400, "请输入小说原文")
+    if not cfg.get("api_key"):
+        raise HTTPException(400, "未配置 API 密钥")
+    try:
+        shots = video_gen.generate_video_script(
+            cfg["chat_api_url"], cfg["chat_api_key"], cfg["chat_model_name"],
+            body.novel_content, body.shot_count)
+    except Exception as e:
+        raise HTTPException(500, f"脚本生成失败: {e}")
+    return {"script": shots,
+            "total_duration": sum(int(s.get("duration_seconds", 3) or 3) for s in shots)}
+
+
+@app.post("/api/video/generate")
+def api_video_generate(body: VideoGenerateRequest, user: dict = Depends(get_current_user)):
+    """完整流程：脚本（可选传入）→ 逐镜头视频生成 → ffmpeg 拼接（后台线程）"""
+    cfg = _video_config(user, body.api_key, body.api_url)
+    has_script = bool(body.script)
+    if not has_script and not body.novel_content.strip():
+        raise HTTPException(400, "请输入小说原文或传入已有脚本")
+    if not cfg.get("api_key"):
+        raise HTTPException(400, "未配置 API 密钥")
+    batch_id = _init_batch(user["id"])
+    _register_batch(batch_id)
+    video_model = cfg.get("video_model", "sora-2")
+    # 写入视频批次元信息（历史记录识别 source=video）
+    try:
+        meta_path = OUTPUT_ROOT / str(batch_id) / "_meta.json"
+        meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+        meta.update({
+            "batch_id": str(batch_id), "user_id": user["id"], "status": "running",
+            "source": "video", "novel_id": body.novel_id, "video_model": video_model,
+            "aspect_ratio": body.aspect_ratio, "chat_status": "" if body.script else "running",
+            "message": "", "created_at": datetime.now().isoformat(),
+        })
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+    params = {"novel_content": body.novel_content, "script": body.script,
+              "shot_count": body.shot_count, "video_model": video_model,
+              "auto_assemble": body.auto_assemble}
+    vcfg = {"api_url": cfg["api_url"], "api_key": cfg["api_key"],
+            "model": video_model, "aspect_ratio": body.aspect_ratio}
+    chat_cfg = {"api_url": cfg["chat_api_url"], "api_key": cfg["chat_api_key"],
+                "chat_model_name": cfg["chat_model_name"]}
+
+    def _run():
+        try:
+            video_gen.run_video_generation(
+                OUTPUT_ROOT / str(batch_id), chat_cfg, vcfg, params,
+                _video_progress_cb(batch_id), lambda: _is_batch_cancelled(batch_id))
+        except Exception as e:
+            print(f"[VIDEO] 批次 {batch_id} 失败: {e}")
+        finally:
+            _finalize_video_meta(batch_id)
+            _deregister_batch(batch_id)
+
+    _EXECUTOR.submit(_run)
+    return {"status": "submitted", "batch_id": batch_id,
+            "message": f"视频生成任务 #{batch_id} 已提交"}
+
+
+@app.get("/api/video/progress/{batch_id}")
+def api_video_progress(batch_id: int):
+    with _VIDEO_STATE_LOCK:
+        state = _VIDEO_STATE.get(batch_id)
+    if state is None:
+        p = OUTPUT_ROOT / str(batch_id) / "_progress.json"
+        if p.exists():
+            try:
+                state = json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+    if state is None:
+        raise HTTPException(404, f"视频任务 {batch_id} 无进度信息")
+    return state
+
+
+@app.post("/api/video/cancel/{batch_id}")
+def api_video_cancel(batch_id: int):
+    _set_batch_cancel(batch_id)
+    return {"status": "cancelling", "batch_id": batch_id}
+
+
 @app.get("/api/prompt-rules")
 def api_prompt_rules(user: dict = Depends(get_current_user)):
     """返回最新提示词.txt 内容，供前端预填"""
@@ -3180,6 +3457,18 @@ def api_history_detail(batch_id: str, user: dict = Depends(get_current_user)):
     if isinstance(popups, list) and popups and not str(popups[0]).startswith("/"):
         popups = [f"/static/output/{batch_id}/{name}" for name in popups]
 
+    # 视频批次：附镜头脚本与逐镜头状态（详情页按视频逻辑渲染）
+    video_script, video_shots = [], []
+    if meta.get("source") == "video":
+        try:
+            prog = json.loads((batch_dir / "_progress.json").read_text(encoding="utf-8"))
+            if isinstance(prog.get("script"), list):
+                video_script = prog["script"]
+            if isinstance(prog.get("shots"), list):
+                video_shots = prog["shots"]
+        except Exception:
+            pass
+
     return {
         "batch_id": meta.get("batch_id", batch_id),
         "novel_id": meta.get("novel_id", ""),
@@ -3192,6 +3481,10 @@ def api_history_detail(batch_id: str, user: dict = Depends(get_current_user)):
         "errors": meta.get("errors", []),
         "chat_status": meta.get("chat_status", "unknown"),
         "used_prompts": meta.get("used_prompts", []),
+        "source": meta.get("source", ""),
+        "video_model": meta.get("video_model", ""),
+        "video_script": video_script,
+        "video_shots": video_shots,
         "image_count": len(imgs),
         "video_count": len(vids) + len(popups),
         "progress": _get_progress(int(batch_id)),
@@ -3296,6 +3589,7 @@ def api_get_config(user: dict = Depends(get_current_user)):
         "api_url": _app_config.get("api_url", ""),
         "chat_model_name": _app_config.get("chat_model_name", ""),
         "image_model_name": _app_config.get("image_model_name", ""),
+        "video_model_name": _app_config.get("video_model_name", ""),
         "analysis_prompt": _app_config.get("analysis_prompt", ""),
         "concurrency": _app_config.get("concurrency", 2),
     }
@@ -3318,6 +3612,7 @@ class ConfigUpdateRequest(BaseModel):
     api_url: str = ""
     chat_model_name: str = ""
     image_model_name: str = ""
+    video_model_name: str = ""
     analysis_prompt: str = ""
     concurrency: int = Field(default=2, ge=1, le=64)
 
@@ -3332,6 +3627,7 @@ def api_save_config(body: ConfigUpdateRequest, user: dict = Depends(get_current_
             "api_url": body.api_url,
             "chat_model_name": body.chat_model_name,
             "image_model_name": body.image_model_name,
+            "video_model_name": body.video_model_name,
             "analysis_prompt": body.analysis_prompt,
             "concurrency": body.concurrency,
         }
@@ -3344,6 +3640,7 @@ def api_save_config(body: ConfigUpdateRequest, user: dict = Depends(get_current_
             "api_url": body.api_url,
             "chat_model_name": body.chat_model_name,
             "image_model_name": body.image_model_name,
+            "video_model_name": body.video_model_name,
             "analysis_prompt": body.analysis_prompt,
             "concurrency": str(body.concurrency),
         }
@@ -4238,6 +4535,7 @@ class AnalysisGenerateRequest(BaseModel):
     three_panel_prompts: List[dict] = []
     three_panel_layout: str = ""  # 异形三宫格布局（空/random=随机）
     three_panel_text_enabled: bool = True  # 三宫格是否叠加文字
+    cinematic_collage: bool = False  # 电影叙事拼贴风（单帧图生效）
     concurrency: int = 2
 
 
@@ -4336,7 +4634,7 @@ def _run_analysis_generation(body: AnalysisGenerateRequest, batch_id: int) -> di
             layout = three_panel_layouts.get(idx, "vertical-two-left")
             final_p = finalize_three_panel_prompt(core, layout, "")
         else:
-            final_p = finalize_square_prompt(kind, core, "")
+            final_p = finalize_square_prompt(kind, core, "", collage=getattr(body, "cinematic_collage", False))
         fname = _fetch_image(final_p, "1024x1024", lab)
         if fname:
             prompt_dict = {"label": lab, "type": kind, "prompt": final_p}
@@ -4577,6 +4875,7 @@ class AnalyzeNovelRequest(BaseModel):
     scroll_count: int = 0
     popup_count: int = 0
     use_templates: bool = False
+    cinematic_collage: bool = False  # 电影叙事拼贴风（单帧图生效）
 
 @app.post("/api/analyze-novel")
 def api_analyze_novel(body: AnalyzeNovelRequest):
@@ -4587,8 +4886,10 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
     # 用户提示词优先
     if body.analysis_prompt.strip():
         analysis_rules = body.analysis_prompt.strip()
+        if body.cinematic_collage and _RULES_COLLAGE:
+            analysis_rules = f"{analysis_rules}\n\n{_RULES_COLLAGE}"
     else:
-        analysis_rules = _build_rules_text("", body.text_single_count, body.lr_split_count, body.tb_split_count, 0, body.three_panel_count)
+        analysis_rules = _build_rules_text("", body.text_single_count, body.lr_split_count, body.tb_split_count, 0, body.three_panel_count, body.cinematic_collage)
 
     scroll_total = body.scroll_count + body.popup_count
     n_square = body.text_single_count + body.lr_split_count + body.tb_split_count + body.three_panel_count

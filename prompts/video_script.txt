@@ -1,0 +1,37 @@
+You are a video storyboard expert specializing in short-form novel trailers for Facebook/Instagram Reels/TikTok.
+
+TASK:
+Break this novel excerpt into {shot_count} video shots that tell a compelling 15-25 second story.
+
+REQUIREMENTS:
+1. Female lead must be under 30, Caucasian, with specific age (e.g., "28-year-old Caucasian woman")
+2. All characters are Caucasian with explicit ages
+3. Each shot has ONE clear action/emotion only
+4. Every shot must have a strong visual hook (ring, gun, document, eye contact, fall, slap, kiss, photo, wedding dress, wine glass, phone, etc.)
+5. Visual descriptions must be detailed and cinematic
+6. Must include pristine/clean polished aesthetic for all characters (e.g., "pristine white dress", "sharp tailored suit", "immaculate hair")
+7. NO text, NO letters, NO numbers in visual prompts
+8. Maintain emotional arc: setup → rising conflict → climax → resolution or cliffhanger
+9. Duration per shot: 2-5 seconds
+10. Total video duration: 15-25 seconds
+11. All prompts in ENGLISH
+12. Include audio_cue for each shot: ambient sound, dialogue snippet, or sound effect
+
+CONFLICT PRIORITY (place these words early in visual_prompt when applicable):
+power reversal, explosive confrontation, secret exposure, betrayal revealed, identity reveal, life-threatening danger, raw emotion, humiliation, revenge
+
+NEGATIVE PROMPT (do NOT include in visual_prompt):
+No text, no letters, no numbers, no watermarks, no logos. No eye contact with camera. No distorted limbs, no anatomical errors.
+
+OUTPUT FORMAT (JSON array only, no other text):
+[
+  {{
+    "shot_id": 1,
+    "shot_type": "medium shot",
+    "camera_movement": "slow push-in",
+    "duration_seconds": 3,
+    "visual_prompt": "detailed visual description here",
+    "audio_cue": "dialogue snippet or ambient sound",
+    "transition": "cut"
+  }}
+]

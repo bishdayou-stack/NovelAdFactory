@@ -1,0 +1,32 @@
+## 电影叙事拼贴风（Cinematic Narrative Collage）——开启时对所有图片类型生效
+
+### 模块C1 构图：单帧多叙事拼贴（最优先）
+每张图 = 1 个主场景 + 1-2 个次场景叠影。主场景占画面 60-70%，次场景用以下一种方式融入（每图只选 1-2 种，不要堆满）：
+- glass reflection overlay（玻璃倒影叠影：反派/婆婆在另一时空旁观）
+- torn-paper edge inset（撕纸边缘嵌画：另一个角色的特写或证物）
+- mirror reflection（镜面反射：同一角色的另一种命运/状态，如怀孕的身影）
+- drifting smoke transition（烟雾过渡：烟雾中浮现签字的手/离去的背影）
+- object-embedded scene（物件内嵌画：戒指内、怀表内、相框内的小场景）
+次场景必须推进叙事（因果/反应/反转），禁止纯装饰。
+
+### 模块C2 光影与色调
+moody low-key cinematic lighting, luxurious interior (penthouse, marble, chandelier, candlelight),
+night city light through window, warm-cool color contrast, rich shadow detail, film still quality
+
+### 模块C3 道具叙事（每图至少 1 个高辨识度道具）
+readable English document props: divorce agreement papers, legal petition documents, manila envelope,
+black credit card, leather suitcase, pregnancy test with two pink lines, fountain pen, wedding ring, book
+（道具上的英文文字是允许的——文字只出现在道具表面，不作为标题文字）
+
+### 模块C4 人物与情绪
+ Female lead 28-35yo Caucasian woman, pristine polished look; all characters Caucasian with explicit ages.
+情绪钩子任选：teary eyes, charged proximity, defiant composure, cold triumph, quiet devastation。
+与既有情感词库/合规红线叠加执行。
+
+### 模块C5 文字区预留
+画面下三分之一保持 clean negative space for elegant serif caption overlay（由代码叠加文字），
+避免在下三分之一放置关键面部或复杂细节。
+
+### 模块C6 负面排除
+no split-screen layout, no comic panel borders, no watermark, no logo, no deformed hands
+（拼贴是叠影融合，不是硬分割线分屏）

@@ -146,6 +146,10 @@
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
         <span class="truncate">爆款素材库</span>
       </button>
+      <button type="button" id="nav-video-gen" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        <span class="truncate">视频生成</span>
+      </button>
       <button type="button" id="nav-config" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
         <span class="truncate">配置管理</span>
@@ -260,6 +264,13 @@
                 <div><label class="mb-1 block text-[11px] text-slate-500">AI 滚屏</label><input id="aiScrollCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
                 <div><label class="mb-1 block text-[11px] text-slate-500">AI 弹屏</label><input id="aiPopupCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
               </div>
+            </div>
+            <!-- 风格开关 -->
+            <div class="border-t border-slate-100 pt-3">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input id="cinematicCollageToggle" type="checkbox" class="accent-indigo-600 w-4 h-4 shrink-0" />
+                <span class="text-[11px] text-slate-500"><span class="font-medium text-slate-600">电影拼贴风</span>（开启后单帧图/滚屏底图改用暗调电影叙事拼贴构图：玻璃倒影·撕纸·烟雾叠影 + 离婚协议/验孕棒等道具叙事）</span>
+              </label>
             </div>
           </div>
 
@@ -540,6 +551,10 @@
                 <button id="naModePrompt" type="button" class="px-3 py-1.5 text-[11px] font-medium bg-indigo-600 text-white transition-colors border-0 cursor-pointer">不参考</button>
                 <button id="naModeTemplate" type="button" class="px-3 py-1.5 text-[11px] font-medium bg-white text-slate-500 hover:bg-slate-50 transition-colors border-0 cursor-pointer">参考</button>
               </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] font-medium text-slate-500">电影拼贴风</span>
+              <label class="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer"><input id="naCollageToggle" type="checkbox" class="accent-indigo-600" />开启后单帧图改用暗调电影叙事拼贴构图（倒影·撕纸·烟雾叠影 + 道具叙事）</label>
             </div>
           </div>
           <div class="card p-5 space-y-4">
@@ -1072,6 +1087,75 @@
       <div id="hitGalleryPager" class="flex justify-center gap-1"></div>
     </div>
 
+    <!-- ====== Tab: 视频生成（与小说分析同款 UI）====== -->
+    <div id="tab-video-gen" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="space-y-4">
+          <div class="card p-5 space-y-4">
+            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">视频生成 <span class="text-[11px] text-slate-400 font-normal">小说 → 镜头脚本 → 视频（15-25 秒）</span></h3>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] font-medium text-slate-500 shrink-0">或输入小说ID</span>
+              <input id="vgNovelId" type="text" class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" placeholder="输入小说ID，点击「生成脚本预览」自动获取内容..." />
+            </div>
+            <div class="relative">
+              <textarea id="vgNovel" rows="7" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm input-focus resize-none bg-slate-50/50" placeholder="在此粘贴英文小说原文..."></textarea>
+              <button id="vgClearNovelBtn" type="button" class="clear-novel-btn absolute top-2 right-2 w-6 h-6 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-500 hover:text-slate-700 items-center justify-center text-xs leading-none transition-all border-0 cursor-pointer" style="display:none" title="清空内容">&times;</button>
+            </div>
+          </div>
+          <div class="card p-5 space-y-4">
+            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">生产配置 <span class="text-[11px] text-slate-400 font-normal">视频模型在「配置管理」页设置（当前：<span id="vgModelLabel">-</span>）</span></h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="mb-1 block text-[11px] text-slate-500">镜头数（4-8）</label>
+                <select id="vgShotCount" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50">
+                  <option value="4">4</option><option value="5">5</option><option value="6" selected>6</option>
+                  <option value="7">7</option><option value="8">8</option>
+                </select>
+              </div>
+              <div><label class="mb-1 block text-[11px] text-slate-500">画面比例</label>
+                <select id="vgAspect" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50">
+                  <option value="16:9">16:9 横屏</option>
+                  <option value="9:16" selected>9:16 竖屏</option>
+                </select>
+              </div>
+            </div>
+            <label class="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer"><input id="vgAutoAssemble" type="checkbox" class="accent-indigo-600" /> 自动拼接完整视频（生成结束后用 ffmpeg 把片段按顺序合并）</label>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <button id="vgAnalyzeBtn" type="button" onclick="vgAnalyze()" class="rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-700 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-indigo-500/20 hover:from-indigo-700 hover:to-blue-800 transition-all active:scale-[0.98] disabled:opacity-50 border-0 cursor-pointer">
+              生成脚本预览
+            </button>
+            <button id="vgGenBtn" type="button" onclick="vgGenerate()" class="rounded-2xl bg-gradient-to-r from-violet-600 to-purple-700 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-violet-500/20 hover:from-violet-700 hover:to-purple-800 transition-all active:scale-[0.98] disabled:opacity-50 border-0 cursor-pointer">
+              生成视频
+            </button>
+          </div>
+          <div class="flex items-center justify-between">
+            <div id="vgMsg" class="text-xs text-slate-500"></div>
+            <button id="vgCancelBtn" type="button" onclick="vgCancel()" class="rounded-xl bg-red-50 px-3 py-1.5 text-[11px] font-semibold text-red-500 hover:bg-red-100 transition-all border-0 cursor-pointer" hidden>取消任务</button>
+          </div>
+        </div>
+        <div class="card p-5 flex flex-col min-h-[600px]">
+          <h3 class="text-sm font-semibold text-slate-800 mb-4 pb-2 border-b border-slate-50">生成结果</h3>
+          <div id="vgEmpty" class="flex-1 flex flex-col items-center justify-center text-slate-300">
+            <p class="text-sm text-slate-400">粘贴小说（或输入小说ID）→ 生成脚本预览 → 生成视频</p>
+          </div>
+          <div id="vgResultContent" hidden class="space-y-4">
+            <div id="vgScriptSection" hidden>
+              <h4 class="text-xs font-semibold text-slate-700 mb-2">镜头脚本 <span id="vgScriptMeta" class="text-slate-400 font-normal"></span></h4>
+              <div class="overflow-x-auto rounded-xl border border-slate-100" id="vgScriptTable"></div>
+            </div>
+            <div id="vgProgressSection" hidden>
+              <h4 class="text-xs font-semibold text-slate-700 mb-2">生成进度 <span id="vgProgressMeta" class="text-slate-400 font-normal"></span></h4>
+              <div id="vgShotGrid" class="grid grid-cols-2 gap-3"></div>
+              <div id="vgFullVideo" class="mt-4" hidden>
+                <h4 class="text-xs font-semibold text-slate-700 mb-2">完整拼接视频</h4>
+                <video id="vgFullPlayer" controls class="w-full rounded-xl border border-slate-100 bg-black"></video>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ====== Tab: 配置管理 ====== -->
     <div id="tab-config" class="flex-1 bg-slate-900 overflow-y-auto px-5 py-4 min-w-0" hidden>
       <div class="max-w-xl mx-auto">
@@ -1082,6 +1166,7 @@
           <div class="grid grid-cols-2 gap-3">
             <div><label class="mb-1 block text-sm font-medium text-slate-400">对话模型</label><input id="chatModel" type="text" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"></div>
             <div><label class="mb-1 block text-sm font-medium text-slate-400">出图模型</label><input id="imageModel" type="text" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"></div>
+            <div><label class="mb-1 block text-sm font-medium text-slate-400">视频模型</label><input id="videoModel" type="text" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="sora-2 / veo_3_1 / grok-imagine-video ..."></div>
           </div>
           <div><label class="mb-1 block text-sm font-medium text-slate-400">并发数</label><input id="concurrencySlider" type="number" min="1" max="16" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"></div>
           <div class="flex justify-end pt-2">
@@ -1937,6 +2022,7 @@
       api_url: "https://api.geeknow.top/v1",
       chat_model_name: "gpt-4o-mini",
       image_model_name: "gpt-image-1",
+      video_model_name: "",
       analysis_prompt: "",
       concurrency: 2
     };
@@ -1946,6 +2032,7 @@
         if (d.api_url) apiConfig.api_url = d.api_url;
         if (d.chat_model_name) apiConfig.chat_model_name = d.chat_model_name;
         if (d.image_model_name) apiConfig.image_model_name = d.image_model_name;
+        if (d.video_model_name) apiConfig.video_model_name = d.video_model_name;
         if (d.api_key) apiConfig.api_key = d.api_key;
         if (d.analysis_prompt !== undefined) apiConfig.analysis_prompt = d.analysis_prompt;
         if (d.concurrency) apiConfig.concurrency = d.concurrency;
@@ -1972,6 +2059,7 @@
       apiConfig.api_url = document.getElementById("apiUrl").value;
       apiConfig.chat_model_name = document.getElementById("chatModel").value;
       apiConfig.image_model_name = document.getElementById("imageModel").value;
+      apiConfig.video_model_name = document.getElementById("videoModel").value;
       var concurrencyEl = document.getElementById("concurrencySlider");
       if (concurrencyEl) apiConfig.concurrency = parseInt(concurrencyEl.value) || 2;
 
@@ -2000,6 +2088,9 @@
       el = document.getElementById("apiUrl"); if (el && apiConfig.api_url) el.value = apiConfig.api_url;
       el = document.getElementById("chatModel"); if (el && apiConfig.chat_model_name) el.value = apiConfig.chat_model_name;
       el = document.getElementById("imageModel"); if (el && apiConfig.image_model_name) el.value = apiConfig.image_model_name;
+      el = document.getElementById("videoModel"); if (el && apiConfig.video_model_name) el.value = apiConfig.video_model_name;
+      var vgLabel = document.getElementById("vgModelLabel");
+      if (vgLabel) vgLabel.textContent = apiConfig.video_model_name || '未设置，默认 sora-2';
       el = document.getElementById("concurrencySlider"); if (el && apiConfig.concurrency) el.value = apiConfig.concurrency;
       // 普通用户显示 API 密钥提示
       var hint = document.getElementById("apiKeyHint");
@@ -2024,7 +2115,7 @@
 
       // 隐藏所有 tab
       var allTabs = ['generate', 'history', 'assets', 'video-style', 'prompt-generate',
-                     'novel-analyze', 'dashboard', 'novel-mgr', 'hit-gallery', 'config',
+                     'novel-analyze', 'dashboard', 'novel-mgr', 'hit-gallery', 'video-gen', 'config',
                      'meta', 'bm-mgmt', 'meta-campaign', 'delivery-wizard', 'meta-gallery', 'meta-assign', 'users'];
       for (var i = 0; i < allTabs.length; i++) {
         var el = document.getElementById('tab-' + allTabs[i]);
@@ -2049,7 +2140,7 @@
       }
 
       // 更新面包屑
-      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'config': '配置管理', 'meta': 'Meta 管理', 'bm-mgmt': 'BM/App 管理', 'meta-campaign': '广告系列', 'delivery-wizard': '投放向导', 'meta-gallery': '素材画廊', 'meta-assign': '账户分配', 'users': '用户管理' };
+      var titles = { generate: '生产中心', history: '历史记录', assets: '素材浏览', 'video-style': '视频样式管理', 'prompt-generate': '提示词生图', 'novel-analyze': '小说分析', 'dashboard': '数据看板', 'novel-mgr': '小说管理', 'hit-gallery': '爆款素材库', 'video-gen': '视频生成', 'config': '配置管理', 'meta': 'Meta 管理', 'bm-mgmt': 'BM/App 管理', 'meta-campaign': '广告系列', 'delivery-wizard': '投放向导', 'meta-gallery': '素材画廊', 'meta-assign': '账户分配', 'users': '用户管理' };
       document.getElementById('breadcrumb').textContent = titles[tab] || tab;
       document.getElementById('pageTitle').textContent = titles[tab] || tab;
 
@@ -2271,6 +2362,87 @@
         if (data.errors && data.errors.length) {
           document.getElementById('detailErrors').textContent = data.errors.join('\n');
           document.getElementById('detailErrors').hidden = false;
+        }
+
+        // ===== 视频批次：按视频生成逻辑渲染（脚本提示词 + 逐镜头状态 + 拼接视频）=====
+        if (data.source === 'video') {
+          var _vesc = function(s) { return escapeHtml(String(s == null ? '' : s)); };
+          var shots = data.video_shots || [];
+          var script = data.video_script || [];
+          var doneN = shots.filter(function(s) { return s.state === 'done'; }).length;
+          var vInfo = '<div><span class="font-medium text-slate-700">类型:</span> 视频生成</div>' +
+            '<div><span class="font-medium text-slate-700">模型:</span> ' + (data.video_model || '-') + '</div>' +
+            '<div><span class="font-medium text-slate-700">镜头:</span> ' + doneN + '/' + (shots.length || '?') + ' 完成</div>' +
+            '<div><span class="font-medium text-slate-700">消息:</span> ' + (data.message || '-') + '</div>';
+          if (data.status === 'running' && data.progress) {
+            var pct = data.progress.percent || 0;
+            vInfo += '<div class="mt-3"><div class="flex items-center justify-between text-xs mb-1"><span class="font-medium text-slate-700">生产进度</span><span class="font-mono text-indigo-600 font-semibold">' + pct + '%</span></div><div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden"><div class="bg-gradient-to-r from-indigo-500 to-indigo-700 h-full rounded-full transition-all" style="width:' + pct + '%"></div></div><div class="text-xs text-slate-500 mt-1">' + (data.progress.step || '') + '</div></div>';
+          }
+          document.getElementById('detailInfo').innerHTML = vInfo;
+
+          // 提示词 = 镜头脚本（与图片批次 used_prompts 展示一致）
+          var promptList = document.getElementById('detailPromptList');
+          promptList.innerHTML = script.length ? script.map(function(s) {
+            return '<details class="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5"><summary class="text-[12px] font-medium text-slate-700 cursor-pointer select-none hover:text-indigo-600 transition-colors">镜头' + _vesc(s.shot_id) + ' · ' + _vesc(s.shot_type) + ' / ' + _vesc(s.camera_movement) + ' · ' + _vesc(s.duration_seconds) + 's <span class="text-[10px] text-slate-400 ml-2">[video_shot]</span></summary><pre class="mt-2 text-[11px] text-slate-600 whitespace-pre-wrap font-sans leading-relaxed">' + _vesc(s.visual_prompt) + (s.audio_cue ? '\n\n音效提示: ' + s.audio_cue : '') + '</pre></details>';
+          }).join('') : '<p class="text-xs text-slate-400">无提示词记录</p>';
+
+          // 视频区：完整拼接视频在前，逐镜头在后（带状态徽标）
+          var vidList = document.getElementById('detailVideoList');
+          var vidsAll = Array.isArray(data.videos) ? data.videos : [];
+          var fullVids = vidsAll.filter(function(v) { return v.indexOf('full_video') >= 0; });
+          var shotVids = vidsAll.filter(function(v) { return v.indexOf('full_video') < 0; });
+          var stateByFile = {};
+          shots.forEach(function(s) { if (s.file) stateByFile[s.file] = s; });
+          var vh = '';
+          if (fullVids.length) {
+            vh += '<p class="text-[11px] font-semibold text-slate-500 mb-1.5">完整拼接视频</p>' + fullVids.map(function(src) {
+              var full = absUrl(src); var name = src.split('/').pop();
+              return '<div class="mb-3"><video src="' + full + '" controls class="w-full max-w-xl rounded-xl border border-slate-100 bg-black"></video><button type="button" class="mt-1 rounded-xl bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm border-0 cursor-pointer" onclick="downloadBlobUrl(\'' + full + '\',\'' + name + '\')">下载</button></div>';
+            }).join('');
+          }
+          vh += '<p class="text-[11px] font-semibold text-slate-500 mb-1.5">逐镜头片段</p>';
+          if (!shotVids.length && !shots.length) vh += '<p class="text-xs text-slate-400">无视频</p>';
+          else {
+            vh += '<div class="grid grid-cols-2 gap-3">';
+            (script.length ? script : shots).forEach(function(s) {
+              var st = stateByFile[s.file] || shots.filter(function(x) { return String(x.shot_id) === String(s.shot_id); })[0] || { state: 'pending' };
+              var badge = { pending: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-slate-50 text-slate-500 border-slate-200">等待</span>',
+                            generating: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-blue-50 text-blue-600 border-blue-200">生成中</span>',
+                            done: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">完成</span>',
+                            failed: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-red-50 text-red-600 border-red-200">失败</span>' }[st.state] || _vesc(st.state);
+              var body = (st.state === 'done' && st.file)
+                ? '<video src="' + absUrl('/static/output/' + data.batch_id + '/' + encodeURIComponent(st.file)) + '" controls class="w-full rounded-xl border border-slate-100 bg-black"></video>'
+                : '<div class="w-full h-28 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 text-xs px-2 text-center">' + (st.state === 'failed' ? _vesc(st.error || '失败') : '...') + '</div>';
+              vh += '<div><div class="flex justify-between items-center text-[11px] mb-1"><span class="text-slate-600 font-medium">镜头 ' + _vesc(s.shot_id) + (s.duration_seconds ? ' · ' + _vesc(s.duration_seconds) + 's' : '') + '</span>' + badge + '</div>' + body + '</div>';
+            });
+            vh += '</div>';
+          }
+          vidList.innerHTML = vh;
+
+          // 视频批次无图片
+          document.getElementById('detailImageGrid').innerHTML = '<p class="text-xs text-slate-400 col-span-full">视频批次（无图片）</p>';
+          document.getElementById('downloadAllImagesBtn').hidden = true;
+
+          panel.scrollIntoView({ behavior: 'smooth' });
+
+          // 运行中：轮询进度，结束后自动刷新一次详情
+          if (data.status === 'running') {
+            var vBid = data.batch_id;
+            if (viewBatchDetail._timer) clearInterval(viewBatchDetail._timer);
+            viewBatchDetail._timer = setInterval(function() {
+              var panelNow = document.getElementById('batchDetailPanel');
+              if (!panelNow || panelNow.hidden || document.getElementById('detailBatchId').textContent !== vBid) {
+                clearInterval(viewBatchDetail._timer); viewBatchDetail._timer = null; return;
+              }
+              fetch('/api/video/progress/' + vBid).then(function(r) { return r.ok ? r.json() : null; }).then(function(st) {
+                if (st && st.status !== 'running' && viewBatchDetail._timer) {
+                  clearInterval(viewBatchDetail._timer); viewBatchDetail._timer = null;
+                  viewBatchDetail(vBid);
+                }
+              }).catch(function() {});
+            }, 5000);
+          }
+          return;
         }
 
         // 图片
@@ -2927,6 +3099,7 @@
         scroll_style: selectedScroll.style,
         popup_style: selectedPopup.style,
         use_templates: useTemplatesMode,
+        cinematic_collage: document.getElementById("cinematicCollageToggle").checked,
         text_single_text_enabled: document.getElementById("textSingleTextToggle").checked,
         lr_split_text_enabled: document.getElementById("lrSplitTextToggle").checked,
         tb_split_text_enabled: document.getElementById("tbSplitTextToggle").checked,
@@ -3357,6 +3530,7 @@
         scroll_count: 0,
         popup_count: 0,
         use_templates: naUseTemplates,
+        cinematic_collage: document.getElementById('naCollageToggle').checked,
       };
 
       fetch('/api/analyze-novel', {
@@ -3542,6 +3716,7 @@
         three_panel_prompts: tpPrompts,
         three_panel_layout: document.getElementById('naThreePanelLayout').value,
         three_panel_text_enabled: document.getElementById('naThreePanelText').checked,
+        cinematic_collage: document.getElementById('naCollageToggle').checked,
         concurrency: apiConfig.concurrency || 2,
       };
 
@@ -4198,6 +4373,190 @@
     document.getElementById('nav-dashboard').addEventListener('click', function() { switchTab('dashboard'); });
     document.getElementById('nav-novel-mgr').addEventListener('click', function() { switchTab('novel-mgr'); });
     document.getElementById('nav-hit-gallery').addEventListener('click', function() { switchTab('hit-gallery'); });
+    document.getElementById('nav-video-gen').addEventListener('click', function() { switchTab('video-gen'); });
+
+    // ====== 视频生成（小说 → 镜头脚本 → 视频，UI 与小说分析一致） ======
+    var _vgScript = [], _vgBatchId = null, _vgTimer = null;
+
+    function _vgEsc(s) { return escapeHtml(String(s == null ? '' : s)); }
+
+    function _vgShowResult(show) {
+      document.getElementById('vgEmpty').hidden = show;
+      document.getElementById('vgResultContent').hidden = !show;
+    }
+
+    function vgRenderScript(script) {
+      _vgScript = script || [];
+      var sec = document.getElementById('vgScriptSection');
+      sec.hidden = _vgScript.length === 0;
+      if (!_vgScript.length) return;
+      var total = _vgScript.reduce(function(a, s) { return a + (parseInt(s.duration_seconds) || 3); }, 0);
+      document.getElementById('vgScriptMeta').textContent = _vgScript.length + ' 个镜头 / 约 ' + total + ' 秒';
+      var h = '<table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-100">' +
+        '<th class="px-2 py-1.5 text-left">#</th><th class="px-2 py-1.5 text-left">景别</th>' +
+        '<th class="px-2 py-1.5 text-left">运镜</th><th class="px-2 py-1.5 text-right">秒</th>' +
+        '<th class="px-2 py-1.5 text-left">视觉描述</th><th class="px-2 py-1.5 text-left">音效提示</th>' +
+        '<th class="px-2 py-1.5 text-left">转场</th></tr></thead><tbody>';
+      _vgScript.forEach(function(s) {
+        h += '<tr class="border-b border-slate-50 text-slate-600 hover:bg-slate-50/50">' +
+          '<td class="px-2 py-1.5 font-mono">' + _vgEsc(s.shot_id) + '</td>' +
+          '<td class="px-2 py-1.5">' + _vgEsc(s.shot_type) + '</td>' +
+          '<td class="px-2 py-1.5">' + _vgEsc(s.camera_movement) + '</td>' +
+          '<td class="px-2 py-1.5 text-right">' + _vgEsc(s.duration_seconds) + '</td>' +
+          '<td class="px-2 py-1.5 max-w-md">' + _vgEsc(s.visual_prompt) + '</td>' +
+          '<td class="px-2 py-1.5 text-slate-400 max-w-[160px]">' + _vgEsc(s.audio_cue) + '</td>' +
+          '<td class="px-2 py-1.5 text-slate-400">' + _vgEsc(s.transition) + '</td></tr>';
+      });
+      document.getElementById('vgScriptTable').innerHTML = h + '</tbody></table>';
+      _vgShowResult(true);
+    }
+
+    function vgRenderProgress(state) {
+      _vgShowResult(true);
+      document.getElementById('vgProgressSection').hidden = false;
+      var shots = state.shots || [];
+      var done = shots.filter(function(s) { return s.state === 'done'; }).length;
+      document.getElementById('vgProgressMeta').textContent = shots.length
+        ? (done + '/' + shots.length + ' 镜头完成' + (state.full_video ? ' · 已拼接' : '')) : '';
+      var byId = {};
+      shots.forEach(function(s) { byId[s.shot_id] = s; });
+      var h = '';
+      (_vgScript.length ? _vgScript : (state.script || [])).forEach(function(s) {
+        var st = byId[s.shot_id] || { state: 'pending' };
+        var badge = { pending: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-slate-50 text-slate-500 border-slate-200">等待</span>',
+                      generating: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-blue-50 text-blue-600 border-blue-200">生成中</span>',
+                      done: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">完成</span>',
+                      failed: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-red-50 text-red-600 border-red-200" title="' + _vgEsc(st.error) + '">失败</span>' }[st.state] || _vgEsc(st.state);
+        var player = (st.state === 'done' && st.file)
+          ? '<video controls class="w-full rounded-xl border border-slate-100 bg-black" src="/static/output/' + _vgBatchId + '/' + encodeURIComponent(st.file) + '"></video>'
+          : '<div class="w-full h-28 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 text-xs px-2 text-center">' + (st.state === 'failed' ? _vgEsc(st.error || '失败') : '...') + '</div>';
+        h += '<div><div class="flex justify-between items-center text-[11px] mb-1"><span class="text-slate-600 font-medium">镜头 ' + _vgEsc(s.shot_id) + ' · ' + _vgEsc(s.duration_seconds) + 's</span>' + badge + '</div>' + player + '</div>';
+      });
+      document.getElementById('vgShotGrid').innerHTML = h;
+      var full = document.getElementById('vgFullVideo');
+      if (state.full_video) {
+        full.hidden = false;
+        document.getElementById('vgFullPlayer').src = '/static/output/' + _vgBatchId + '/' + encodeURIComponent(state.full_video);
+      }
+      var errs = state.errors || [];
+      document.getElementById('vgMsg').innerHTML = errs.length
+        ? '<span class="text-red-500">' + errs.map(_vgEsc).join('<br>') + '</span>'
+        : '';
+    }
+
+    function vgPoll() {
+      if (!_vgBatchId) return;
+      fetch('/api/video/progress/' + _vgBatchId).then(function(r) {
+        if (r.status === 404) return null; return r.json();
+      }).then(function(state) {
+        if (!state) return;
+        vgRenderProgress(state);
+        if (state.script && state.script.length && !_vgScript.length) vgRenderScript(state.script);
+        document.getElementById('vgCancelBtn').hidden = state.status !== 'running';
+        if (state.status === 'done' || state.status === 'error' || state.status === 'cancelled') {
+          clearInterval(_vgTimer); _vgTimer = null;
+          document.getElementById('vgGenBtn').disabled = false;
+          document.getElementById('vgAnalyzeBtn').disabled = false;
+          document.getElementById('vgCancelBtn').hidden = true;
+          var doneN = (state.shots || []).filter(function(s) { return s.state === 'done'; }).length;
+          if (state.status === 'done') {
+            document.getElementById('vgMsg').innerHTML = '<span class="text-emerald-600">完成：' + doneN + ' 个片段' + (state.full_video ? ' + 拼接视频' : '') + '，已写入历史记录</span>';
+          } else if (state.status === 'cancelled') {
+            document.getElementById('vgMsg').innerHTML = '<span class="text-slate-500">任务已取消</span>';
+          }
+        }
+      }).catch(function() {});
+    }
+
+    async function vgAnalyze() {
+      // 填了小说ID：先自动获取内容（无需单独点获取）
+      var novelId = document.getElementById('vgNovelId').value.trim();
+      if (novelId) {
+        document.getElementById('vgMsg').textContent = '正在获取小说 ' + novelId + ' 的内容...';
+        try {
+          var r = await fetch('/api/fetch-novel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ novel_id: novelId }) });
+          if (!r.ok) { var er = await r.json(); throw new Error(er.detail || '获取失败'); }
+          var d = await r.json();
+          if (d.status === 'success' && d.content) {
+            document.getElementById('vgNovel').value = d.content;
+            document.getElementById('vgClearNovelBtn').style.display = 'flex';
+          } else {
+            throw new Error('返回内容为空');
+          }
+        } catch (err) {
+          document.getElementById('vgMsg').innerHTML = '<span class="text-red-500">获取小说失败: ' + _vgEsc(err.message) + '</span>';
+          return;
+        }
+      }
+      var novel = document.getElementById('vgNovel').value.trim();
+      if (!novel) { alert('请粘贴小说内容或输入小说ID'); return; }
+      var btn = document.getElementById('vgAnalyzeBtn');
+      btn.disabled = true; btn.textContent = '分析中...';
+      document.getElementById('vgMsg').textContent = '正在用 LLM 拆解镜头脚本（约 30-60 秒）...';
+      try {
+        var resp = await fetch('/api/video/analyze', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ novel_content: novel, shot_count: parseInt(document.getElementById('vgShotCount').value),
+            api_key: apiConfig.api_key, api_url: apiConfig.api_url })
+        });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || '失败');
+        vgRenderScript(data.script);
+        document.getElementById('vgMsg').innerHTML = '<span class="text-emerald-600">脚本完成：' + data.script.length + ' 个镜头 / 约 ' + data.total_duration + ' 秒。确认无误后点「生成视频」。</span>';
+      } catch (e) {
+        document.getElementById('vgMsg').innerHTML = '<span class="text-red-500">脚本生成失败: ' + _vgEsc(e.message) + '</span>';
+      }
+      btn.disabled = false; btn.textContent = '生成脚本预览';
+    }
+
+    async function vgGenerate() {
+      var novel = document.getElementById('vgNovel').value.trim();
+      if (!novel && !_vgScript.length) { alert('请粘贴小说内容或输入小说ID获取'); return; }
+      var btn = document.getElementById('vgGenBtn');
+      btn.disabled = true;
+      document.getElementById('vgMsg').textContent = '提交中...';
+      try {
+        var resp = await fetch('/api/video/generate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            novel_content: novel,
+            script: _vgScript,
+            shot_count: parseInt(document.getElementById('vgShotCount').value),
+            aspect_ratio: document.getElementById('vgAspect').value,
+            novel_id: document.getElementById('vgNovelId').value.trim(),
+            auto_assemble: document.getElementById('vgAutoAssemble').checked,
+            api_key: apiConfig.api_key, api_url: apiConfig.api_url
+          })
+        });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || '失败');
+        _vgBatchId = data.batch_id;
+        _vgShowResult(true);
+        document.getElementById('vgProgressSection').hidden = false;
+        document.getElementById('vgCancelBtn').hidden = false;
+        document.getElementById('vgMsg').textContent = '任务 #' + _vgBatchId + ' 已提交后台运行，每镜头约 1-5 分钟，可去历史记录查看';
+        if (_vgTimer) clearInterval(_vgTimer);
+        _vgTimer = setInterval(vgPoll, 4000);
+        setTimeout(vgPoll, 1000);
+      } catch (e) {
+        document.getElementById('vgMsg').innerHTML = '<span class="text-red-500">提交失败: ' + _vgEsc(e.message) + '</span>';
+        btn.disabled = false;
+      }
+    }
+
+    async function vgCancel() {
+      if (!_vgBatchId) return;
+      await fetch('/api/video/cancel/' + _vgBatchId, { method: 'POST' });
+      document.getElementById('vgMsg').textContent = '正在取消...';
+    }
+
+    document.getElementById('vgClearNovelBtn').addEventListener('click', function() {
+      document.getElementById('vgNovel').value = '';
+      this.style.display = 'none';
+    });
+    document.getElementById('vgNovel').addEventListener('input', function() {
+      document.getElementById('vgClearNovelBtn').style.display = this.value ? 'flex' : 'none';
+    });
     document.getElementById('nav-config').addEventListener('click', function() { switchTab('config'); });
     document.getElementById('nav-meta').addEventListener('click', function() { switchTab('meta'); });
     document.getElementById('nav-bm-mgmt').addEventListener('click', function() { switchTab('bm-mgmt'); });
