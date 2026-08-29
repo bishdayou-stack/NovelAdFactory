@@ -5133,14 +5133,16 @@ def _get_meta_accounts(mine: int = Query(default=0), user: dict = Depends(get_cu
     return accounts
 
 
-@app.get("/api/meta/balances")
-def _get_meta_balances(accounts: str = Query(default=""), user: dict = Depends(get_current_user)):
-    """批量获取账户可用余额（spend_cap - amount_spent）。accounts 逗号分隔 act_id，空=当前用户可见的全部账户。
-    返回 {balances: {act_id: {available, spend_cap, amount_spent, currency}}}，available=None 表示未设上限。"""
-    uid = _opt_user_id(user)
-    all_accounts = database.get_meta_accounts(uid)
-    wanted = {a.strip() for a in (accounts or "").split(",") if a.strip()}
-    targets = [a for a in all_accounts if not wanted or a.get("act_id") in wanted]
+# ====== 账户余额缓存（APScheduler 每 30 分钟刷新，接口直接读缓存）======
+_BALANCE_CACHE: Dict[str, dict] = {}
+_BALANCE_CACHE_LOCK = threading.Lock()
+_BALANCE_CACHE_UPDATED: float = 0
+
+
+def _refresh_balance_cache():
+    """拉取全部账户余额写入内存缓存（定时任务调用；首次请求兜底也会调用）"""
+    global _BALANCE_CACHE_UPDATED
+    accounts = database.get_meta_accounts(None)
 
     def _fetch(a: dict):
         act_id = a.get("act_id", "")
@@ -5164,12 +5166,45 @@ def _get_meta_balances(accounts: str = Query(default=""), user: dict = Depends(g
             "currency": info.get("currency", "USD"),
         }
 
-    balances = {}
-    if targets:
+    out = {}
+    if accounts:
         with ThreadPoolExecutor(max_workers=8) as ex:
-            for act_id, bal in ex.map(_fetch, targets):
-                balances[act_id] = bal
-    return {"balances": balances}
+            for act_id, bal in ex.map(_fetch, accounts):
+                out[act_id] = bal
+    with _BALANCE_CACHE_LOCK:
+        _BALANCE_CACHE.clear()
+        _BALANCE_CACHE.update(out)
+        _BALANCE_CACHE_UPDATED = time.time()
+    print(f"[BALANCE] 余额缓存已刷新: {len(out)} 个账户")
+
+
+# 每 30 分钟自动刷新一次余额
+_scheduler.add_job(
+    _refresh_balance_cache,
+    'interval',
+    seconds=1800,
+    id='balance_refresh',
+    max_instances=1,
+)
+
+
+@app.get("/api/meta/balances")
+def _get_meta_balances(accounts: str = Query(default=""), user: dict = Depends(get_current_user)):
+    """批量获取账户可用余额（spend_cap - amount_spent，读 30 分钟定时缓存）。
+    accounts 逗号分隔 act_id，空=当前用户可见的全部账户。available=None 表示未设上限。"""
+    if not _BALANCE_CACHE:
+        # 刚启动/首次访问：同步刷新一次兜底
+        try:
+            _refresh_balance_cache()
+        except Exception as e:
+            print(f"[BALANCE] 首次刷新失败: {e}")
+    uid = _opt_user_id(user)
+    visible = {a.get("act_id") for a in database.get_meta_accounts(uid)}
+    wanted = {a.strip() for a in (accounts or "").split(",") if a.strip()}
+    with _BALANCE_CACHE_LOCK:
+        snap = dict(_BALANCE_CACHE)
+    balances = {k: v for k, v in snap.items() if k in visible and (not wanted or k in wanted)}
+    return {"balances": balances, "updated_at": _BALANCE_CACHE_UPDATED}
 
 @app.post("/api/meta/accounts")
 def _add_meta_account(body: MetaAccountBody, user: dict = Depends(get_current_user)):

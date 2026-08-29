@@ -5609,7 +5609,7 @@
 
     var _metaAccounts = [];
 
-    // ====== 账户余额（Meta 管理中心 + 广告系列页共用，5 分钟缓存）======
+    // ====== 账户余额（Meta 管理中心 + 广告系列页共用；服务端每 30 分钟定时刷新，前端缓存 30 分钟）======
     var _metaBalances = {};        // act_id -> {available, spend_cap, amount_spent, currency, error}
     var _metaBalancesFetchedAt = 0;
 
@@ -5625,7 +5625,7 @@
 
     function loadMetaBalances(cb) {
       var now = Date.now();
-      if (now - _metaBalancesFetchedAt < 5 * 60 * 1000 && Object.keys(_metaBalances).length) {
+      if (now - _metaBalancesFetchedAt < 30 * 60 * 1000 && Object.keys(_metaBalances).length) {
         if (cb) cb(); return;
       }
       fetch('/api/meta/balances').then(function(r) { return r.json(); }).then(function(d) {
