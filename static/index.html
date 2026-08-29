@@ -4827,6 +4827,17 @@
       return active ? active.getAttribute('data-range') : '30';
     }
 
+    // ====== 北京时间日期工具（所有「今天/昨天/N天前」统一按北京日历）======
+    // 修复：原来用 toISOString()（UTC），北京时间 0-8 点 UTC 仍是昨天，导致页面显示昨天数据
+    function cnNow() { return new Date(Date.now() + 8 * 3600 * 1000); }  // 北京时间，用 getUTC* 取年月日
+    function cnDateStr(offsetDays) {  // 北京日历日期 YYYY-MM-DD，offsetDays=前推天数
+      return new Date(Date.now() + 8 * 3600 * 1000 - (offsetDays || 0) * 86400000).toISOString().slice(0, 10);
+    }
+    function cnMonthStart() {  // 北京时间的本月 1 号
+      var bn = cnNow();
+      return bn.getUTCFullYear() + '-' + ('0' + (bn.getUTCMonth() + 1)).slice(-2) + '-01';
+    }
+
     function getDashboardParams() {
       var range = getDashboardDateRange();
       var account = document.getElementById('dashAccountFilter').value;
@@ -4835,16 +4846,15 @@
       var start, end;
 
       if (range === 'today') {
-        start = end = new Date().toISOString().slice(0, 10);
+        start = end = cnDateStr(0);
       } else if (range === 'yesterday') {
-        var d = new Date(Date.now() - 86400000);
-        start = end = d.toISOString().slice(0, 10);
+        start = end = cnDateStr(1);
       } else if (range === 'custom') {
         start = document.getElementById('dashDateStart').value;
         end = document.getElementById('dashDateEnd').value;
       } else if (range > 0) {
-        end = new Date().toISOString().slice(0, 10);
-        start = new Date(Date.now() - parseInt(range) * 86400000).toISOString().slice(0, 10);
+        end = cnDateStr(0);
+        start = cnDateStr(parseInt(range));
       }
 
       if (start) params.push('start=' + start);
@@ -4927,7 +4937,7 @@
         document.getElementById('dashNovelBody').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-slate-300">加载失败</td></tr>';
       });
       // 近7天排行
-      var d7 = new Date(Date.now() - 7*86400000).toISOString().slice(0,10);
+      var d7 = cnDateStr(7);
       fetch('/api/dashboard/novel-stats?start=' + d7 + '&page=' + novel7dPage + '&page_size=20' + sort + mineOnly + kw).then(function(r) { return r.json(); }).then(function(res) {
         renderNovelTable(res.data || res, 'dashNovel7dBody', 'novel7dTable');
         renderPager('novel7dPager', res, function(p) { novel7dPage = p; loadNovelStats(); });
@@ -5184,7 +5194,7 @@
         var isCustom = this.getAttribute('data-range') === 'custom';
         document.getElementById('dashCustomDate').hidden = !isCustom;
         if (isCustom) {
-          var today = new Date().toISOString().slice(0, 10);
+          var today = cnDateStr(0);
           if (!document.getElementById('dashDateStart').value) document.getElementById('dashDateStart').value = today;
           if (!document.getElementById('dashDateEnd').value) document.getElementById('dashDateEnd').value = today;
         }
@@ -6335,23 +6345,18 @@
       }
       var activePill = document.querySelector('#metaDatePills .metaDatePillActive') || document.querySelector('#metaDatePills button');
       var range = activePill ? activePill.dataset.range : 'today';
-      var today = new Date().toISOString().slice(0,10);
+      var today = cnDateStr(0);
       var start = today, end = today;
       if (range === 'yesterday') {
-        var d = new Date(); d.setDate(d.getDate()-1);
-        start = end = d.toISOString().slice(0,10);
+        start = end = cnDateStr(1);
       } else if (range === '3') {
-        var d = new Date(); d.setDate(d.getDate()-3);
-        start = d.toISOString().slice(0,10);
+        start = cnDateStr(3);
       } else if (range === '7') {
-        var d = new Date(); d.setDate(d.getDate()-7);
-        start = d.toISOString().slice(0,10);
+        start = cnDateStr(7);
       } else if (range === '30') {
-        var d = new Date(); d.setDate(d.getDate()-30);
-        start = d.toISOString().slice(0,10);
+        start = cnDateStr(30);
       } else if (range === 'month') {
-        var now = new Date();
-        start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+        start = cnMonthStart();
       }
       return { start: start, end: end, range: range };
     }
@@ -6797,13 +6802,13 @@
       }
       var activePill = document.querySelector('#campDatePills .campDatePillActive') || document.querySelector('#campDatePills button');
       var range = activePill ? activePill.dataset.range : 'today';
-      var today = new Date().toISOString().slice(0,10);
+      var today = cnDateStr(0);
       var start = today, end = today;
-      if (range === 'yesterday') { var d = new Date(); d.setDate(d.getDate()-1); start = end = d.toISOString().slice(0,10); }
-      else if (range === '3') { var d3 = new Date(); d3.setDate(d3.getDate()-2); start = d3.toISOString().slice(0,10); }
-      else if (range === '7') { var d7 = new Date(); d7.setDate(d7.getDate()-6); start = d7.toISOString().slice(0,10); }
-      else if (range === '30') { var d30 = new Date(); d30.setDate(d30.getDate()-29); start = d30.toISOString().slice(0,10); }
-      else if (range === 'month') { var now = new Date(); start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10); }
+      if (range === 'yesterday') { start = end = cnDateStr(1); }
+      else if (range === '3') { start = cnDateStr(2); }
+      else if (range === '7') { start = cnDateStr(6); }
+      else if (range === '30') { start = cnDateStr(29); }
+      else if (range === 'month') { start = cnMonthStart(); }
       return { start: start, end: end };
     }
 
@@ -7039,11 +7044,11 @@
     function getGalDateRange() {
       var activePill = document.querySelector('#galDatePills .galDatePillActive') || document.querySelector('#galDatePills button');
       var range = activePill ? activePill.dataset.range : 'today';
-      var today = new Date().toISOString().slice(0,10);
+      var today = cnDateStr(0);
       var start = today, end = today;
-      if (range === 'yesterday') { var d = new Date(); d.setDate(d.getDate()-1); start = end = d.toISOString().slice(0,10); }
-      else if (range === '7') { var d7 = new Date(); d7.setDate(d7.getDate()-6); start = d7.toISOString().slice(0,10); }
-      else if (range === '30') { var d30 = new Date(); d30.setDate(d30.getDate()-29); start = d30.toISOString().slice(0,10); }
+      if (range === 'yesterday') { start = end = cnDateStr(1); }
+      else if (range === '7') { start = cnDateStr(6); }
+      else if (range === '30') { start = cnDateStr(29); }
       return { start: start, end: end };
     }
 
