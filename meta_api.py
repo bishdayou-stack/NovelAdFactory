@@ -173,6 +173,16 @@ def get_ad_account_info(act_id: str, access_token: str) -> Tuple[Optional[Dict],
         "fields": "id,name,account_status,currency,timezone_name"
     })
 
+def get_ad_account_balance(act_id: str, access_token: str) -> Tuple[Optional[Dict], Optional[str]]:
+    """获取账户余额信息。返回 {amount_spent, spend_cap, currency}（原始美分）。
+    注意：后付费账户 balance 字段=累计欠款（等于 amount_spent），可用余额 = spend_cap - amount_spent"""
+    _check_rate(act_id)
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}"
+    return _http_request("GET", url, params={
+        "access_token": access_token,
+        "fields": "id,amount_spent,spend_cap,currency"
+    })
+
 def get_adsets(act_id: str, access_token: str,
                limit: int = 100) -> Tuple[Optional[List[Dict]], Optional[str]]:
     _check_rate(act_id)

@@ -5132,6 +5132,45 @@ def _get_meta_accounts(mine: int = Query(default=0), user: dict = Depends(get_cu
     # 普通用户与管理员的账户树都返回全部账户（含已停用/封禁，便于查看历史数据）
     return accounts
 
+
+@app.get("/api/meta/balances")
+def _get_meta_balances(accounts: str = Query(default=""), user: dict = Depends(get_current_user)):
+    """批量获取账户可用余额（spend_cap - amount_spent）。accounts 逗号分隔 act_id，空=当前用户可见的全部账户。
+    返回 {balances: {act_id: {available, spend_cap, amount_spent, currency}}}，available=None 表示未设上限。"""
+    uid = _opt_user_id(user)
+    all_accounts = database.get_meta_accounts(uid)
+    wanted = {a.strip() for a in (accounts or "").split(",") if a.strip()}
+    targets = [a for a in all_accounts if not wanted or a.get("act_id") in wanted]
+
+    def _fetch(a: dict):
+        act_id = a.get("act_id", "")
+        bm_id = a.get("bm_id", "")
+        token = (database.get_bm_token(bm_id) if bm_id else "") or \
+            a.get("access_token") or _load_meta_default_token()
+        if not token:
+            return act_id, {"error": "无token"}
+        info, err = meta_api.get_ad_account_balance(act_id, token)
+        if err or not isinstance(info, dict):
+            return act_id, {"error": (err or "响应异常")[:80]}
+        try:
+            cap = int(info.get("spend_cap") or 0)
+            spent = int(info.get("amount_spent") or 0)
+        except (TypeError, ValueError):
+            cap = spent = 0
+        return act_id, {
+            "available": round((cap - spent) / 100, 2) if cap > 0 else None,
+            "spend_cap": round(cap / 100, 2),
+            "amount_spent": round(spent / 100, 2),
+            "currency": info.get("currency", "USD"),
+        }
+
+    balances = {}
+    if targets:
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            for act_id, bal in ex.map(_fetch, targets):
+                balances[act_id] = bal
+    return {"balances": balances}
+
 @app.post("/api/meta/accounts")
 def _add_meta_account(body: MetaAccountBody, user: dict = Depends(get_current_user)):
     uid = _opt_user_id(user)
