@@ -5139,43 +5139,54 @@ _BALANCE_CACHE_LOCK = threading.Lock()
 _BALANCE_CACHE_UPDATED: float = 0
 
 
+def _fetch_one_balance(a: dict):
+    """拉取单个账户余额并计算 available。a 需含 act_id/bm_id/access_token。返回 (act_id, balance_dict)"""
+    act_id = a.get("act_id", "")
+    bm_id = a.get("bm_id", "")
+    token = (database.get_bm_token(bm_id) if bm_id else "") or \
+        a.get("access_token") or _load_meta_default_token()
+    if not token:
+        return act_id, {"error": "无token"}
+    info, err = meta_api.get_ad_account_balance(act_id, token)
+    if err or not isinstance(info, dict):
+        return act_id, {"error": (err or "响应异常")[:80]}
+    try:
+        cap = int(info.get("spend_cap") or 0)
+        spent = int(info.get("amount_spent") or 0)
+    except (TypeError, ValueError):
+        cap = spent = 0
+    return act_id, {
+        "available": round((cap - spent) / 100, 2) if cap > 0 else None,
+        "spend_cap": round(cap / 100, 2),
+        "amount_spent": round(spent / 100, 2),
+        "currency": info.get("currency", "USD"),
+    }
+
+
 def _refresh_balance_cache():
     """拉取全部账户余额写入内存缓存（定时任务调用；首次请求兜底也会调用）"""
     global _BALANCE_CACHE_UPDATED
     accounts = database.get_meta_accounts(None)
-
-    def _fetch(a: dict):
-        act_id = a.get("act_id", "")
-        bm_id = a.get("bm_id", "")
-        token = (database.get_bm_token(bm_id) if bm_id else "") or \
-            a.get("access_token") or _load_meta_default_token()
-        if not token:
-            return act_id, {"error": "无token"}
-        info, err = meta_api.get_ad_account_balance(act_id, token)
-        if err or not isinstance(info, dict):
-            return act_id, {"error": (err or "响应异常")[:80]}
-        try:
-            cap = int(info.get("spend_cap") or 0)
-            spent = int(info.get("amount_spent") or 0)
-        except (TypeError, ValueError):
-            cap = spent = 0
-        return act_id, {
-            "available": round((cap - spent) / 100, 2) if cap > 0 else None,
-            "spend_cap": round(cap / 100, 2),
-            "amount_spent": round(spent / 100, 2),
-            "currency": info.get("currency", "USD"),
-        }
-
     out = {}
     if accounts:
         with ThreadPoolExecutor(max_workers=8) as ex:
-            for act_id, bal in ex.map(_fetch, accounts):
+            for act_id, bal in ex.map(_fetch_one_balance, accounts):
                 out[act_id] = bal
     with _BALANCE_CACHE_LOCK:
         _BALANCE_CACHE.clear()
         _BALANCE_CACHE.update(out)
         _BALANCE_CACHE_UPDATED = time.time()
     print(f"[BALANCE] 余额缓存已刷新: {len(out)} 个账户")
+
+
+def _refresh_balance_for_account(account: dict) -> None:
+    """手动单账户同步后，同步刷新该账户的余额缓存条目"""
+    try:
+        act_id, bal = _fetch_one_balance(account)
+        with _BALANCE_CACHE_LOCK:
+            _BALANCE_CACHE[act_id] = bal
+    except Exception as e:
+        print(f"[BALANCE] 单账户余额刷新失败: {e}")
 
 
 # 每 30 分钟自动刷新一次余额
@@ -5298,6 +5309,8 @@ def _trigger_single_account_sync(act_id: str, scope: str = Query(default="all"),
     try:
         future = _EXECUTOR.submit(scraper._sync_one_meta_account, act_id, token, uid, scope=scope)
         a_id, count, err = future.result(timeout=120)
+        # 手动同步时顺带刷新该账户的余额缓存
+        _refresh_balance_for_account(account)
         return {"success": True, "count": count, "error": err or "",
                 "act_name": account.get("act_name", act_id),
                 "message": f"{account.get('act_name', act_id)} 更新完成: {count}条" + (f", 错误: {err}" if err else "")}
@@ -5386,6 +5399,11 @@ def _trigger_meta_sync(user: dict = Depends(get_current_user),
                 if uid in _meta_sync_progress:
                     _meta_sync_progress[uid]["status"] = "done"
                     _meta_sync_progress[uid]["total_count"] = total_count[0]
+            # 全量手动同步结束后顺带刷新全部余额缓存
+            try:
+                _refresh_balance_cache()
+            except Exception as e:
+                print(f"[BALANCE] 同步后刷新失败: {e}")
 
     _EXECUTOR.submit(_bg_sync)
     return {"success": True, "total": len(active), "message": f"开始逐个同步 {len(active)} 个账户"}

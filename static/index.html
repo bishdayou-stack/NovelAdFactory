@@ -5634,6 +5634,12 @@
         if (cb) cb();
       }).catch(function() {});
     }
+
+    // 手动同步后强制重拉余额（服务端已在同步时刷新缓存）
+    function invalidateMetaBalances(cb) {
+      _metaBalancesFetchedAt = 0;
+      loadMetaBalances(cb);
+    }
     function metaStatusDot(metaStatus) {
       // 根据 Meta 真实状态返回指示点颜色
       if (!metaStatus) return 'bg-slate-500';
@@ -7268,6 +7274,7 @@
         if (result.success) {
           statusEl.textContent = '✅ ' + result.message;
           refreshMetaDashboard(); loadMetaLastSync(); loadCampLastSync();
+          invalidateMetaBalances(renderMetaAccountTree);
           setTimeout(function() { statusEl.textContent = ''; }, 5000);
         } else {
           statusEl.textContent = '✗ ' + (result.message || '更新失败');
@@ -7289,6 +7296,7 @@
         if (result.success) {
           statusEl.textContent = '✅ ' + result.message;
           campLoadTable(); loadCampLastSync();
+          invalidateMetaBalances(renderCampTree);
           setTimeout(function() { statusEl.textContent = ''; }, 5000);
         } else {
           statusEl.textContent = '✗ ' + (result.message || '更新失败');
@@ -7312,6 +7320,7 @@
         if (result.success) {
           statusEl.textContent = '✅ ' + result.message;
           campLoadTable(); loadCampLastSync();
+          invalidateMetaBalances(renderCampTree);
           setTimeout(function() { statusEl.textContent = ''; }, 5000);
         } else {
           statusEl.textContent = '✗ ' + (result.message || '更新失败');
@@ -7367,6 +7376,7 @@
             refreshMetaDashboard();
             loadMetaLastSync();
             loadCampLastSync();
+            invalidateMetaBalances(renderMetaAccountTree);
           }
           // 超时 20 分钟（3秒×400次）
           if (pollCount > 400) { clearInterval(timer); statusEl.textContent = '同步超时(20分钟)'; }
