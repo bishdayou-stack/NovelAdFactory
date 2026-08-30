@@ -1117,6 +1117,12 @@ def _load_default_token() -> Optional[str]:
         return ""
 
 
+def _bj_now():
+    """当前北京时间（Meta 账户为东八区，同步日期范围统一按北京日历。
+    修复：原用 utcnow()，北京 0-8 点时 UTC 还是昨天，导致账户正在跑的「今天」被切掉、页面显示 0）"""
+    return dt.utcnow() + timedelta(hours=8)
+
+
 def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
                                      from_date: str, to_date: str,
                                      user_id: int,
@@ -1288,12 +1294,12 @@ def _sync_one_meta_account(act_id: str, access_token: str,
     scope: all(全部), meta(仅看板insights), campaign(仅广告系列breakdown+statuses)"""
     t_start = time.time()
     last_date = database.get_meta_sync_state(act_id, user_id)
-    today = dt.utcnow().strftime("%Y-%m-%d")
+    today = _bj_now().strftime("%Y-%m-%d")
 
     if last_date:
         from_date = (dt.strptime(last_date, "%Y-%m-%d") - timedelta(days=2)).strftime("%Y-%m-%d")
         # 确保不早于 90 天前
-        min_date = (dt.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
+        min_date = (_bj_now() - timedelta(days=90)).strftime("%Y-%m-%d")
         if from_date < min_date:
             from_date = min_date
         if from_date > today:
@@ -1301,9 +1307,9 @@ def _sync_one_meta_account(act_id: str, access_token: str,
         # 增量同步：广告系列侧从上次同步日拉取
         campaign_from = from_date
     else:
-        from_date = (dt.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
+        from_date = (_bj_now() - timedelta(days=7)).strftime("%Y-%m-%d")
         # 首次同步：广告系列侧只拉近7天
-        campaign_from = (dt.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
+        campaign_from = (_bj_now() - timedelta(days=7)).strftime("%Y-%m-%d")
 
     # 先检查账户是否已被 Meta 停用
     info, info_err = meta_api.get_ad_account_info(act_id, access_token)
