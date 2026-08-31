@@ -82,6 +82,7 @@ def get_summary(start_date: str = None, end_date: str = None, account: str = Non
 
         order_row = conn.execute(
             f"SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS total_amount, "
+            f"COALESCE(SUM(CASE WHEN json_extract(extra_data, '$.rechargeCoins') IS NULL THEN amount ELSE 0 END), 0) AS subscribe_amount, "
             f"SUM(CASE WHEN json_extract(extra_data, '$.rechargeCoins') IS NOT NULL THEN 1 ELSE 0 END) AS coin_count, "
             f"SUM(CASE WHEN json_extract(extra_data, '$.rechargeCoins') IS NULL THEN 1 ELSE 0 END) AS subscribe_count "
             f"FROM orders WHERE {' AND '.join(order_where)}",
@@ -90,17 +91,21 @@ def get_summary(start_date: str = None, end_date: str = None, account: str = Non
 
         total_spend = row["total_spend"] or 0
         total_revenue = order_row["total_amount"] or 0
+        subscribe_amount = order_row["subscribe_amount"] or 0
         order_count = order_row["cnt"] or 0
         subscribe_count = order_row["subscribe_count"] or 0
         coin_count = order_row["coin_count"] or 0
 
         roi = round(total_revenue / total_spend, 2) if total_spend > 0 else 0
+        subscribe_roi = round(subscribe_amount / total_spend, 2) if total_spend > 0 else 0
         cpa = round(total_spend / order_count, 2) if order_count > 0 else 0
 
         return {
             "total_spend": round(total_spend, 2),
             "total_revenue": round(total_revenue, 2),
             "roi": roi,
+            "subscribe_amount": round(subscribe_amount, 2),
+            "subscribe_roi": subscribe_roi,
             "order_count": order_count,
             "subscribe_count": subscribe_count,
             "coin_count": coin_count,
@@ -650,6 +655,7 @@ def get_user_ranking(start_date: str = None, end_date: str = None) -> List[Dict[
         # 按用户汇总成功订单的实际收入（来自 orders 表）+ 订阅/金币拆分
         order_sql = f"""
             SELECT o.user_id, COUNT(*) AS order_count, COALESCE(SUM(o.amount), 0) AS total_revenue,
+                   COALESCE(SUM(CASE WHEN json_extract(o.extra_data, '$.rechargeCoins') IS NULL THEN o.amount ELSE 0 END), 0) AS subscribe_amount,
                    SUM(CASE WHEN json_extract(o.extra_data, '$.rechargeCoins') IS NOT NULL THEN 1 ELSE 0 END) AS coin_count,
                    SUM(CASE WHEN json_extract(o.extra_data, '$.rechargeCoins') IS NULL THEN 1 ELSE 0 END) AS subscribe_count
             FROM orders o
@@ -666,9 +672,11 @@ def get_user_ranking(start_date: str = None, end_date: str = None) -> List[Dict[
             orow = order_map.get(uid)
             orders = orow["order_count"] if orow else 0
             order_revenue = orow["total_revenue"] if orow else 0
+            subscribe_amount = orow["subscribe_amount"] if orow else 0
             coin_count = orow["coin_count"] if orow else 0
             subscribe_count = orow["subscribe_count"] if orow else 0
             roi = round(order_revenue / spend, 2) if spend > 0 else 0
+            subscribe_roi = round(subscribe_amount / spend, 2) if spend > 0 else 0
             cpa = round(spend / orders, 2) if orders > 0 else 0
             results.append({
                 "user_id": uid,
@@ -676,6 +684,8 @@ def get_user_ranking(start_date: str = None, end_date: str = None) -> List[Dict[
                 "total_spend": round(spend, 2),
                 "total_revenue": round(order_revenue, 2),
                 "roi": roi,
+                "subscribe_amount": round(subscribe_amount, 2),
+                "subscribe_roi": subscribe_roi,
                 "order_count": orders,
                 "subscribe_count": subscribe_count,
                 "coin_count": coin_count,

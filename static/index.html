@@ -667,10 +667,11 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-5 gap-3 mb-4">
+      <div class="grid grid-cols-6 gap-3 mb-4">
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">总消耗</div><div id="kpiSpend" class="text-xl font-bold text-slate-800 mt-1">-</div></div>
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">总收入</div><div id="kpiRevenue" class="text-xl font-bold text-emerald-600 mt-1">-</div></div>
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">ROI</div><div id="kpiRoi" class="text-xl font-bold text-indigo-600 mt-1">-</div></div>
+        <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">订阅首充ROI</div><div id="kpiSubRoi" class="text-xl font-bold text-teal-600 mt-1">-</div></div>
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">合计订单</div><div id="kpiOrders" class="text-xl font-bold text-violet-600 mt-1">-</div><div id="kpiOrdersBreakdown" class="text-[10px] text-slate-500 mt-1 leading-tight whitespace-pre-line"></div></div>
         <div class="card p-3.5 text-center"><div class="text-[10px] text-slate-500 font-medium">单次成效成本</div><div id="kpiCpa" class="text-xl font-bold text-amber-600 mt-1">-</div></div>
       </div>
@@ -700,8 +701,8 @@
           <h3 class="text-xs font-semibold text-slate-700 mb-3">用户汇总排名</h3>
           <div class="overflow-x-auto">
             <table class="w-full text-xs">
-              <thead><tr class="border-b-2 border-slate-100 text-slate-500 text-left"><th class="pb-2 font-medium">#</th><th class="pb-2 font-medium">用户</th><th class="pb-2 font-medium text-right">总消耗</th><th class="pb-2 font-medium text-right">总收入</th><th class="pb-2 font-medium text-right">订阅订单</th><th class="pb-2 font-medium text-right">金币订单</th><th class="pb-2 font-medium text-right">合计订单</th><th class="pb-2 font-medium text-right">ROI</th><th class="pb-2 font-medium text-right">单次成效成本</th></tr></thead>
-              <tbody id="dashUserRankBody"><tr><td colspan="9" class="py-4 text-center text-slate-300">-</td></tr></tbody>
+              <thead><tr class="border-b-2 border-slate-100 text-slate-500 text-left"><th class="pb-2 font-medium">#</th><th class="pb-2 font-medium">用户</th><th class="pb-2 font-medium text-right">总消耗</th><th class="pb-2 font-medium text-right">总收入</th><th class="pb-2 font-medium text-right">订阅订单</th><th class="pb-2 font-medium text-right">金币订单</th><th class="pb-2 font-medium text-right">合计订单</th><th class="pb-2 font-medium text-right">ROI</th><th class="pb-2 font-medium text-right">订阅首充ROI</th><th class="pb-2 font-medium text-right">单次成效成本</th></tr></thead>
+              <tbody id="dashUserRankBody"><tr><td colspan="10" class="py-4 text-center text-slate-300">-</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -4973,11 +4974,12 @@
           tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-slate-300">暂无数据</td></tr>';
           return;
         }
-        var sumSpend = 0, sumRevenue = 0, sumOrders = 0, sumSub = 0, sumCoin = 0;
+        var sumSpend = 0, sumRevenue = 0, sumOrders = 0, sumSub = 0, sumCoin = 0, sumSubAmount = 0;
         var html = data.map(function(r, i) {
           sumSpend += (r.total_spend || 0);
           sumRevenue += (r.total_revenue || 0);
           sumOrders += (r.order_count || 0);
+          sumSubAmount += (r.subscribe_amount || 0);
           var sub = r.subscribe_count || 0, coin = r.coin_count || 0;
           var total = sub + coin;
           sumSub += sub; sumCoin += coin;
@@ -4992,10 +4994,12 @@
             '<td class="py-1.5 text-right text-slate-600 whitespace-nowrap">' + coin + ' <span class="text-[10px] text-slate-400">(' + coinPct + '%)</span></td>' +
             '<td class="py-1.5 text-right font-medium text-slate-800">' + (r.order_count || 0) + '</td>' +
             '<td class="py-1.5 text-right font-medium ' + roiColorClass(r.roi, false) + '">' + (r.roi || 0).toFixed(2) + '</td>' +
+            '<td class="py-1.5 text-right font-medium ' + roiColorClass(r.subscribe_roi, false) + '">' + (r.subscribe_roi || 0).toFixed(2) + '</td>' +
             '<td class="py-1.5 text-right text-amber-600 font-medium">¥' + ((r.cpa || 0)).toLocaleString(undefined, {minimumFractionDigits: 2}) + '</td>' +
             '</tr>';
         }).join('');
         var sumRoi = sumSpend > 0 ? (sumRevenue / sumSpend).toFixed(2) : '-';
+        var sumSubRoi = sumSpend > 0 ? (sumSubAmount / sumSpend).toFixed(2) : '-';
         var sumCpa = sumOrders > 0 ? (sumSpend / sumOrders).toFixed(2) : '-';
         var sumSubPct = sumOrders > 0 ? (sumSub / sumOrders * 100).toFixed(1) : '0.0';
         var sumCoinPct = sumOrders > 0 ? (sumCoin / sumOrders * 100).toFixed(1) : '0.0';
@@ -5007,10 +5011,11 @@
           '<td class="py-2 text-right text-slate-800 whitespace-nowrap">' + sumCoin + ' <span class="text-[10px] text-slate-500">(' + sumCoinPct + '%)</span></td>' +
           '<td class="py-2 text-right text-slate-800">' + sumOrders + '</td>' +
           '<td class="py-2 text-right text-slate-800">' + sumRoi + '</td>' +
+          '<td class="py-2 text-right text-slate-800">' + sumSubRoi + '</td>' +
           '<td class="py-2 text-right text-slate-800">¥' + sumCpa + '</td></tr>';
         tbody.innerHTML = html;
       }).catch(function() {
-        document.getElementById('dashUserRankBody').innerHTML = '<tr><td colspan="9" class="text-center py-4 text-slate-300">加载失败</td></tr>';
+        document.getElementById('dashUserRankBody').innerHTML = '<tr><td colspan="10" class="text-center py-4 text-slate-300">加载失败</td></tr>';
       });
     }
 
@@ -5067,6 +5072,7 @@
         document.getElementById('kpiSpend').textContent = '¥' + (d.total_spend || 0).toLocaleString();
         document.getElementById('kpiRevenue').textContent = '¥' + (d.total_revenue || 0).toLocaleString();
         document.getElementById('kpiRoi').textContent = (d.roi || 0).toFixed(2);
+        document.getElementById('kpiSubRoi').textContent = (d.subscribe_roi || 0).toFixed(2);
         document.getElementById('kpiOrders').textContent = (d.order_count || 0).toLocaleString();
         var _subN = d.subscribe_count || 0, _coinN = d.coin_count || 0, _totN = d.order_count || 0;
         var _break = [];
