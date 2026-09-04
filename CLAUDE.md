@@ -41,19 +41,22 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
          → ffmpeg 合成滚屏视频 + 背景音乐
 ```
 
+另有一条**独立 AI 视频路径**（`video_gen.py`，与图片生成解耦）：小说原文 → LLM 镜头分解脚本（`prompts/video_script.txt`）→ 视频模型逐镜头生成（OpenAI 兼容 `/v1/videos`，sora/veo/grok 等模型族）→ ffmpeg 拼接。前端走 `/api/video/analyze|generate`，进度经 `/api/video/progress|cancel`，产物入历史记录。
+
 ## 关键文件
 
 | 文件 | 作用 |
 |------|------|
-| [main.py](main.py) (~5800行) | FastAPI 后端全部路由与逻辑：素材生成、数据看板（pingykj + Meta）、小说管理、scraper 控制、投放引擎、Meta 管理中心（BM/App/账户/广告/定时规则）、多用户认证、SSE 推送、启动恢复。全部 `@app.*` 路由都在此文件 |
-| [static/index.html](static/index.html) (~7100行) | 单文件前端（原生 JS + Tailwind）：生产中心、历史记录、素材浏览、视频样式、小说分析、数据看板、Meta 管理中心（账户树 + BM 分组）、投放管理、用户管理等模块 |
+| [main.py](main.py) (~6800行) | FastAPI 后端全部路由与逻辑：素材生成、数据看板（pingykj + Meta）、小说管理、scraper 控制、投放引擎、Meta 管理中心（BM/App/账户/广告/定时规则）、多用户认证、SSE 推送、启动恢复。全部 `@app.*` 路由都在此文件 |
+| [static/index.html](static/index.html) (~8200行) | 单文件前端（原生 JS + Tailwind）：生产中心、历史记录、素材浏览、视频样式、小说分析、数据看板、Meta 管理中心（账户树 + BM 分组）、投放管理、用户管理等模块 |
 | [database.py](database.py) | SQLite 数据层：建表/迁移、session CRUD、广告数据 UPSERT、订单写入、小说书籍/章节、同步日志、别名、Meta 账户、投放模板/队列、用户/权限、app_config/bm_config、实体状态、定时规则 |
 | [scraper.py](scraper.py) | 双源爬虫：pingykj API 登录/验证码/token 认证 + 广告日报/订单/小说数据分页同步；Meta Insights 同步（经 meta_api 模块） |
 | [meta_api.py](meta_api.py) | Meta (Facebook) Graph API v25.0 客户端：用 `subprocess` 调 curl 发 HTTP（规避 Windows SSL 与代理兼容问题）、token 管理、速率限制（4次/秒/账户）、广告图片上传、Campaign/AdSet/Ad 创建与查询、Insights |
 | [analytics.py](analytics.py) | 数据看板分析引擎：pingykj + Meta 双源 KPI 汇总、日统计、趋势、账户/用户排行、订单、小说维度统计、异常检测、Meta 三层（campaign/adset/ad）统计查询 |
 | [delivery.py](delivery.py) | 投放引擎辅助：素材审核队列 → 批量创建 Meta 广告，SSE 推送投放进度，ThreadPoolExecutor 并行投放（路由在 main.py） |
+| [video_gen.py](video_gen.py) | 独立 AI 视频生成模块（区别于图片→滚屏视频）：小说 → LLM 镜头脚本（`prompts/video_script.txt`）→ OpenAI 兼容 `/v1/videos` 接口逐镜头生成（sora/veo/grok 模型族，字段按家族适配）→ ffmpeg 可选拼接。路由 `/api/video/*`（在 main.py），接入历史记录与 SSE 进度 |
 | [config.json](config.json) | 全局配置：API Key/URL、Chat/Image 模型名、分析 prompt、默认并发数 `concurrency`；含 `meta` 块（app_id、app_secret、default_access_token、proxy、sync_interval_seconds、rate_limit_per_second、api_version）。经 `/api/config` 和 `/api/meta/config` 读写。**含密钥，勿提交真实值** |
-| [prompts/](prompts/) | 提示词规则：`system_prompt.txt`（6大钩子引擎）、`rules_core.txt`（绘图红线/情感词库）、`rules_*.txt`（按图片类型拆分）、`composition_archetypes.txt`（视觉基因模板）、`suffix_prompts.txt`、`compress_prompt.txt`、`rules_video_script.txt` |
+| [prompts/](prompts/) | 提示词规则：`system_prompt.txt`（6大钩子引擎）、`rules_core.txt`（绘图红线/情感词库）、`rules_*.txt`（按图片类型拆分）、`composition_archetypes.txt`（视觉基因模板）、`suffix_prompts.txt`、`compress_prompt.txt`、`rules_video_script.txt`（滚屏视频脚本）、`video_script.txt`（独立 AI 视频镜头分解，见 video_gen.py） |
 | [templates_index.json](templates_index.json) | 爆款模板索引（由 scripts/build_template_index_v2.py 生成） |
 | [video_styles.json](video_styles.json) | 视频文字样式配置模板（前端添加样式后填充） |
 | [scripts/](scripts/) | 离线工具脚本：build_template_index*（构建模板索引）、generate_template_descriptions.py，以及若干一次性迁移/修复脚本（fix_meta_*.py、add_meta_js.py 等） |
@@ -68,6 +71,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 - **lr_split**（1:1 左右分屏）：垂直分割，左右不同人物，需加左右标签 + 底部叙事文字
 - **tb_split**（1:1 上下分屏）：水平分割，上下不同人物/对比
 - **scroll**（9:16 竖图）：滚屏视频底图，文字由代码以滚动方式合成
+- **three_panel**（1:1 异形三宫格）：2+1 不规则分屏，4 种布局（左2右1/左1右2/上2下1/上1下2，可 random，布局词由代码注入 `resolve_three_panel_layout`）；三屏按剧情递进（困境→反击→结果），文字由 AI 输出、可代码叠加。另有 `cinematic_collage`（电影拼贴风）为 style 开关，作用于 text_single/scroll
 
 ## 并发模型
 
@@ -170,7 +174,7 @@ Token 过期后需重新登录。
 
 - **认证/用户**：`/api/auth/login|logout|me`、`/api/auth/pingykj-credentials`、`/api/users` CRUD、`/api/users/{id}/reconnect-pingykj`、`/api/users/{id}/pingykj-captcha`
 - **小说管理**：`/api/novels/list`、`/api/novels/{id}`、`/api/novels/{id}/chapters`、`/api/novels/chapters/{id}`、`/api/novels/sync-books`、`/api/novels/sync-books-full`(+`/progress`)、`/api/novels/sync-content`
-- **素材生成**：`/api/generate`、`/api/cancel`、`/api/progress[/{batch_id}]`、`/api/generate/stream/{batch_id}`、`/api/history[/{batch_id}]`、`/api/history/batch-delete`、`/api/history/{id}/download`、`/api/fetch-novel`、`/api/analyze-novel`、`/api/generate-from-analysis|prompts`、`/api/config`、`/api/video-styles`、`/api/templates`、`/api/fonts`、`/api/prompt-rules`、`/api/stats`
+- **素材生成**：`/api/generate`、`/api/cancel`、`/api/progress[/{batch_id}]`、`/api/generate/stream/{batch_id}`、`/api/history[/{batch_id}]`、`/api/history/batch-delete`、`/api/history/{id}/download`、`/api/fetch-novel`、`/api/analyze-novel`、`/api/generate-from-analysis|prompts`、`/api/config`、`/api/templates`、`/api/fonts`、`/api/prompt-rules`、`/api/stats`；**AI 视频**：`/api/video/analyze`、`/api/video/generate`、`/api/video/progress|cancel/{batch_id}`、`/api/video-styles`
 - **数据看板**：`/api/dashboard/summary`、`/daily-stats`、`/accounts`(+DELETE `/{account_id}`)、`/trend`、`/orders`、`/account-ranking`、`/user-ranking`、`/anomalies`、`/novel-stats`、`/book-stats`、`/account-aliases`
 - **爬虫控制**：`/api/scraper/login|captcha|sync|sync-status|reset-sync|session-status|logout|sync-interval`
 - **Meta 账户/BM/App**：`/api/meta/accounts` CRUD、`/api/meta/accounts/{id}/refresh-token`、`/api/meta/accounts/add-manual`、`/api/meta/assign`、`/api/meta/discover`、`/api/meta/accounts/import`、`/api/bm` CRUD(+`/discover`、`/{id}/owner`)、`/api/app` CRUD
