@@ -21,6 +21,7 @@ import imageio_ffmpeg
 
 # LLM 系统提示词（用户提供，逐条保留）
 _SCRIPT_PROMPT_PATH = Path(__file__).parent / "prompts" / "video_script.txt"
+_PROMO_PROMPT_PATH = Path(__file__).parent / "prompts" / "video_promo.txt"
 
 # 每模型家族参数映射（geeknow 文档 https://docs.geeknow.top/api-reference/videos/model-matrix）：
 # 全部模型统一入口 POST /v1/videos，仅字段名按家族区分；未知家族发通用字段（seconds + aspect_ratio）
@@ -177,6 +178,40 @@ def generate_video_script(api_url: str, api_key: str, chat_model_name: str,
     return _parse_shot_json(raw)
 
 
+def generate_promo_script(api_url: str, api_key: str, chat_model_name: str,
+                          novel_content: str) -> List[dict]:
+    """单段 FB 推广：LLM 从小说原文挑出最具推广冲击力的一段，输出单个 10-15 秒连续镜头。
+
+    返回单元素 list（schema 与镜头脚本一致，便于沿用前端/历史渲染）。时长强制落在 10-15。"""
+    system = _PROMO_PROMPT_PATH.read_text(encoding="utf-8")
+    payload = {
+        "model": chat_model_name,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": f"INPUT NOVEL CONTENT:\n{novel_content.strip()}"},
+        ],
+        "temperature": 0.85,
+        "max_tokens": 4096,
+    }
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    url = api_url.rstrip("/") + "/chat/completions"
+    j, code, curl_err = _curl_json(url, payload, headers, 300)
+    if curl_err or code >= 400:
+        raise RuntimeError(f"Chat API HTTP {code}: {curl_err or json.dumps(j, ensure_ascii=False)[:300]}")
+    raw = j["choices"][0]["message"]["content"].strip()
+    print(f"[VIDEO PROMO] 原始响应({len(raw)}字符)")
+    shots = _parse_shot_json(raw)
+    if not shots:
+        raise ValueError("未提取到有效推广片段")
+    s = shots[0]
+    try:
+        dur = int(s.get("duration_seconds") or 12)
+    except (TypeError, ValueError):
+        dur = 12
+    s["duration_seconds"] = max(10, min(15, dur))  # grok 单次上限 15s，LLM 在 10-15 内自选
+    return [s]
+
+
 # ====== 步骤2：统一视频模型适配层 ======
 
 class VideoGeneratorAdapter:
@@ -198,15 +233,17 @@ class VideoGeneratorAdapter:
 
     def format_prompt(self, shot_data: dict) -> dict:
         """标准 shot_data → 对应模型家族的创建任务 payload（统一 POST /v1/videos）"""
-        dur = int(max(2, min(5, int(shot_data.get("duration_seconds", 3) or 3))))
+        name = self.model_name.lower()
+        fn = next((_MODEL_PARAM_MAP[k] for k in _MODEL_PARAM_MAP if name.startswith(k)), _p_generic)
+        # 单次时长上限按模型族：grok-imagine-video* 支持到 15s（FB 单段推广 10-15s）；其余维持 5s 上限
+        cap = 15 if name.startswith("grok") else 5
+        dur = int(max(2, min(cap, int(shot_data.get("duration_seconds", 3) or 3))))
         visual = str(shot_data.get("visual_prompt", "")).strip()
         shot_type = str(shot_data.get("shot_type", "")).strip()
         camera = str(shot_data.get("camera_movement", "")).strip()
         prompt = ", ".join(x for x in [shot_type, camera] if x and x.lower() != "static") + \
             (": " if (shot_type or camera) else "") + visual
         payload = {"model": self.model_name, "prompt": prompt}
-        name = self.model_name.lower()
-        fn = next((_MODEL_PARAM_MAP[k] for k in _MODEL_PARAM_MAP if name.startswith(k)), _p_generic)
         return fn(payload, dur, self.aspect_ratio)
 
     def _create_task(self, payload: dict) -> str:
@@ -324,9 +361,10 @@ def run_video_generation(batch_dir: Path, chat_cfg: dict, video_cfg: dict, param
         script = params.get("script") or []
         if not script:
             snap(stage="script")
-            script = generate_video_script(
+            # 单段 FB 推广模式：从小说原文提取 1 条 10-15s 片段
+            script = generate_promo_script(
                 chat_cfg["api_url"], chat_cfg["api_key"], chat_cfg["chat_model_name"],
-                params["novel_content"], int(params.get("shot_count", 6)))
+                params["novel_content"])
             state["script"] = script
             snap(stage="generate")
         else:
@@ -363,7 +401,10 @@ def run_video_generation(batch_dir: Path, chat_cfg: dict, video_cfg: dict, param
             snap()
 
         done_files = [batch_dir / s["file"] for s in state["shots"] if s["file"]]
-        if done_files and params.get("auto_assemble"):
+        if len(done_files) == 1:
+            # 单段推广：该片段即最终产物，无需 ffmpeg 拼接
+            state["full_video"] = done_files[0].name
+        elif done_files and params.get("auto_assemble"):
             snap(stage="assemble")
             full = batch_dir / "full_video.mp4"
             try:

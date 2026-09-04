@@ -1093,7 +1093,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="space-y-4">
           <div class="card p-5 space-y-4">
-            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">视频生成 <span class="text-[11px] text-slate-400 font-normal">小说 → 镜头脚本 → 视频（15-25 秒）</span></h3>
+            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">视频生成 <span class="text-[11px] text-slate-400 font-normal">小说 → 提取推广片段 → grok 单条 10-15s（FB 9:16 竖屏）</span></h3>
             <div class="flex items-center gap-2">
               <span class="text-[11px] font-medium text-slate-500 shrink-0">或输入小说ID</span>
               <input id="vgNovelId" type="text" class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" placeholder="输入小说ID，点击「生成脚本预览」自动获取内容..." />
@@ -1105,28 +1105,23 @@
           </div>
           <div class="card p-5 space-y-4">
             <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">生产配置 <span class="text-[11px] text-slate-400 font-normal">视频模型在「配置管理」页设置（当前：<span id="vgModelLabel">-</span>）</span></h3>
-            <div class="grid grid-cols-2 gap-3">
-              <div><label class="mb-1 block text-[11px] text-slate-500">镜头数（4-8）</label>
-                <select id="vgShotCount" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50">
-                  <option value="4">4</option><option value="5">5</option><option value="6" selected>6</option>
-                  <option value="7">7</option><option value="8">8</option>
-                </select>
-              </div>
-              <div><label class="mb-1 block text-[11px] text-slate-500">画面比例</label>
-                <select id="vgAspect" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50">
+            <div class="flex items-center gap-4">
+              <div class="flex items-center gap-2">
+                <label class="text-[11px] text-slate-500 shrink-0">画面比例</label>
+                <select id="vgAspect" class="rounded-xl border border-slate-200 px-3 py-2 text-sm input-focus bg-slate-50/50">
                   <option value="16:9">16:9 横屏</option>
                   <option value="9:16" selected>9:16 竖屏</option>
                 </select>
               </div>
+              <span class="text-[11px] text-slate-400">单段推广：一条连续 10-15s 镜头，无拼接</span>
             </div>
-            <label class="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer"><input id="vgAutoAssemble" type="checkbox" class="accent-indigo-600" /> 自动拼接完整视频（生成结束后用 ffmpeg 把片段按顺序合并）</label>
           </div>
           <div class="grid grid-cols-2 gap-3">
             <button id="vgAnalyzeBtn" type="button" onclick="vgAnalyze()" class="rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-700 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-indigo-500/20 hover:from-indigo-700 hover:to-blue-800 transition-all active:scale-[0.98] disabled:opacity-50 border-0 cursor-pointer">
-              生成脚本预览
+              提取推广片段
             </button>
             <button id="vgGenBtn" type="button" onclick="vgGenerate()" class="rounded-2xl bg-gradient-to-r from-violet-600 to-purple-700 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-violet-500/20 hover:from-violet-700 hover:to-purple-800 transition-all active:scale-[0.98] disabled:opacity-50 border-0 cursor-pointer">
-              生成视频
+              生成推广视频
             </button>
           </div>
           <div class="flex items-center justify-between">
@@ -1137,18 +1132,18 @@
         <div class="card p-5 flex flex-col min-h-[600px]">
           <h3 class="text-sm font-semibold text-slate-800 mb-4 pb-2 border-b border-slate-50">生成结果</h3>
           <div id="vgEmpty" class="flex-1 flex flex-col items-center justify-center text-slate-300">
-            <p class="text-sm text-slate-400">粘贴小说（或输入小说ID）→ 生成脚本预览 → 生成视频</p>
+            <p class="text-sm text-slate-400">粘贴小说（或输入小说ID）→ 提取推广片段 → 生成推广视频</p>
           </div>
           <div id="vgResultContent" hidden class="space-y-4">
             <div id="vgScriptSection" hidden>
-              <h4 class="text-xs font-semibold text-slate-700 mb-2">镜头脚本 <span id="vgScriptMeta" class="text-slate-400 font-normal"></span></h4>
+              <h4 class="text-xs font-semibold text-slate-700 mb-2">推广片段提示词 <span id="vgScriptMeta" class="text-slate-400 font-normal"></span></h4>
               <div class="overflow-x-auto rounded-xl border border-slate-100" id="vgScriptTable"></div>
             </div>
             <div id="vgProgressSection" hidden>
               <h4 class="text-xs font-semibold text-slate-700 mb-2">生成进度 <span id="vgProgressMeta" class="text-slate-400 font-normal"></span></h4>
               <div id="vgShotGrid" class="grid grid-cols-2 gap-3"></div>
               <div id="vgFullVideo" class="mt-4" hidden>
-                <h4 class="text-xs font-semibold text-slate-700 mb-2">完整拼接视频</h4>
+                <h4 class="text-xs font-semibold text-slate-700 mb-2">推广视频</h4>
                 <video id="vgFullPlayer" controls class="w-full rounded-xl border border-slate-100 bg-black"></video>
               </div>
             </div>
@@ -4391,24 +4386,22 @@
       var sec = document.getElementById('vgScriptSection');
       sec.hidden = _vgScript.length === 0;
       if (!_vgScript.length) return;
-      var total = _vgScript.reduce(function(a, s) { return a + (parseInt(s.duration_seconds) || 3); }, 0);
-      document.getElementById('vgScriptMeta').textContent = _vgScript.length + ' 个镜头 / 约 ' + total + ' 秒';
-      var h = '<table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-100">' +
-        '<th class="px-2 py-1.5 text-left">#</th><th class="px-2 py-1.5 text-left">景别</th>' +
-        '<th class="px-2 py-1.5 text-left">运镜</th><th class="px-2 py-1.5 text-right">秒</th>' +
-        '<th class="px-2 py-1.5 text-left">视觉描述</th><th class="px-2 py-1.5 text-left">音效提示</th>' +
-        '<th class="px-2 py-1.5 text-left">转场</th></tr></thead><tbody>';
-      _vgScript.forEach(function(s) {
-        h += '<tr class="border-b border-slate-50 text-slate-600 hover:bg-slate-50/50">' +
-          '<td class="px-2 py-1.5 font-mono">' + _vgEsc(s.shot_id) + '</td>' +
-          '<td class="px-2 py-1.5">' + _vgEsc(s.shot_type) + '</td>' +
-          '<td class="px-2 py-1.5">' + _vgEsc(s.camera_movement) + '</td>' +
-          '<td class="px-2 py-1.5 text-right">' + _vgEsc(s.duration_seconds) + '</td>' +
-          '<td class="px-2 py-1.5 max-w-md">' + _vgEsc(s.visual_prompt) + '</td>' +
-          '<td class="px-2 py-1.5 text-slate-400 max-w-[160px]">' + _vgEsc(s.audio_cue) + '</td>' +
-          '<td class="px-2 py-1.5 text-slate-400">' + _vgEsc(s.transition) + '</td></tr>';
-      });
-      document.getElementById('vgScriptTable').innerHTML = h + '</tbody></table>';
+      var s = _vgScript[0];
+      document.getElementById('vgScriptMeta').textContent = '1 条 / ' + (parseInt(s.duration_seconds) || 12) + ' 秒';
+      document.getElementById('vgScriptTable').innerHTML =
+        '<div class="p-3 space-y-2">' +
+          '<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">' +
+            '<span>景别: ' + _vgEsc(s.shot_type || '-') + '</span>' +
+            '<span>运镜: ' + _vgEsc(s.camera_movement || '-') + '</span>' +
+            '<span>时长: ' + _vgEsc(s.duration_seconds) + ' 秒</span>' +
+            '<span>音效: ' + _vgEsc(s.audio_cue || '-') + '</span>' +
+          '</div>' +
+          '<textarea id="vgPromoPrompt" rows="6" class="w-full rounded-lg border border-indigo-200 bg-indigo-50/40 px-3 py-2 text-[13px] leading-relaxed text-slate-700 input-focus resize-none"></textarea>' +
+          '<p class="text-[11px] text-slate-400">可直接编辑视觉描述，改完点「生成推广视频」即按新描述出片。</p>' +
+        '</div>';
+      var ta = document.getElementById('vgPromoPrompt');
+      ta.value = s.visual_prompt || '';
+      ta.addEventListener('input', function() { if (_vgScript[0]) _vgScript[0].visual_prompt = ta.value; });
       _vgShowResult(true);
     }
 
@@ -4416,28 +4409,30 @@
       _vgShowResult(true);
       document.getElementById('vgProgressSection').hidden = false;
       var shots = state.shots || [];
-      var done = shots.filter(function(s) { return s.state === 'done'; }).length;
-      document.getElementById('vgProgressMeta').textContent = shots.length
-        ? (done + '/' + shots.length + ' 镜头完成' + (state.full_video ? ' · 已拼接' : '')) : '';
-      var byId = {};
-      shots.forEach(function(s) { byId[s.shot_id] = s; });
-      var h = '';
-      (_vgScript.length ? _vgScript : (state.script || [])).forEach(function(s) {
-        var st = byId[s.shot_id] || { state: 'pending' };
-        var badge = { pending: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-slate-50 text-slate-500 border-slate-200">等待</span>',
-                      generating: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-blue-50 text-blue-600 border-blue-200">生成中</span>',
-                      done: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">完成</span>',
-                      failed: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-red-50 text-red-600 border-red-200" title="' + _vgEsc(st.error) + '">失败</span>' }[st.state] || _vgEsc(st.state);
-        var player = (st.state === 'done' && st.file)
-          ? '<video controls class="w-full rounded-xl border border-slate-100 bg-black" src="/static/output/' + _vgBatchId + '/' + encodeURIComponent(st.file) + '"></video>'
-          : '<div class="w-full h-28 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 text-xs px-2 text-center">' + (st.state === 'failed' ? _vgEsc(st.error || '失败') : '...') + '</div>';
-        h += '<div><div class="flex justify-between items-center text-[11px] mb-1"><span class="text-slate-600 font-medium">镜头 ' + _vgEsc(s.shot_id) + ' · ' + _vgEsc(s.duration_seconds) + 's</span>' + badge + '</div>' + player + '</div>';
-      });
-      document.getElementById('vgShotGrid').innerHTML = h;
+      var st0 = shots[0] || {};
+      var grid = document.getElementById('vgShotGrid');
       var full = document.getElementById('vgFullVideo');
-      if (state.full_video) {
+      if (shots.length > 1) {
+        // 兼容：多镜头脚本才展示逐镜头网格
+        grid.hidden = false;
+        grid.innerHTML = '<div class="col-span-2 text-xs text-slate-500 text-center py-6">' +
+          (shots.filter(function(s){return s.state==='done';}).length) + '/' + shots.length + ' 完成' +
+          (state.full_video ? ' · 已拼接' : '') + '</div>';
+        document.getElementById('vgProgressMeta').textContent = '';
+      } else {
+        grid.hidden = true;
+        document.getElementById('vgProgressMeta').textContent =
+          st0.state === 'done' ? '完成'
+          : st0.state === 'failed' ? '生成失败'
+          : state.status === 'running' ? '正在生成推广视频（单条约 1-5 分钟，请稍候）...'
+          : (state.status || '');
+      }
+      var f = state.full_video || (st0.state === 'done' ? st0.file : '');
+      if (f) {
         full.hidden = false;
-        document.getElementById('vgFullPlayer').src = '/static/output/' + _vgBatchId + '/' + encodeURIComponent(state.full_video);
+        document.getElementById('vgFullPlayer').src = '/static/output/' + _vgBatchId + '/' + encodeURIComponent(f);
+      } else {
+        full.hidden = true;
       }
       var errs = state.errors || [];
       document.getElementById('vgMsg').innerHTML = errs.length
@@ -4461,7 +4456,10 @@
           document.getElementById('vgCancelBtn').hidden = true;
           var doneN = (state.shots || []).filter(function(s) { return s.state === 'done'; }).length;
           if (state.status === 'done') {
-            document.getElementById('vgMsg').innerHTML = '<span class="text-emerald-600">完成：' + doneN + ' 个片段' + (state.full_video ? ' + 拼接视频' : '') + '，已写入历史记录</span>';
+            var isSingle = (state.shots || []).length <= 1;
+            document.getElementById('vgMsg').innerHTML = isSingle
+              ? '<span class="text-emerald-600">推广视频已生成，已写入历史记录</span>'
+              : '<span class="text-emerald-600">完成：' + doneN + ' 个片段' + (state.full_video ? ' + 拼接视频' : '') + '，已写入历史记录</span>';
           } else if (state.status === 'cancelled') {
             document.getElementById('vgMsg').innerHTML = '<span class="text-slate-500">任务已取消</span>';
           }
@@ -4492,22 +4490,22 @@
       var novel = document.getElementById('vgNovel').value.trim();
       if (!novel) { alert('请粘贴小说内容或输入小说ID'); return; }
       var btn = document.getElementById('vgAnalyzeBtn');
-      btn.disabled = true; btn.textContent = '分析中...';
-      document.getElementById('vgMsg').textContent = '正在用 LLM 拆解镜头脚本（约 30-60 秒）...';
+      btn.disabled = true; btn.textContent = '提取中...';
+      document.getElementById('vgMsg').textContent = '正在从小说中提取推广片段（约 30-60 秒）...';
       try {
         var resp = await fetch('/api/video/analyze', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ novel_content: novel, shot_count: parseInt(document.getElementById('vgShotCount').value),
+          body: JSON.stringify({ novel_content: novel,
             api_key: apiConfig.api_key, api_url: apiConfig.api_url })
         });
         var data = await resp.json();
         if (!resp.ok) throw new Error(data.detail || '失败');
         vgRenderScript(data.script);
-        document.getElementById('vgMsg').innerHTML = '<span class="text-emerald-600">脚本完成：' + data.script.length + ' 个镜头 / 约 ' + data.total_duration + ' 秒。确认无误后点「生成视频」。</span>';
+        document.getElementById('vgMsg').innerHTML = '<span class="text-emerald-600">已提取推广片段：' + data.total_duration + ' 秒单段。可编辑描述后点「生成推广视频」。</span>';
       } catch (e) {
-        document.getElementById('vgMsg').innerHTML = '<span class="text-red-500">脚本生成失败: ' + _vgEsc(e.message) + '</span>';
+        document.getElementById('vgMsg').innerHTML = '<span class="text-red-500">提取失败: ' + _vgEsc(e.message) + '</span>';
       }
-      btn.disabled = false; btn.textContent = '生成脚本预览';
+      btn.disabled = false; btn.textContent = '提取推广片段';
     }
 
     async function vgGenerate() {
@@ -4522,10 +4520,8 @@
           body: JSON.stringify({
             novel_content: novel,
             script: _vgScript,
-            shot_count: parseInt(document.getElementById('vgShotCount').value),
             aspect_ratio: document.getElementById('vgAspect').value,
             novel_id: document.getElementById('vgNovelId').value.trim(),
-            auto_assemble: document.getElementById('vgAutoAssemble').checked,
             api_key: apiConfig.api_key, api_url: apiConfig.api_url
           })
         });
@@ -4535,7 +4531,7 @@
         _vgShowResult(true);
         document.getElementById('vgProgressSection').hidden = false;
         document.getElementById('vgCancelBtn').hidden = false;
-        document.getElementById('vgMsg').textContent = '任务 #' + _vgBatchId + ' 已提交后台运行，每镜头约 1-5 分钟，可去历史记录查看';
+        document.getElementById('vgMsg').textContent = '任务 #' + _vgBatchId + ' 已提交后台运行，单条约 1-5 分钟，可去历史记录查看';
         if (_vgTimer) clearInterval(_vgTimer);
         _vgTimer = setInterval(vgPoll, 4000);
         setTimeout(vgPoll, 1000);
@@ -5854,6 +5850,15 @@
       cbs.forEach(function(cb) { cb.checked = !allChecked; });
     }
 
+    // 把导入/发现接口返回的「无可投放主页账户」警告格式化为提示文本（无可投放主页=账户与页面在 Meta 端未关联）
+    function promotableWarnText(warnings) {
+      if (!warnings || !warnings.length) return '';
+      var shown = warnings.slice(0, 5).map(function(w) { return (w.act_name || w.act_id); }).join('、');
+      var more = warnings.length > 5 ? ' 等 ' + warnings.length + ' 个' : '';
+      return '⚠ 其中 ' + warnings.length + ' 个账户在 Meta 端暂无可投放主页（' + shown + more +
+        '）：账户与主页须同属一个 Business 并在 Meta 后台完成分配，否则投放向导第3步选不到主页。';
+    }
+
     async function doImportAccounts() {
       var cbs = document.querySelectorAll('.discover-meta-cb');
       var selected = [];
@@ -5877,6 +5882,8 @@
       var result = await resp.json();
       var msg = '已导入 ' + result.count + ' 个账户';
       if (result.new_bms > 0) msg += '，自动创建 ' + result.new_bms + ' 个新 BM 配置';
+      var warn = promotableWarnText(result.promotable_warnings);
+      if (warn) msg += '\n' + warn;
       alert(msg);
       closeDiscoverPanel();
       loadMetaAccountTree();
@@ -8199,7 +8206,8 @@
           var bmCount = result.bm_count || result.count || 0;
           var acctCount = result.account_count || 0;
           msgEl.textContent = '发现并保存 ' + bmCount + ' 个 BM，自动导入 ' + acctCount + ' 个广告账户';
-          msgEl.className = 'text-xs text-emerald-400 self-center';
+          var warn = promotableWarnText(result.promotable_warnings);
+          if (warn) { msgEl.textContent += '；' + warn; msgEl.className = 'text-xs text-amber-400 self-center'; }
           loadBmTable();
         } else {
           msgEl.textContent = '发现失败: ' + (result.detail || '未知错误');

@@ -1792,13 +1792,14 @@ def get_cached_account_pages(act_id):
         return [dict(r) for r in rows]
 
 def cache_account_pages(act_id, pages):
-    """写入账户主页缓存。pages: [{"page_id","page_name"}]。"""
-    if not pages:
-        return
+    """写入账户主页缓存：先清空该账户旧缓存再写新值。
+    pages 为空列表即清除该账户缓存。整体替换而非逐行 INSERT，避免 Meta 端账户↔主页关联
+    被移除后残留旧页，导致投放时选了已失效主页而建广告报 1815645。"""
     with get_conn() as conn:
-        for p in pages:
+        conn.execute("DELETE FROM meta_account_pages WHERE act_id = ?", (act_id,))
+        for p in (pages or []):
             conn.execute(
-                "INSERT OR REPLACE INTO meta_account_pages (act_id, page_id, page_name, cached_at) "
+                "INSERT INTO meta_account_pages (act_id, page_id, page_name, cached_at) "
                 "VALUES (?,?,?,CURRENT_TIMESTAMP)",
                 (act_id, p.get("page_id", ""), p.get("page_name", "")))
 

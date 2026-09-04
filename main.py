@@ -2981,18 +2981,18 @@ def _finalize_video_meta(batch_id: int) -> None:
 
 @app.post("/api/video/analyze")
 def api_video_analyze(body: VideoAnalyzeRequest, user: dict = Depends(get_current_user)):
-    """步骤1 only：小说原文 → 镜头分解脚本 JSON（同步返回）"""
+    """步骤1 only：小说原文 → 提取 1 条 FB 推广片段（10-15s，单元素脚本，同步返回）"""
     cfg = _video_config(user, body.api_key, body.api_url)
     if not body.novel_content.strip():
         raise HTTPException(400, "请输入小说原文")
     if not cfg.get("api_key"):
         raise HTTPException(400, "未配置 API 密钥")
     try:
-        shots = video_gen.generate_video_script(
+        shots = video_gen.generate_promo_script(
             cfg["chat_api_url"], cfg["chat_api_key"], cfg["chat_model_name"],
-            body.novel_content, body.shot_count)
+            body.novel_content)
     except Exception as e:
-        raise HTTPException(500, f"脚本生成失败: {e}")
+        raise HTTPException(500, f"推广片段提取失败: {e}")
     return {"script": shots,
             "total_duration": sum(int(s.get("duration_seconds", 3) or 3) for s in shots)}
 
@@ -5041,6 +5041,8 @@ def _bm_discover(body: BmDiscoverRequest, user: dict = Depends(get_current_user)
     businesses = result.get("businesses", [])
     bm_count = 0
     acct_count = 0
+    known_ids = _act_ids_with_cached_pages()
+    to_check = []  # 本次发现且无缓存主页的新账户，供导入后预警
     # 第一步：保存 BM 配置
     for bm in businesses:
         bm_id = bm.get("id", "")
@@ -5054,6 +5056,8 @@ def _bm_discover(body: BmDiscoverRequest, user: dict = Depends(get_current_user)
             act_id = acct.get("id") or acct.get("account_id", "")
             if not act_id:
                 continue
+            if act_id not in known_ids:
+                to_check.append({"act_id": act_id, "act_name": acct.get("name", "")})
             database.upsert_meta_account(
                 act_id=act_id, act_name=acct.get("name", ""),
                 access_token=body.access_token, pingykj_account=bm_name,
@@ -5078,16 +5082,21 @@ def _bm_discover(body: BmDiscoverRequest, user: dict = Depends(get_current_user)
                 database.upsert_bm_config(bm_id, bm_name or bm_id, body.access_token, "", uid)
                 created_bms.add(bm_id)
                 bm_count += 1
+            if act_id not in known_ids:
+                to_check.append({"act_id": act_id, "act_name": acct.get("name", "")})
             database.upsert_meta_account(
                 act_id=act_id, act_name=acct.get("name", ""),
                 access_token=body.access_token, pingykj_account=bm_name,
                 status="active", user_id=uid, bm_id=bm_id
             )
             acct_count += 1
+    checked, warnings = _check_promotable_pages(to_check, body.access_token)
     return {
         "success": True,
         "bm_count": bm_count,
         "account_count": acct_count,
+        "promotable_checked": checked,
+        "promotable_warnings": warnings,
         "message": f"发现并保存 {bm_count} 个 BM，自动导入 {acct_count} 个广告账户"
     }
 
@@ -5500,7 +5509,8 @@ def _get_promote_pages(act_id: str = Query(default=""), refresh: int = Query(def
         return {"error": "账户不存在，请先在 Meta 管理中心导入该账户"}
     # 未命中：实时拉 Meta 并写缓存
     bm_id = account.get("bm_id", "")
-    token = (database.get_bm_token(bm_id) if bm_id else "") or account.get("access_token") or _load_meta_default_token()
+    bm_token = database.get_bm_token(bm_id) if bm_id else ""
+    token = bm_token or account.get("access_token") or _load_meta_default_token()
     if not token:
         return {"error": "该账户未配置有效 token，请到 BM 管理页面补充 system_token"}
     # 主页数据源用 promote_pages：只返回「该账户真正能推广」的主页，
@@ -5509,10 +5519,30 @@ def _get_promote_pages(act_id: str = Query(default=""), refresh: int = Query(def
     if err:
         return {"error": "拉取主页失败：" + err}
     result = [{"page_id": p.get("id", ""), "page_name": p.get("name", "")} for p in (pages or [])]
-    if not result:
-        return {"error": "该账户未获取到主页：请确认 BM 的 System Token 已在 Meta 后台授权主页（ADVERTISE 权限）"}
+    # 有 BM 系统 token 时合并其名下主页：系统用户走 Business 资产授权，账户可建广告，
+    # 但 promote_pages 只反映「显式账户↔页面关联」，常为空/不全（实测 Rbvn8089 系统用户 promote_pages=0 仍能建广告）。
+    # 故以 promote_pages 为主、/me/accounts 补全，避免漏列可用主页。
+    my_pages, perr = meta_api.discover_pages(token)
+    if bm_token and perr is None and my_pages:
+        seen = {p["page_id"] for p in result}
+        for p in my_pages:
+            pid = p.get("id", "")
+            if pid and pid not in seen:
+                seen.add(pid)
+                result.append({"page_id": pid, "page_name": p.get("name", "")})
+    # 成功的实时结果（含空）都落缓存；cache_account_pages 先清旧值，Meta 端关联移除后不会残留旧页
     database.cache_account_pages(act_id, result)
-    return result
+    if result:
+        return result
+    # 仅剩个人 token（无 BM token）且 promote_pages 为空：给出可执行提示而非列出（避免 1815645）
+    if perr is None and my_pages:
+        names = "、".join((p.get("name") or "") for p in my_pages[:3]) + ("…" if len(my_pages) > 3 else "")
+        return {"error": (
+            "该广告账户当前没有可投放的主页。此 Token 名下管理着 %d 个主页（%s），"
+            "但 Meta 未将其中任何主页关联到账户 %s——账户与主页必须同属一个 Business 并在 Meta 后台完成分配。"
+            "请改用该 Business 的『系统用户』Token 填入此 BM（把账户共享进该 Business 并将主页分配给系统用户），再点「刷新主页」。"
+        ) % (len(my_pages), names, account.get("act_name") or act_id)}
+    return {"error": "该账户未获取到主页：请确认 BM 的 System Token 已在 Meta 后台授权主页（ADVERTISE 权限）"}
 
 @app.get("/api/meta/account-pixels")
 def _get_account_pixels(act_id: str = Query(default=""), refresh: int = Query(default=0),
@@ -6500,6 +6530,39 @@ class ImportAccountBody(BaseModel):
     access_token: str = ""
 
 
+def _check_promotable_pages(accts, token):
+    """批量检查账户在 Meta 端可投放主页数（/act/promote_pages），用于导入后预警。
+    返回 (checked, warnings)；warnings 仅含「可投放主页为 0」的账户，便于提示用户先在 Meta 后台做账户↔主页分配。
+    调用出错（token 无权限等）的账户跳过，不计入 checked。"""
+    if not accts or not token:
+        return 0, []
+    import concurrent.futures
+    checked = 0
+    warnings = []
+    def _one(a):
+        pp, err = meta_api.get_promote_pages(a["act_id"], token)
+        if err:
+            return None
+        return {"act_id": a["act_id"], "act_name": a.get("act_name", ""),
+                "promotable": len(pp or [])}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+        futs = {pool.submit(_one, a): a for a in accts}
+        for fut in concurrent.futures.as_completed(futs):
+            r = fut.result()
+            if r is None:
+                continue
+            checked += 1
+            if r["promotable"] == 0:
+                warnings.append({"act_id": r["act_id"], "act_name": r["act_name"]})
+    return checked, warnings
+
+
+def _act_ids_with_cached_pages():
+    """已有缓存主页的账户 id 集合（这些账户投放向导能正常取到主页，无需再实时检查）。"""
+    with database.get_conn() as conn:
+        return {r[0] for r in conn.execute("SELECT DISTINCT act_id FROM meta_account_pages").fetchall()}
+
+
 @app.post("/api/meta/accounts/import")
 def _import_meta_accounts(body: ImportAccountBody,
                            user: dict = Depends(get_current_user)):
@@ -6508,6 +6571,8 @@ def _import_meta_accounts(body: ImportAccountBody,
     token = body.access_token or ""
     count = 0
     created_bms = set()  # 本次导入中自动创建的 BM
+    known_ids = _act_ids_with_cached_pages()
+    to_check = []  # 本次导入且无缓存主页的账户，供导入后预警
     for acct in body.accounts:
         act_id = acct.get("id", "")
         if not act_id:
@@ -6538,6 +6603,8 @@ def _import_meta_accounts(body: ImportAccountBody,
             access_token=token, pingykj_account=bm_name,
             status=status, user_id=uid, bm_id=bm_id
         )
+        if act_id not in known_ids:
+            to_check.append({"act_id": act_id, "act_name": acct.get("name", "")})
         # 后导入覆盖：历史 Meta 数据也转移归属
         with database.get_conn() as conn:
             conn.execute(
@@ -6545,7 +6612,10 @@ def _import_meta_accounts(body: ImportAccountBody,
                 (uid, act_id)
             )
         count += 1
-    return {"success": True, "count": count, "new_bms": len(created_bms)}
+    # 导入即诊断：提示本次导入中「Meta 端无可投放主页」的账户，把问题暴露在导入环节而非投放第3步
+    checked, warnings = _check_promotable_pages(to_check, token)
+    return {"success": True, "count": count, "new_bms": len(created_bms),
+            "promotable_checked": checked, "promotable_warnings": warnings}
 
 
 class ManualAddAccountBody(BaseModel):
