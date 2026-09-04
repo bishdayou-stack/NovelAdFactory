@@ -1605,6 +1605,20 @@ def _generate_batch_thumbnails(batch_dir: Path) -> int:
     return count
 
 
+def _generate_video_thumb(video_path: Path, thumb_path: Path) -> bool:
+    """用 ffmpeg 抽取视频首帧作为封面缩略图（JPEG）。供素材浏览页视频卡片展示。"""
+    try:
+        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception as e:
+        print(f"[Thumb] 获取 ffmpeg 失败: {e}")
+        return False
+    r = _subprocess.run(
+        [ffmpeg, "-y", "-ss", "0.3", "-i", str(video_path),
+         "-frames:v", "1", "-vf", "scale='min(480,iw)':-2", "-q:v", "4", str(thumb_path)],
+        capture_output=True, timeout=30)
+    return r.returncode == 0 and thumb_path.exists() and thumb_path.stat().st_size > 0
+
+
 def composite_text_on_image(
     image_path: Path,
     text_bottom: str = "",
@@ -3554,7 +3568,7 @@ def api_batch_delete_history(body: Dict[str, List[str]]):
 
 @app.get("/api/history/{batch_id}/download")
 def api_download_batch(batch_id: str):
-    """打包下载批次中所有图片（ZIP）"""
+    """打包下载批次中所有素材（PNG 图片 + MP4 视频，ZIP）"""
     import zipfile
     import io
 
@@ -3562,14 +3576,14 @@ def api_download_batch(batch_id: str):
     if not batch_dir.exists() or not batch_dir.is_dir():
         raise HTTPException(status_code=404, detail="批次不存在")
 
-    pngs = sorted(batch_dir.glob("*.png"))
-    if not pngs:
-        raise HTTPException(status_code=404, detail="该批次无图片")
+    media = sorted(batch_dir.glob("*.png")) + sorted(batch_dir.glob("*.mp4"))
+    if not media:
+        raise HTTPException(status_code=404, detail="该批次无图片或视频")
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for png in pngs:
-            zf.write(str(png), png.name)
+        for m in media:
+            zf.write(str(m), m.name)
     buf.seek(0)
 
     return StreamingResponse(
@@ -3577,6 +3591,26 @@ def api_download_batch(batch_id: str):
         media_type="application/zip",
         headers={"Content-Disposition": f"attachment; filename=batch_{batch_id}.zip"}
     )
+
+
+@app.get("/api/media/video-poster")
+def api_video_poster(batch: str = Query(default=""), file: str = Query(default="")):
+    """返回视频封面缩略图 JPEG。首次调用用 ffmpeg 抽首帧生成 <名字>_thumb.jpg 并缓存。
+    batch/file 均做白名单校验，防目录穿越。免登录：与 /static/output 一致（<img> 无法带 Bearer 头）。"""
+    import re as _re
+    if not _re.fullmatch(r"[A-Za-z0-9_-]+", batch or "") or \
+       not _re.fullmatch(r"[A-Za-z0-9._-]+", file or "") or \
+       not (file or "").lower().endswith(".mp4"):
+        raise HTTPException(status_code=400, detail="非法文件参数")
+    batch_dir = OUTPUT_ROOT / str(batch)
+    src = batch_dir / file
+    if not src.is_file():
+        raise HTTPException(status_code=404, detail="视频不存在")
+    thumb = batch_dir / (src.stem + "_thumb.jpg")
+    if not thumb.is_file():
+        if not _generate_video_thumb(src, thumb):
+            raise HTTPException(status_code=500, detail="封面生成失败")
+    return FileResponse(str(thumb), media_type="image/jpeg")
 
 
 # ====== 配置持久化 API ======

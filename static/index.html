@@ -2617,8 +2617,8 @@
         headerDiv.className = 'flex items-center justify-between mb-3';
         var novelIdTag = data.novel_id ? '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 font-mono cursor-pointer hover:bg-indigo-100 transition-all" onclick="event.stopPropagation();document.getElementById(\'assetFilterNovelId\').value=\'' + data.novel_id + '\';assetPage=1;applyAssetFilter(1);">小说ID:' + data.novel_id + '</span>' : '';
         var creatorTag = (data.user_name || data.user_id) ? '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-100">👤 ' + escapeHtml(data.user_name || ('ID:' + data.user_id)) + '</span>' : '';
-        var imgUrls = (data.images && data.images.length > 0) ? data.images.map(function(u) { return absUrl(u); }) : [];
-        var downloadBtn = imgUrls.length > 0 ? '<button class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-all cursor-pointer" onclick="event.stopPropagation();batchDownload(' + JSON.stringify(imgUrls).replace(/"/g, '&quot;') + ')" title="逐张下载本批次全部原图">⬇ 批量下载</button>' : '';
+        var dlUrls = allMedia.map(function(m) { return absUrl(m.src); });
+        var downloadBtn = dlUrls.length > 0 ? '<button class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-all cursor-pointer" onclick="event.stopPropagation();batchDownload(' + JSON.stringify(dlUrls).replace(/"/g, '&quot;') + ')" title="逐张下载本批次全部素材">⬇ 批量下载</button>' : '';
         headerDiv.innerHTML = '<div class="flex items-center gap-3"><h4 class="text-sm font-semibold text-slate-700">批次 #' + batchId + '</h4>' + novelIdTag + creatorTag + '<span class="text-[10px] text-slate-400">' + timeStr + '</span></div><div class="flex items-center gap-2">' + downloadBtn + '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ' + (status === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500') + '">' + status + '</span></div>';
         section.appendChild(headerDiv);
 
@@ -2655,9 +2655,27 @@
             // Store prompt as data attribute on the img for copy function
             card.querySelector('img').setAttribute('data-prompt', safePrompt);
           } else {
+            var vname = String(media.src).split('/').pop();
+            var vposter = '/api/media/video-poster?batch=' + encodeURIComponent(String(data.batch_id || '')) + '&file=' + encodeURIComponent(vname);
             var vfull = absUrl(media.src);
-            card.innerHTML = '<video src="' + vfull + '" controls class="w-full rounded-2xl"></video>' +
-              '<input type="checkbox" class="absolute top-2 right-2 w-4 h-4 accent-indigo-600 cursor-pointer" data-url="' + media.src + '" data-type="video" onclick="event.stopPropagation();assetToggle(this)">';
+            card.innerHTML =
+              '<img class="aspect-square w-full object-cover cursor-pointer bg-black" loading="lazy" alt="video">' +
+              '<span class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center text-white text-xl">▶</span></span>' +
+              '<span class="card-label absolute top-2 left-2 rounded-lg bg-black/60 px-2 py-0.5 text-[10px] text-white"></span>' +
+              '<input type="checkbox" class="absolute top-2 right-2 w-4 h-4 accent-indigo-600 cursor-pointer" data-url="' + media.src + '" data-type="video">';
+            var vimg = card.querySelector('img');
+            vimg.src = vposter;
+            vimg.addEventListener('click', function(e) { e.stopPropagation(); openVideoPreview(vfull); });
+            vimg.addEventListener('error', function() {
+              if (vimg.dataset.fb) return; vimg.dataset.fb = '1';
+              var f = document.createElement('video');
+              f.src = vfull; f.muted = true; f.preload = 'metadata'; f.controls = true;
+              f.className = 'aspect-square w-full object-cover bg-black';
+              vimg.replaceWith(f);
+            });
+            card.querySelector('.card-label').textContent = media.label || '视频';
+            var vcb = card.querySelector('input[type=checkbox]');
+            vcb.addEventListener('click', function(e) { e.stopPropagation(); assetToggle(vcb); });
           }
 
           grid.appendChild(card);
@@ -7625,6 +7643,28 @@
         setTimeout(next, 600);  // 每张间隔0.6秒，避免浏览器拦截
       }
       next();
+    }
+
+    // ====== 视频播放弹窗（素材浏览等通用）======
+    function openVideoPreview(src) {
+      if (!src) return;
+      var ov = document.createElement('div');
+      ov.className = 'fixed inset-0 z-[130] flex items-center justify-center bg-black/85';
+      var box = document.createElement('div');
+      box.className = 'relative max-w-[92vw]';
+      var vid = document.createElement('video');
+      vid.src = src; vid.controls = true; vid.autoplay = true; vid.playsInline = true;
+      vid.className = 'max-w-[92vw] max-h-[85vh] rounded-xl bg-black shadow-2xl';
+      var closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕';
+      closeBtn.className = 'absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white/15 text-white text-lg hover:bg-white/30 flex items-center justify-center cursor-pointer border-0 z-10';
+      box.appendChild(vid); box.appendChild(closeBtn); ov.appendChild(box);
+      document.body.appendChild(ov);
+      function close() { vid.pause(); vid.src = ''; if (ov.parentNode) ov.parentNode.removeChild(ov); document.removeEventListener('keydown', onKey); }
+      function onKey(e) { if (e.key === 'Escape') close(); }
+      closeBtn.addEventListener('click', close);
+      ov.addEventListener('click', function(e) { if (e.target === ov) close(); });
+      document.addEventListener('keydown', onKey);
     }
 
     // ====== 图片预览导航 ======
