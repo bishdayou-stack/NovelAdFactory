@@ -24,6 +24,7 @@ REQUIREMENTS:
 6. camera_movement: ONE continuous motion per candidate (slow push-in / slow orbit / handheld drift forward / crane settle, etc.), sustained for the whole shot.
 7. audio_cue: ambient sound, a short dialogue line, or music mood that rises with the beats.
 8. concept_title ≤ 6 words; hook ≤ 12 words; each beat action ≤ 2 sentences; visual_prompt 700–1300 characters. All text ENGLISH.
+9. Convey PREMIUM MOVIE feel in every visual_prompt: choose cinematic vocabulary — shallow depth of field, anamorphic/cinematic framing, dramatic volumetric or window lighting, filmic color grade, refined wardrobe/set dressing. Avoid flat, TV-soap lighting and clinical compositions.
 
 NEGATIVE (do NOT include in visual_prompt):
 No text, no subtitles, no letters, no numbers, no watermarks, no logos, no scene cuts, no montage, no static tableau, no camera jitter, no distorted limbs.

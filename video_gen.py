@@ -27,6 +27,11 @@ _PROMO_PROMPT_PATH = Path(__file__).parent / "prompts" / "video_promo.txt"
 # 全部模型统一入口 POST /v1/videos，仅字段名按家族区分；未知家族发通用字段（seconds + aspect_ratio）
 _AR_SIZE = {"16:9": "1280x720", "9:16": "720x1280"}
 
+# 电影级视觉语言：追加到每条出片提示词末尾，保证成片有电影感（anamorphic 镜头/浅景深/体积光/胶片调色与颗粒）
+_CINEMATIC_SUFFIX = (", cinematic movie-quality look, anamorphic lens, shallow depth of field, "
+                     "volumetric lighting, filmic color grade, delicate film grain, "
+                     "high production value, dramatic premium art direction")
+
 
 def _p_sora(payload, dur, ar):
     """sora-2 / veo_3_1：seconds + size(分辨率)"""
@@ -252,7 +257,7 @@ class VideoGeneratorAdapter:
         camera = str(shot_data.get("camera_movement", "")).strip()
         prompt = ", ".join(x for x in [shot_type, camera] if x and x.lower() != "static") + \
             (": " if (shot_type or camera) else "") + visual
-        payload = {"model": self.model_name, "prompt": prompt}
+        payload = {"model": self.model_name, "prompt": (prompt + _CINEMATIC_SUFFIX).strip(", ")}
         return fn(payload, dur, self.aspect_ratio)
 
     def _create_task(self, payload: dict) -> str:
