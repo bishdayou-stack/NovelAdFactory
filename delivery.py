@@ -237,6 +237,24 @@ def resolve_output_path(url: str, output_root) -> Optional[str]:
         return None
 
 
+def _video_poster_path(video_path: str) -> Optional[str]:
+    """确保视频有本地封面 <名>_thumb.jpg（无则用 ffmpeg 抽首帧），返回路径或 None。
+    视频广告 creative 的 video_data 需要 image_hash/image_url 作缩略图。"""
+    try:
+        p = Path(video_path)
+        thumb = p.with_name(p.stem + "_thumb.jpg")
+        if not thumb.is_file():
+            import subprocess as _sp
+            import imageio_ffmpeg
+            ff = imageio_ffmpeg.get_ffmpeg_exe()
+            _sp.run([ff, "-y", "-ss", "0.3", "-i", str(p), "-frames:v", "1",
+                     "-vf", "scale='min(480,iw)':-2", "-q:v", "4", str(thumb)],
+                    capture_output=True, timeout=40)
+        return str(thumb) if thumb.is_file() else None
+    except Exception:
+        return None
+
+
 def _deliver_ad_to_adset(queue_item: dict, fb_adset_id: str, act_id: str, token: str,
                          page_id: str, link_url: str, call_to_action: str,
                          user_id: int = None) -> dict:
@@ -246,6 +264,7 @@ def _deliver_ad_to_adset(queue_item: dict, fb_adset_id: str, act_id: str, token:
     is_video = image_path.lower().endswith(".mp4")
     image_hash = None
     video_id = None
+    poster_hash = None
     if is_video:
         video_id, err = meta_api.upload_ad_video(act_id, token, image_path)
         result["fb_creative_id"] = video_id
@@ -255,11 +274,17 @@ def _deliver_ad_to_adset(queue_item: dict, fb_adset_id: str, act_id: str, token:
     if err:
         result["error"] = f"上传创意失败: {err}"
         return result
+    if is_video:
+        pp = _video_poster_path(image_path)
+        if pp:
+            poster_hash, perr = meta_api.upload_ad_image(act_id, token, pp)
+            if perr:
+                poster_hash = None
     ad_name = (queue_item.get("overlay_text", "") or str(queue_item["id"]))[:60]
     ad_id, err = meta_api.create_ad(
         act_id, token, ad_name, fb_adset_id,
         creative_name=str(queue_item["id"]), page_id=page_id,
-        image_hash=image_hash, video_id=video_id,
+        image_hash=image_hash, video_id=video_id, video_poster_image_hash=poster_hash,
         message=queue_item.get("overlay_text", ""), link_url=link_url,
         call_to_action_type=call_to_action, status="PAUSED")
     if err:
@@ -520,6 +545,7 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                         is_video = path.lower().endswith(".mp4")
                         image_hash = None
                         video_id = None
+                        poster_hash = None
                         if is_video:
                             video_id, err = meta_api.upload_ad_video(act_id, token, path)
                         else:
@@ -528,11 +554,17 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                             failed += 1
                             _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"上传创意失败: {err}"})
                             continue
+                        if is_video:
+                            pp = _video_poster_path(path)
+                            if pp:
+                                poster_hash, perr = meta_api.upload_ad_image(act_id, token, pp)
+                                if perr:
+                                    poster_hash = None
                         headline = _random.choice(headlines) if headlines else ""
                         fb_ad_id, err = meta_api.create_ad(
                             act_id, token, ad_name, fb_adset_id,
                             creative_name=ad_name, page_id=params.get("page_id", ""),
-                            image_hash=image_hash, video_id=video_id,
+                            image_hash=image_hash, video_id=video_id, video_poster_image_hash=poster_hash,
                             message=params.get("message", ""), link_url=params.get("link_url", ""),
                             call_to_action_type=params.get("call_to_action", "LEARN_MORE"),
                             headline=headline, status=status,

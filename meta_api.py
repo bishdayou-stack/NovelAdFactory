@@ -458,6 +458,7 @@ def create_ad(act_id: str, access_token: str,
               name: str, adset_id: str,
               creative_name: str, page_id: str,
               image_hash: str = None, video_id: str = None,
+              video_poster_image_hash: str = None,
               message: str = "", link_url: str = "",
               call_to_action_type: str = "LEARN_MORE",
               headline: str = "",
@@ -466,24 +467,36 @@ def create_ad(act_id: str, access_token: str,
               multi_advertiser: int = None) -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/ads"
-    object_story_spec = {
-        "page_id": page_id,
-        "link_data": {
-            "link": link_url,
-            "message": message,
-        }
-    }
-    if image_hash:
-        object_story_spec["link_data"]["image_hash"] = image_hash
     if video_id:
-        object_story_spec["link_data"]["video_id"] = video_id
-    if headline:
-        object_story_spec["link_data"]["name"] = headline
-    if call_to_action_type:
-        object_story_spec["link_data"]["call_to_action"] = {
-            "type": call_to_action_type,
-            "value": {"link": link_url},
+        # 视频广告：object_story_spec.video_data（link_data 不支持 video_id → 1443050）
+        # 外链经 call_to_action.value.link，缩略图用 image_hash（video_data 要求 image_url 或 image_hash）
+        video_data = {"video_id": video_id, "message": message or ""}
+        if video_poster_image_hash:
+            video_data["image_hash"] = video_poster_image_hash
+        if call_to_action_type and link_url:
+            video_data["call_to_action"] = {
+                "type": call_to_action_type,
+                "value": {"link": link_url},
+            }
+        object_story_spec = {"page_id": page_id, "video_data": video_data}
+    else:
+        # 图片链接广告：link_data
+        object_story_spec = {
+            "page_id": page_id,
+            "link_data": {
+                "link": link_url,
+                "message": message,
+            }
         }
+        if image_hash:
+            object_story_spec["link_data"]["image_hash"] = image_hash
+        if headline:
+            object_story_spec["link_data"]["name"] = headline
+        if call_to_action_type:
+            object_story_spec["link_data"]["call_to_action"] = {
+                "type": call_to_action_type,
+                "value": {"link": link_url},
+            }
 
     creative_obj = {
         "name": creative_name,
