@@ -4320,17 +4320,25 @@
       for (var i = start; i < end; i++) {
         var a = _dwAssets[i];
         var sel = _dwSelected.has(i);
-        // 图片用缩略图加速加载（400px JPEG，几十 KB），失败回退原图；视频保持原样
+        // 图片用缩略图；视频用封面缩略图 + ▶（点卡片即选中，发布时按 .mp4 走视频创意上传）
         var full = absUrl(a.image_url);
         var isImg = /\.png$/i.test(full);
-        var src = isImg ? full.replace(/\.png$/i, '_thumb.jpg') : full;
-        var imgTag = '<img src="' + src + '" class="w-full h-32 object-contain" loading="lazy"';
+        var isVideo = /\.mp4$/i.test(full);
+        var bodyHtml;
         if (isImg) {
+          var src = full.replace(/\.png$/i, '_thumb.jpg');
           var safeFull = full.replace(/'/g, "\\'");
-          imgTag += ' onerror="if(this.src.indexOf(\'_thumb.jpg\')!==-1&&this.getAttribute(\'data-fb\')!==\'1\'){this.setAttribute(\'data-fb\',\'1\');this.src=\'' + safeFull + '\';}"';
+          bodyHtml = '<img src="' + src + '" class="w-full h-32 object-contain" loading="lazy" onerror="if(this.src.indexOf(\'_thumb.jpg\')!==-1&&this.getAttribute(\'data-fb\')!==\'1\'){this.setAttribute(\'data-fb\',\'1\');this.src=\'' + safeFull + '\';}" />';
+        } else if (isVideo) {
+          var vParts = full.split('/');
+          var vFile = encodeURIComponent(vParts[vParts.length - 1]);
+          var vBatch = encodeURIComponent(vParts[vParts.length - 2] || '');
+          var vPoster = '/api/media/video-poster?batch=' + vBatch + '&file=' + vFile;
+          bodyHtml = '<div class="relative w-full h-32 bg-black overflow-hidden"><img src="' + vPoster + '" class="w-full h-full object-contain" loading="lazy" onerror="this.style.display=\'none\'"><span class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="w-9 h-9 rounded-full bg-black/55 text-white flex items-center justify-center text-sm">▶</span></span></div>';
+        } else {
+          bodyHtml = '<img src="' + full + '" class="w-full h-32 object-contain" loading="lazy" />';
         }
-        imgTag += '>';
-        html += '<div class="relative cursor-pointer bg-slate-900 rounded-lg overflow-hidden border ' + (sel ? 'border-indigo-500' : 'border-slate-700') + '" onclick="dwToggleAsset(' + i + ')">' + imgTag + '<div class="absolute inset-0 ' + (sel ? 'bg-indigo-500/10' : '') + '"></div>' + (sel ? '<div class="absolute top-1 right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs flex items-center justify-center">✓</div>' : '') + '</div>';
+        html += '<div class="relative cursor-pointer bg-slate-900 rounded-lg overflow-hidden border ' + (sel ? 'border-indigo-500' : 'border-slate-700') + '" onclick="dwToggleAsset(' + i + ')">' + bodyHtml + '<div class="absolute inset-0 ' + (sel ? 'bg-indigo-500/10' : '') + '"></div>' + (sel ? '<div class="absolute top-1 right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs flex items-center justify-center">✓</div>' : '') + '</div>';
       }
       el.innerHTML = html;
       dwRenderAssetPager(total, totalPages);
