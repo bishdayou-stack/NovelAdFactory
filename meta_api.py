@@ -470,9 +470,12 @@ def create_ad(act_id: str, access_token: str,
     if video_id:
         # 视频广告：object_story_spec.video_data（link_data 不支持 video_id → 1443050）
         # 外链经 call_to_action.value.link，缩略图用 image_hash（video_data 要求 image_url 或 image_hash）
+        # 广告标题用 video_data.title（实测 name 会报 1443050，title 通过）
         video_data = {"video_id": video_id, "message": message or ""}
         if video_poster_image_hash:
             video_data["image_hash"] = video_poster_image_hash
+        if headline:
+            video_data["title"] = headline
         if call_to_action_type and link_url:
             video_data["call_to_action"] = {
                 "type": call_to_action_type,

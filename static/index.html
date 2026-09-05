@@ -2205,7 +2205,10 @@
       if (tab === 'meta-campaign') { loadCampPage(); }
       if (tab === 'meta-gallery') { loadGalleryPage(); }
       if (tab === 'meta-assign') { loadAssignPage(); }
-      if (tab === 'delivery-wizard') { dwLoadOptions(); }
+      if (tab === 'delivery-wizard') {
+        // 从导航进入：首次需完整初始化（含加载标题库→随机填充标题池），否则刷新后标题不会出现
+        if (!window._dwWizardInited) { window._dwWizardInited = true; dwInitBatch(); }
+      }
       if (tab === 'users') loadUserList();
     }
 
