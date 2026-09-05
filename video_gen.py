@@ -257,6 +257,10 @@ class VideoGeneratorAdapter:
         camera = str(shot_data.get("camera_movement", "")).strip()
         prompt = ", ".join(x for x in [shot_type, camera] if x and x.lower() != "static") + \
             (": " if (shot_type or camera) else "") + visual
+        audio = str(shot_data.get("audio_cue", "") or "").strip()
+        if audio:
+            # 模型支持同步声音（grok-imagine-video 等）：把音效/对白/音乐氛围并入提示词
+            prompt = (prompt + ", " if prompt else "") + audio
         payload = {"model": self.model_name, "prompt": (prompt + _CINEMATIC_SUFFIX).strip(", ")}
         return fn(payload, dur, self.aspect_ratio)
 
@@ -393,6 +397,7 @@ def run_video_generation(batch_dir: Path, chat_cfg: dict, video_cfg: dict, param
         for shot in script:
             sid = int(shot.get("shot_id", len(state["shots"]) + 1))
             state["shots"].append({"shot_id": sid, "state": "pending", "file": "",
+                                   "title": shot.get("concept_title") or "",
                                    "error": "", "duration": int(shot.get("duration_seconds", 3) or 3)})
         snap()
 

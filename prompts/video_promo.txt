@@ -22,7 +22,7 @@ REQUIREMENTS:
 4. Pristine/clean polished aesthetic for all characters (e.g., "pristine white dress", "sharp tailored suit", "immaculate hair").
 5. duration_seconds: an integer between 10 and 15.
 6. camera_movement: ONE continuous motion per candidate (slow push-in / slow orbit / handheld drift forward / crane settle, etc.), sustained for the whole shot.
-7. audio_cue: ambient sound, a short dialogue line, or music mood that rises with the beats.
+7. audio_cue: one short English line specifying the sound the video carries — a brief ambient sound, a half-line of dialogue, or a music mood that rises with the beats (e.g., "sound of rain against glass, low strings swelling", "she whispers 'you kept this?', then silence"). MUST be included in the JSON output. Do NOT put speech/sound instructions inside visual_prompt.
 8. concept_title ≤ 6 words; hook ≤ 12 words; each beat action ≤ 2 sentences; visual_prompt 700–1300 characters. All text ENGLISH.
 9. Convey PREMIUM MOVIE feel in every visual_prompt: choose cinematic vocabulary — shallow depth of field, anamorphic/cinematic framing, dramatic volumetric or window lighting, filmic color grade, refined wardrobe/set dressing. Avoid flat, TV-soap lighting and clinical compositions.
 
@@ -38,6 +38,7 @@ OUTPUT FORMAT (JSON array of exactly FIVE shot objects; story_beats is for displ
     "shot_type": "medium shot",
     "camera_movement": "slow push-in",
     "duration_seconds": 13,
+    "audio_cue": "crackling fire, her voice cold: 'you sold it for what?', strings cutting off as the door slams",
     "story_beats": [
       {{"sec": "0-4", "action": "She turns the ring in the lamplight and finds the pawn ticket under his cuff", "emotion": "shock, dread"}},
       {{"sec": "4-8", "action": "He returns grinning; she thrusts the ticket at him, voice cracking from hurt to fury", "emotion": "betrayal, rage"}},
@@ -52,6 +53,7 @@ OUTPUT FORMAT (JSON array of exactly FIVE shot objects; story_beats is for displ
     "shot_type": "close-up",
     "camera_movement": "handheld drift forward",
     "duration_seconds": 11,
+    "audio_cue": "doorbell chime, muffled footsteps, a low pulse under her whispered 'who are you?'",
     "story_beats": [
       {{"sec": "0-4", "action": "...", "emotion": "..."}},
       {{"sec": "4-7", "action": "...", "emotion": "..."}},

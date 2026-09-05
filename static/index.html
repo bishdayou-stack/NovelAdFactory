@@ -1093,7 +1093,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="space-y-4">
           <div class="card p-5 space-y-4">
-            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">视频生成 <span class="text-[11px] text-slate-400 font-normal">小说 → 候选推广剧本 → 点选 → grok 单条 10-15s（FB 9:16 竖屏）</span></h3>
+            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">视频生成 <span class="text-[11px] text-slate-400 font-normal">小说 → 候选推广剧本（可多选同时生成）→ grok 单条 10-15s（FB 9:16 竖屏）</span></h3>
             <div class="flex items-center gap-2">
               <span class="text-[11px] font-medium text-slate-500 shrink-0">或输入小说ID</span>
               <input id="vgNovelId" type="text" class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" placeholder="输入小说ID，点击「生成脚本预览」自动获取内容..." />
@@ -1113,7 +1113,7 @@
                   <option value="9:16" selected>9:16 竖屏</option>
                 </select>
               </div>
-              <span class="text-[11px] text-slate-400">单段推广：一条连续 10-15s 镜头，无拼接</span>
+              <span class="text-[11px] text-slate-400">单条成片：连续 10-15s 一条镜头；多选时顺序生成多个成片（不拼接）</span>
             </div>
           </div>
           <div class="grid grid-cols-2 gap-3">
@@ -1132,7 +1132,7 @@
         <div class="card p-5 flex flex-col min-h-[600px]">
           <h3 class="text-sm font-semibold text-slate-800 mb-4 pb-2 border-b border-slate-50">生成结果</h3>
           <div id="vgEmpty" class="flex-1 flex flex-col items-center justify-center text-slate-300">
-            <p class="text-sm text-slate-400">粘贴小说（或输入小说ID）→ 生成候选剧本 → 点选一个 → 生成推广视频</p>
+            <p class="text-sm text-slate-400">粘贴小说（或输入小说ID）→ 生成候选剧本 → 勾选一个或多个 → 生成推广视频</p>
           </div>
           <div id="vgResultContent" hidden class="space-y-4">
             <div id="vgScriptSection" hidden>
@@ -2454,7 +2454,8 @@
               return '<div class="mb-3"><video src="' + full + '" controls class="w-full max-w-xl rounded-xl border border-slate-100 bg-black"></video><button type="button" class="mt-1 rounded-xl bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm border-0 cursor-pointer" onclick="downloadBlobUrl(\'' + full + '\',\'' + name + '\')">下载</button></div>';
             }).join('');
           }
-          vh += '<p class="text-[11px] font-semibold text-slate-500 mb-1.5">逐镜头片段</p>';
+          var promoGrid = script.length && script[0] && (script[0].concept_title || script[0].title);
+          vh += '<p class="text-[11px] font-semibold text-slate-500 mb-1.5">' + (promoGrid ? '候选剧本成片' : '逐镜头片段') + '</p>';
           if (!shotVids.length && !shots.length) vh += '<p class="text-xs text-slate-400">无视频</p>';
           else {
             vh += '<div class="grid grid-cols-2 gap-3">';
@@ -2470,7 +2471,9 @@
               var body = (st.state === 'done' && st.file)
                 ? '<video src="' + absUrl('/static/output/' + data.batch_id + '/' + encodeURIComponent(st.file)) + '" controls class="w-full rounded-xl border border-slate-100 bg-black"></video>'
                 : '<div class="w-full h-28 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 text-xs px-2 text-center">' + (st.state === 'failed' ? _vesc(st.error || '失败') : '...') + '</div>';
-              vh += '<div><div class="flex justify-between items-center text-[11px] mb-1"><span class="text-slate-600 font-medium">镜头 ' + _vesc(s.shot_id) + (s.duration_seconds ? ' · ' + _vesc(s.duration_seconds) + 's' : '') + '</span>' + badge + '</div>' + body + '</div>';
+              var nm = s.concept_title || s.title || ('镜头 ' + s.shot_id);
+              var durTxt = s.duration_seconds ? ' · ' + _vesc(s.duration_seconds) + 's' : '';
+              vh += '<div><div class="flex justify-between items-center text-[11px] mb-1"><span class="text-slate-700 font-semibold truncate" title="' + _vesc(nm) + '">🎬 ' + _vesc(nm) + durTxt + '</span>' + badge + '</div>' + body + '</div>';
             });
             vh += '</div>';
           }
@@ -4505,6 +4508,7 @@
 
     // ====== 视频生成（小说 → 镜头脚本 → 视频，UI 与小说分析一致） ======
     var _vgScript = [], _vgCandidates = [], _vgBatchId = null, _vgTimer = null;
+    var _vgSel = {};   // 候选多选: 索引 -> true
 
     function _vgEsc(s) { return escapeHtml(String(s == null ? '' : s)); }
 
@@ -4513,10 +4517,27 @@
       document.getElementById('vgResultContent').hidden = !show;
     }
 
+    function vgSyncGenBtn() {
+      var b = document.getElementById('vgGenBtn');
+      if (!b) return;
+      var n = vgSelCount();
+      if (n) { b.disabled = false; b.textContent = '生成已选 ' + n + ' 个剧本'; }
+      else if (_vgScript.length) { b.disabled = false; b.textContent = '生成推广视频'; }
+      else { b.disabled = true; b.textContent = '生成推广视频'; }
+    }
+
+    function vgSelCount() {
+      var n = 0;
+      for (var k in _vgSel) if (_vgSel[k]) n++;
+      return n;
+    }
+
     function vgRenderScript(script) {
       _vgScript = script || [];
+      _vgSel = {};   // 单剧本/预览/历史载入路径：清空多选，以当前剧本为准
       var sec = document.getElementById('vgScriptSection');
       sec.hidden = _vgScript.length === 0;
+      vgSyncGenBtn();
       if (!_vgScript.length) return;
       var s = _vgScript[0];
       var candNav = (_vgCandidates.length > 1)
@@ -4536,7 +4557,7 @@
               (b.emotion ? ' <em class="text-amber-700 not-italic">(' + _vgEsc(b.emotion) + ')</em>' : '') + '</span></div>';
           }).join('') + '</div>';
       }
-      document.getElementById('vgScriptMeta').textContent = '已选候选 · ' + (parseInt(s.duration_seconds) || 12) + ' 秒';
+      document.getElementById('vgScriptMeta').textContent = '预览剧本 · ' + (parseInt(s.duration_seconds) || 12) + ' 秒';
       document.getElementById('vgScriptTable').innerHTML =
         '<div class="p-3 space-y-2">' +
           candNav + titleBlock + beatsHtml +
@@ -4556,26 +4577,54 @@
     }
 
     function vgRenderCandidates() {
-      _vgScript = [];   // 未选定时不允许直接生成旧选择
+      _vgScript = [];   // 未勾选/未预览时不允许直接生成旧选择
       var sec = document.getElementById('vgScriptSection');
       sec.hidden = !_vgCandidates.length;
+      vgSyncGenBtn();
       if (!_vgCandidates.length) return;
-      document.getElementById('vgScriptMeta').textContent = _vgCandidates.length + ' 个候选剧本 · 点选一个查看详情';
-      var h = '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3">';
+      var n = vgSelCount();
+      document.getElementById('vgScriptMeta').textContent = _vgCandidates.length + ' 个候选剧本 · 已选 ' + n + ' 个（可多选，各出一个成片）';
+      var h = '<div class="flex items-center justify-between gap-2 px-3 pt-2.5 pb-2 border-b border-slate-50">' +
+          '<span class="text-[11px] text-slate-400 leading-snug">点卡片勾选要生成的剧本，可多选；「预览」只查看单个剧本不勾选。</span>' +
+          '<span class="flex items-center gap-1 shrink-0">' +
+            '<button type="button" onclick="vgSelAll(true)" class="rounded-lg bg-slate-100 px-2 py-1 text-[11px] text-slate-600 hover:bg-indigo-100 hover:text-indigo-700 transition-all border-0 cursor-pointer">全选</button>' +
+            '<button type="button" onclick="vgSelAll(false)" class="rounded-lg bg-slate-100 px-2 py-1 text-[11px] text-slate-600 hover:bg-indigo-100 hover:text-indigo-700 transition-all border-0 cursor-pointer">清空</button>' +
+          '</span></div>';
+      h += '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3">';
       _vgCandidates.forEach(function(c, i) {
         var d = parseInt(c.duration_seconds) || 0;
-        h += '<button type="button" class="text-left rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 p-3 transition-all cursor-pointer bg-white" onclick="vgPickCandidate(' + i + ')">' +
-          '<div class="text-[13px] font-semibold text-slate-800">🎬 ' + _vgEsc(c.concept_title || ('候选 ' + (i + 1))) + '</div>' +
+        var on = !!_vgSel[i];
+        var chk = on ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 text-transparent';
+        h += '<div class="rounded-xl border p-3 transition-all cursor-pointer select-none ' + (on ? 'border-indigo-400 ring-1 ring-indigo-200 bg-indigo-50/40' : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30') + '" onclick="vgToggleSelect(' + i + ')">' +
+          '<div class="flex items-start justify-between gap-2">' +
+            '<div class="text-[13px] font-semibold text-slate-800 leading-snug">🎬 ' + _vgEsc(c.concept_title || ('候选 ' + (i + 1))) + '</div>' +
+            '<span class="shrink-0 w-4 h-4 mt-0.5 rounded border-2 flex items-center justify-center text-[10px] font-bold ' + chk + '">✓</span>' +
+          '</div>' +
           (c.hook ? '<div class="text-[11px] text-slate-500 mt-0.5 leading-snug">' + _vgEsc(c.hook) + '</div>' : '') +
           '<div class="text-[10px] text-slate-400 mt-1">时长 ' + d + 's · ' + _vgEsc(c.shot_type || '-') + ' · ' + _vgEsc(c.camera_movement || '-') + '</div>' +
-          '<div class="mt-1.5 text-[11px] text-indigo-600">查看详情并生成 ›</div></button>';
+          '<div class="mt-1.5 flex items-center justify-between text-[11px]">' +
+            '<span class="' + (on ? 'text-indigo-600 font-semibold' : 'text-slate-400') + '">' + (on ? '☑ 已勾选' : '☐ 勾选生成') + '</span>' +
+            '<span class="text-indigo-600 hover:underline" onclick="event.stopPropagation();vgPreviewCandidate(' + i + ')">预览 ›</span>' +
+          '</div></div>';
       });
       h += '</div>';
       document.getElementById('vgScriptTable').innerHTML = h;
       _vgShowResult(true);
     }
 
-    function vgPickCandidate(i) {
+    function vgToggleSelect(i) {
+      if (!_vgCandidates[i]) return;
+      _vgSel[i] = !_vgSel[i];
+      vgRenderCandidates();
+    }
+
+    function vgSelAll(on) {
+      _vgSel = {};
+      if (on) for (var i = 0; i < _vgCandidates.length; i++) _vgSel[i] = true;
+      vgRenderCandidates();
+    }
+
+    function vgPreviewCandidate(i) {
       var c = _vgCandidates[i];
       if (!c) return;
       vgRenderScript([c]);
@@ -4589,12 +4638,25 @@
       var grid = document.getElementById('vgShotGrid');
       var full = document.getElementById('vgFullVideo');
       if (shots.length > 1) {
-        // 兼容：多镜头脚本才展示逐镜头网格
+        // 多成片（多选剧本）：逐条显示候选名 + 状态，已完成的直接可预览
         grid.hidden = false;
-        grid.innerHTML = '<div class="col-span-2 text-xs text-slate-500 text-center py-6">' +
-          (shots.filter(function(s){return s.state==='done';}).length) + '/' + shots.length + ' 完成' +
-          (state.full_video ? ' · 已拼接' : '') + '</div>';
-        document.getElementById('vgProgressMeta').textContent = '';
+        var doneN = shots.filter(function(s){return s.state==='done';}).length;
+        grid.innerHTML = shots.map(function(s, idx) {
+          var lb = s.title || ('成片 ' + (s.shot_id || (idx + 1)));
+          var badge = s.state === 'done'
+            ? '<span class="shrink-0 rounded-full bg-emerald-100 text-emerald-700 px-1.5 py-0.5 text-[10px] font-semibold">完成</span>'
+            : s.state === 'failed'
+              ? '<span class="shrink-0 rounded-full bg-red-100 text-red-600 px-1.5 py-0.5 text-[10px] font-semibold">失败</span>'
+              : s.state === 'generating'
+                ? '<span class="shrink-0 rounded-full bg-blue-100 text-blue-600 px-1.5 py-0.5 text-[10px] font-semibold">生成中</span>'
+                : '<span class="shrink-0 rounded-full bg-slate-100 text-slate-500 px-1.5 py-0.5 text-[10px] font-semibold">等待</span>';
+          var body = (s.state === 'done' && s.file)
+            ? '<video src="/static/output/' + _vgBatchId + '/' + encodeURIComponent(s.file) + '" controls class="w-full rounded-lg border border-slate-100 bg-black"></video>'
+            : '<div class="w-full h-20 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[10px] text-slate-300">' + (s.state === 'failed' ? _vgEsc(s.error || '失败') : '...') + '</div>';
+          return '<div class="rounded-xl border border-slate-100 bg-slate-50/60 p-2 space-y-1">' +
+            '<div class="flex items-center justify-between gap-2 text-[11px]"><span class="font-semibold text-slate-700 truncate">🎬 ' + _vgEsc(lb) + '</span>' + badge + '</div>' + body + '</div>';
+        }).join('');
+        document.getElementById('vgProgressMeta').textContent = doneN + '/' + shots.length + ' 个成片完成';
       } else {
         grid.hidden = true;
         document.getElementById('vgProgressMeta').textContent =
@@ -4635,7 +4697,7 @@
             var isSingle = (state.shots || []).length <= 1;
             document.getElementById('vgMsg').innerHTML = isSingle
               ? '<span class="text-emerald-600">推广视频已生成，已写入历史记录</span>'
-              : '<span class="text-emerald-600">完成：' + doneN + ' 个片段' + (state.full_video ? ' + 拼接视频' : '') + '，已写入历史记录</span>';
+              : '<span class="text-emerald-600">完成：' + doneN + (state.full_video ? ' 个片段 + 拼接视频' : ' 个成片') + '，已写入历史记录</span>';
           } else if (state.status === 'cancelled') {
             document.getElementById('vgMsg').innerHTML = '<span class="text-slate-500">任务已取消</span>';
           }
@@ -4682,9 +4744,10 @@
         if (!resp.ok) throw new Error(data.detail || '失败');
         _vgScript = [];
         _vgCandidates = data.script || [];
+        _vgSel = {};
         if (!_vgCandidates.length) throw new Error('未返回候选剧本');
         vgRenderCandidates();
-        document.getElementById('vgMsg').innerHTML = '<span class="text-emerald-600">已生成 ' + _vgCandidates.length + ' 个候选剧本——点选一个查看详细剧情并生成视频。</span>';
+        document.getElementById('vgMsg').innerHTML = '<span class="text-emerald-600">已生成 ' + _vgCandidates.length + ' 个候选剧本——可多选同时生成，也可点「预览」单个查看详情。</span>';
       } catch (e) {
         document.getElementById('vgMsg').innerHTML = '<span class="text-red-500">提取失败: ' + _vgEsc(e.message) + '</span>';
       }
@@ -4693,7 +4756,17 @@
 
     async function vgGenerate() {
       var novel = document.getElementById('vgNovel').value.trim();
-      if (!novel && !_vgScript.length) { alert('请粘贴小说内容或输入小说ID获取'); return; }
+      // 优先生成「已勾选」的多个候选；一个没勾时回落「预览/历史载入」的当前剧本
+      var chosen = [];
+      if (_vgCandidates.length) {
+        for (var i = 0; i < _vgCandidates.length; i++) if (_vgSel[i]) chosen.push(_vgCandidates[i]);
+      }
+      var payload = chosen.length ? chosen : (_vgScript || []);
+      if (!payload.length) {
+        if (novel) { alert('请先勾选要生成的剧本（可多选），或点「预览」生成单个'); return; }
+        alert('请粘贴小说内容并先生成候选剧本'); return;
+      }
+      _vgScript = payload;   // 保证与历史/进度一致
       var btn = document.getElementById('vgGenBtn');
       btn.disabled = true;
       document.getElementById('vgMsg').textContent = '提交中...';
@@ -4702,7 +4775,7 @@
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             novel_content: novel,
-            script: _vgScript,
+            script: payload,
             all_scripts: (_vgCandidates && _vgCandidates.length) ? _vgCandidates : [],
             aspect_ratio: document.getElementById('vgAspect').value,
             novel_id: document.getElementById('vgNovelId').value.trim(),
@@ -4715,7 +4788,9 @@
         _vgShowResult(true);
         document.getElementById('vgProgressSection').hidden = false;
         document.getElementById('vgCancelBtn').hidden = false;
-        document.getElementById('vgMsg').textContent = '任务 #' + _vgBatchId + ' 已提交后台运行，单条约 1-5 分钟，可去历史记录查看';
+        document.getElementById('vgMsg').textContent = payload.length > 1
+          ? ('任务 #' + _vgBatchId + ' 已提交后台运行，将顺序生成 ' + payload.length + ' 个成片（约 ' + (payload.length * 1) + '-' + (payload.length * 5) + ' 分钟），可去历史记录查看')
+          : ('任务 #' + _vgBatchId + ' 已提交后台运行，单条约 1-5 分钟，可去历史记录查看');
         if (_vgTimer) clearInterval(_vgTimer);
         _vgTimer = setInterval(vgPoll, 4000);
         setTimeout(vgPoll, 1000);
