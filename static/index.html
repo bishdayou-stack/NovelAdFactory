@@ -2517,7 +2517,10 @@
           if (!shotVids.length && !shots.length) vh += '<p class="text-xs text-slate-400">无视频</p>';
           else {
             vh += '<div class="grid grid-cols-2 gap-3">';
+            var seenClip = {};
             (script.length ? script : shots).forEach(function(s) {
+              var clipKey = s.file || String(s.shot_id || s.visual_prompt || '');
+              if (seenClip[clipKey]) return; seenClip[clipKey] = 1;
               var st = stateByFile[s.file] || shots.filter(function(x) { return String(x.shot_id) === String(s.shot_id); })[0] || { state: 'pending' };
               var badge = { pending: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-slate-50 text-slate-500 border-slate-200">等待</span>',
                             generating: '<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border bg-blue-50 text-blue-600 border-blue-200">生成中</span>',

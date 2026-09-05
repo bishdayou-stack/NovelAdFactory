@@ -3348,11 +3348,18 @@ def api_history(
                 continue
             imgs = meta.get("images", 0)
             vids = meta.get("videos", 0)
-            # 统一为 /static/output/<批次>/<文件> 完整路径（历史 meta 里部分存的是裸文件名，
-            # 若直接当 src 会拼成 http://host/<文件> 导致 404）
+            # 统一为 /static/output/<批次>/<文件> 完整路径并去重（历史 meta 里部分存裸文件名
+            # 且单段模式会把同一片段同时记作片段与 full_video，直接当 src 会 404/重复）
+            seen_urls = set()
             def _norm(src_list):
-                return [str(u) if str(u).startswith("/") else f"/static/output/{d.name}/{str(u).split('/')[-1]}"
-                        for u in src_list]
+                out = []
+                for u in src_list:
+                    us = str(u)
+                    full = us if us.startswith("/") else f"/static/output/{d.name}/{us.split('/')[-1]}"
+                    if full not in seen_urls:
+                        seen_urls.add(full)
+                        out.append(full)
+                return out
             img_list = _norm(imgs) if isinstance(imgs, list) else []
             vid_list = _norm(vids) if isinstance(vids, list) else []
             img_count = len(img_list) or (imgs if not isinstance(imgs, list) else 0)
@@ -3489,13 +3496,19 @@ def api_history_detail(batch_id: str, user: dict = Depends(get_current_user)):
         pngs = sorted([p.name for p in batch_dir.glob("*.png")])
         imgs = [f"/static/output/{batch_id}/{name}" for name in pngs]
 
-    # 确保 videos 是完整路径列表
+    # 确保 videos 是完整路径列表（并去重：旧单段批次会把同一片段记两次）
     vids = meta.get("videos", [])
-    if isinstance(vids, list) and vids and not str(vids[0]).startswith("/"):
-        vids = [f"/static/output/{batch_id}/{name}" for name in vids]
-    elif not isinstance(vids, list):
+    if not isinstance(vids, list):
         mp4s = sorted([p.name for p in batch_dir.glob("*.mp4")])
         vids = [f"/static/output/{batch_id}/{name}" for name in mp4s]
+    seen_v, vids_norm = set(), []
+    for v in vids:
+        vs = str(v)
+        full = vs if vs.startswith("/") else f"/static/output/{batch_id}/{vs.split('/')[-1]}"
+        if full not in seen_v:
+            seen_v.add(full)
+            vids_norm.append(full)
+    vids = vids_norm
 
     # 弹屏视频路径
     popups = meta.get("popup_videos", [])
