@@ -725,6 +725,15 @@ def init_db() -> None:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS video_scripts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL DEFAULT 1,
+                novel_id TEXT DEFAULT '',
+                aspect_ratio TEXT DEFAULT '9:16',
+                candidates TEXT DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS hit_materials (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 batch_id TEXT,
@@ -1116,6 +1125,55 @@ def set_user_config_batch(user_id: int, config: Dict[str, str]) -> None:
                 "ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value",
                 (user_id, key, value)
             )
+
+
+# ====== 视频剧本库（每次分析的整批候选，供历史里选择未生成剧本再次出片）======
+
+def insert_video_script(user_id: int, novel_id: str, aspect_ratio: str, candidates: list) -> int:
+    """保存一批候选剧本，返回 script_id"""
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO video_scripts (user_id, novel_id, aspect_ratio, candidates) VALUES (?,?,?,?)",
+            (user_id, novel_id or "", aspect_ratio or "9:16", json.dumps(candidates or [], ensure_ascii=False)))
+        return int(cur.lastrowid)
+
+
+def list_video_scripts(user_id: int) -> list:
+    """列出某用户保存的剧本批次（倒序）"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, novel_id, aspect_ratio, candidates, created_at FROM video_scripts WHERE user_id = ? ORDER BY id DESC",
+            (user_id,)).fetchall()
+    out = []
+    for r in rows:
+        try:
+            cands = json.loads(r["candidates"] or "[]")
+        except Exception:
+            cands = []
+        out.append({
+            "id": r["id"],
+            "novel_id": r["novel_id"] or "",
+            "aspect_ratio": r["aspect_ratio"] or "9:16",
+            "candidate_count": len(cands),
+            "titles": [c.get("concept_title") or "" for c in cands if isinstance(c, dict)],
+            "created_at": r["created_at"] or "",
+        })
+    return out
+
+
+def get_video_script(script_id: int, user_id: int):
+    """取单个剧本批次完整内容（含所有候选），不存在返回 None"""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM video_scripts WHERE id = ? AND user_id = ?", (script_id, user_id)).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    try:
+        d["candidates"] = json.loads(d.get("candidates") or "[]")
+    except Exception:
+        d["candidates"] = []
+    return d
 
 # ====== 应用登录会话 ======
 

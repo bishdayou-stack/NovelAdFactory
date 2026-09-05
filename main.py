@@ -2842,6 +2842,8 @@ class VideoAnalyzeRequest(BaseModel):
     api_key: str = ""            # 与其它生成接口一致：前端传配置管理页的密钥
     api_url: str = ""
     chat_model_name: str = ""
+    aspect_ratio: str = "9:16"
+    novel_id: str = ""
 
 
 class VideoGenerateRequest(BaseModel):
@@ -3001,7 +3003,7 @@ def _finalize_video_meta(batch_id: int) -> None:
 
 @app.post("/api/video/analyze")
 def api_video_analyze(body: VideoAnalyzeRequest, user: dict = Depends(get_current_user)):
-    """步骤1 only：小说原文 → 提取 1 条 FB 推广片段（10-15s，单元素脚本，同步返回）"""
+    """步骤1 only：小说原文 → 生成多个候选推广剧本（10-15s），并自动整批保存到剧本库"""
     cfg = _video_config(user, body.api_key, body.api_url)
     if not body.novel_content.strip():
         raise HTTPException(400, "请输入小说原文")
@@ -3012,9 +3014,27 @@ def api_video_analyze(body: VideoAnalyzeRequest, user: dict = Depends(get_curren
             cfg["chat_api_url"], cfg["chat_api_key"], cfg["chat_model_name"],
             body.novel_content)
     except Exception as e:
-        raise HTTPException(500, f"推广片段提取失败: {e}")
-    return {"script": shots,
+        raise HTTPException(500, f"推广剧本生成失败: {e}")
+    # 自动保存整批候选（含未选中的），供历史记录里再次挑选生成
+    script_id = database.insert_video_script(
+        user["id"], body.novel_id or "", body.aspect_ratio or "9:16", shots)
+    return {"script": shots, "script_id": script_id,
             "total_duration": sum(int(s.get("duration_seconds", 3) or 3) for s in shots)}
+
+
+@app.get("/api/video/scripts")
+def api_video_scripts(user: dict = Depends(get_current_user)):
+    """列出当前用户的剧本库（每次分析整批候选）"""
+    return {"scripts": database.list_video_scripts(user["id"])}
+
+
+@app.get("/api/video/scripts/{script_id}")
+def api_video_script_detail(script_id: int, user: dict = Depends(get_current_user)):
+    """取某个剧本批次（含所有候选）"""
+    row = database.get_video_script(script_id, user["id"])
+    if not row:
+        raise HTTPException(404, "剧本不存在")
+    return row
 
 
 @app.post("/api/video/generate")
