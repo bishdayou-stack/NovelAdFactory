@@ -2665,13 +2665,12 @@
               '<input type="checkbox" class="absolute top-2 right-2 w-4 h-4 accent-indigo-600 cursor-pointer" data-url="' + media.src + '" data-type="video">';
             var vimg = card.querySelector('img');
             vimg.src = vposter;
-            vimg.addEventListener('click', function(e) { e.stopPropagation(); openVideoPreview(vfull); });
-            vimg.addEventListener('error', function() {
-              if (vimg.dataset.fb) return; vimg.dataset.fb = '1';
-              var f = document.createElement('video');
-              f.src = vfull; f.muted = true; f.preload = 'metadata'; f.controls = true;
-              f.className = 'aspect-square w-full object-cover bg-black';
-              vimg.replaceWith(f);
+            // 封面加载失败：压暗占位（仍可点卡片进弹窗播放），不用内联 video 以免点击无反应
+            vimg.addEventListener('error', function() { vimg.style.opacity = '0.18'; });
+            // 卡片任意处点击（复选框除外）→ 弹窗播放
+            card.addEventListener('click', function(e) {
+              if (e.target && e.target.tagName === 'INPUT') return;
+              e.stopPropagation(); openVideoPreview(vfull);
             });
             card.querySelector('.card-label').textContent = media.label || '视频';
             var vcb = card.querySelector('input[type=checkbox]');
@@ -4405,9 +4404,20 @@
       sec.hidden = _vgScript.length === 0;
       if (!_vgScript.length) return;
       var s = _vgScript[0];
-      document.getElementById('vgScriptMeta').textContent = '1 条 / ' + (parseInt(s.duration_seconds) || 12) + ' 秒';
+      var beatsHtml = '';
+      if (Array.isArray(s.story_beats) && s.story_beats.length) {
+        beatsHtml = '<div class="rounded-lg border border-amber-200 bg-amber-50/50 p-2 space-y-1">' +
+          '<p class="text-[10px] font-semibold text-amber-600 mb-1">剧本（单条连续镜头的剧情递进）</p>' +
+          s.story_beats.map(function(b, i) {
+            return '<div class="flex gap-2 items-start text-[11px]"><span class="shrink-0 rounded bg-amber-100 text-amber-700 px-1.5 py-0.5 font-mono text-[10px]">' +
+              _vgEsc(b.sec || ('拍' + (i + 1))) + '</span><span class="text-slate-600">' + _vgEsc(b.action || '') +
+              (b.emotion ? ' <em class="text-amber-700 not-italic">(' + _vgEsc(b.emotion) + ')</em>' : '') + '</span></div>';
+          }).join('') + '</div>';
+      }
+      document.getElementById('vgScriptMeta').textContent = '剧本 3 拍 · ' + (parseInt(s.duration_seconds) || 12) + ' 秒';
       document.getElementById('vgScriptTable').innerHTML =
         '<div class="p-3 space-y-2">' +
+          beatsHtml +
           '<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">' +
             '<span>景别: ' + _vgEsc(s.shot_type || '-') + '</span>' +
             '<span>运镜: ' + _vgEsc(s.camera_movement || '-') + '</span>' +
@@ -4415,7 +4425,7 @@
             '<span>音效: ' + _vgEsc(s.audio_cue || '-') + '</span>' +
           '</div>' +
           '<textarea id="vgPromoPrompt" rows="6" class="w-full rounded-lg border border-indigo-200 bg-indigo-50/40 px-3 py-2 text-[13px] leading-relaxed text-slate-700 input-focus resize-none"></textarea>' +
-          '<p class="text-[11px] text-slate-400">可直接编辑视觉描述，改完点「生成推广视频」即按新描述出片。</p>' +
+          '<p class="text-[11px] text-slate-400">下方描述已按剧本把三拍动作排进一条连续镜头；可直接编辑，改完点「生成推广视频」按新描述出片。</p>' +
         '</div>';
       var ta = document.getElementById('vgPromoPrompt');
       ta.value = s.visual_prompt || '';
@@ -7652,13 +7662,20 @@
       ov.className = 'fixed inset-0 z-[130] flex items-center justify-center bg-black/85';
       var box = document.createElement('div');
       box.className = 'relative max-w-[92vw]';
+      var tip = document.createElement('div');
+      tip.className = 'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white/60 text-xs z-0';
+      tip.textContent = '加载中...';
       var vid = document.createElement('video');
-      vid.src = src; vid.controls = true; vid.autoplay = true; vid.playsInline = true;
-      vid.className = 'max-w-[92vw] max-h-[85vh] rounded-xl bg-black shadow-2xl';
+      vid.controls = true; vid.muted = true; vid.autoplay = true; vid.playsInline = true;
+      vid.preload = 'auto';
+      vid.className = 'relative z-10 max-w-[92vw] max-h-[85vh] rounded-xl bg-black shadow-2xl';
+      vid.src = src;
+      var pp = vid.play(); if (pp && pp.catch) pp.catch(function() {});
+      vid.addEventListener('playing', function() { if (tip.parentNode) tip.parentNode.removeChild(tip); });
       var closeBtn = document.createElement('button');
       closeBtn.textContent = '✕';
-      closeBtn.className = 'absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white/15 text-white text-lg hover:bg-white/30 flex items-center justify-center cursor-pointer border-0 z-10';
-      box.appendChild(vid); box.appendChild(closeBtn); ov.appendChild(box);
+      closeBtn.className = 'absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white/15 text-white text-lg hover:bg-white/30 flex items-center justify-center cursor-pointer border-0 z-20';
+      box.appendChild(tip); box.appendChild(vid); box.appendChild(closeBtn); ov.appendChild(box);
       document.body.appendChild(ov);
       function close() { vid.pause(); vid.src = ''; if (ov.parentNode) ov.parentNode.removeChild(ov); document.removeEventListener('keydown', onKey); }
       function onKey(e) { if (e.key === 'Escape') close(); }
