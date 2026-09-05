@@ -3348,8 +3348,13 @@ def api_history(
                 continue
             imgs = meta.get("images", 0)
             vids = meta.get("videos", 0)
-            img_list = imgs if isinstance(imgs, list) else []
-            vid_list = vids if isinstance(vids, list) else []
+            # 统一为 /static/output/<批次>/<文件> 完整路径（历史 meta 里部分存的是裸文件名，
+            # 若直接当 src 会拼成 http://host/<文件> 导致 404）
+            def _norm(src_list):
+                return [str(u) if str(u).startswith("/") else f"/static/output/{d.name}/{str(u).split('/')[-1]}"
+                        for u in src_list]
+            img_list = _norm(imgs) if isinstance(imgs, list) else []
+            vid_list = _norm(vids) if isinstance(vids, list) else []
             img_count = len(img_list) or (imgs if not isinstance(imgs, list) else 0)
             vid_count = len(vid_list) or (vids if not isinstance(vids, list) else 0)
             # 查找用户名（用预加载映射，避免逐个查询）
