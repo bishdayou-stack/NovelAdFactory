@@ -2959,9 +2959,15 @@ def _finalize_video_meta(batch_id: int) -> None:
     else:
         final = "failed"
 
-    # 视频文件列表（片段 + 拼接）
-    vids = [s["file"] for s in done if s.get("file")]
-    if state.get("full_video"):
+    # 视频文件列表（片段 + 拼接，去重——单段模式下 full_video 与片段同文件）
+    vids = []
+    seen_vids = set()
+    for s in done:
+        f = s.get("file")
+        if f and f not in seen_vids:
+            seen_vids.add(f)
+            vids.append(f)
+    if state.get("full_video") and state["full_video"] not in seen_vids:
         vids.append(state["full_video"])
 
     # 提示词记录（镜头脚本 → 与图片批次的 used_prompts 同构）
@@ -3497,6 +3503,7 @@ def api_history_detail(batch_id: str, user: dict = Depends(get_current_user)):
         "used_prompts": meta.get("used_prompts", []),
         "source": meta.get("source", ""),
         "video_model": meta.get("video_model", ""),
+        "aspect_ratio": meta.get("aspect_ratio", "9:16"),
         "video_script": video_script,
         "video_shots": video_shots,
         "image_count": len(imgs),

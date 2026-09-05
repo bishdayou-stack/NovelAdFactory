@@ -2396,6 +2396,7 @@
           var _vesc = function(s) { return escapeHtml(String(s == null ? '' : s)); };
           var shots = data.video_shots || [];
           var script = data.video_script || [];
+          window._lastVidDetail = data;   // 供「用此剧本重新生成」使用
           var doneN = shots.filter(function(s) { return s.state === 'done'; }).length;
           var vInfo = '<div><span class="font-medium text-slate-700">类型:</span> 视频生成</div>' +
             '<div><span class="font-medium text-slate-700">模型:</span> ' + (data.video_model || '-') + '</div>' +
@@ -2405,12 +2406,28 @@
             var pct = data.progress.percent || 0;
             vInfo += '<div class="mt-3"><div class="flex items-center justify-between text-xs mb-1"><span class="font-medium text-slate-700">生产进度</span><span class="font-mono text-indigo-600 font-semibold">' + pct + '%</span></div><div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden"><div class="bg-gradient-to-r from-indigo-500 to-indigo-700 h-full rounded-full transition-all" style="width:' + pct + '%"></div></div><div class="text-xs text-slate-500 mt-1">' + (data.progress.step || '') + '</div></div>';
           }
+          if (script.length) {
+            vInfo += '<button type="button" onclick="regenFromHistoryVideo()" class="mt-3 rounded-xl bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm border-0 cursor-pointer">🎬 用此剧本重新生成（可先编辑）</button>';
+          }
           document.getElementById('detailInfo').innerHTML = vInfo;
 
-          // 提示词 = 镜头脚本（与图片批次 used_prompts 展示一致）
+          // 提示词 = 剧本（标题/钩子/三拍 + 画面描述）
           var promptList = document.getElementById('detailPromptList');
           promptList.innerHTML = script.length ? script.map(function(s) {
-            return '<details class="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5"><summary class="text-[12px] font-medium text-slate-700 cursor-pointer select-none hover:text-indigo-600 transition-colors">镜头' + _vesc(s.shot_id) + ' · ' + _vesc(s.shot_type) + ' / ' + _vesc(s.camera_movement) + ' · ' + _vesc(s.duration_seconds) + 's <span class="text-[10px] text-slate-400 ml-2">[video_shot]</span></summary><pre class="mt-2 text-[11px] text-slate-600 whitespace-pre-wrap font-sans leading-relaxed">' + _vesc(s.visual_prompt) + (s.audio_cue ? '\n\n音效提示: ' + s.audio_cue : '') + '</pre></details>';
+            var title = (s.concept_title || s.hook)
+              ? '<div class="text-[13px] font-semibold text-slate-800 mb-1">🎬 ' + _vesc(s.concept_title || '') +
+                (s.hook ? '<span class="font-normal text-slate-500"> · ' + _vesc(s.hook) + '</span>' : '') + '</div>' : '';
+            var beats = (Array.isArray(s.story_beats) && s.story_beats.length)
+              ? '<div class="my-1.5 space-y-0.5 rounded-lg border border-amber-200 bg-amber-50/60 p-2">' + s.story_beats.map(function(b, i) {
+                  return '<div class="flex gap-1.5 items-baseline text-[11px] text-slate-600"><span class="shrink-0 font-mono text-[10px] text-amber-700 bg-amber-100 rounded px-1">' +
+                    _vesc(b.sec || ('拍' + (i + 1))) + '</span><span>' + _vesc(b.action || '') +
+                    (b.emotion ? ' <em class="text-amber-700 not-italic">(' + _vesc(b.emotion) + ')</em>' : '') + '</span></div>';
+                }).join('') + '</div>' : '';
+            return '<details class="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5" open>' + title +
+              '<summary class="text-[12px] font-medium text-slate-600 cursor-pointer select-none hover:text-indigo-600 transition-colors">' +
+              _vesc(s.shot_type || '') + ' / ' + _vesc(s.camera_movement || '') + ' · ' + _vesc(s.duration_seconds) + 's · 画面描述</summary>' +
+              beats + '<pre class="mt-1 text-[11px] text-slate-600 whitespace-pre-wrap font-sans leading-relaxed">' +
+              _vesc(s.visual_prompt) + (s.audio_cue ? '\n\n音效提示: ' + s.audio_cue : '') + '</pre></details>';
           }).join('') : '<p class="text-xs text-slate-400">无提示词记录</p>';
 
           // 视频区：完整拼接视频在前，逐镜头在后（带状态徽标）
@@ -4686,6 +4703,20 @@
       if (!_vgBatchId) return;
       await fetch('/api/video/cancel/' + _vgBatchId, { method: 'POST' });
       document.getElementById('vgMsg').textContent = '正在取消...';
+    }
+
+    // 历史记录「用此剧本重新生成」：把该批次的剧本载入视频生成页（可编辑后生成）
+    function regenFromHistoryVideo() {
+      var data = window._lastVidDetail;
+      if (!data || !Array.isArray(data.video_script) || !data.video_script.length) { alert('该批次没有可复用的剧本'); return; }
+      switchTab('video-gen');
+      var asp = document.getElementById('vgAspect');
+      if (asp && data.aspect_ratio) asp.value = data.aspect_ratio;
+      _vgCandidates = [];
+      _vgScript = data.video_script.slice();
+      vgRenderScript(_vgScript);
+      var m = document.getElementById('vgMsg');
+      if (m) m.innerHTML = '<span class="text-emerald-600">已从历史载入该剧本，可直接点「生成推广视频」重新生成，也可先编辑下方画面描述。</span>';
     }
 
     document.getElementById('vgClearNovelBtn').addEventListener('click', function() {
