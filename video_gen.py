@@ -179,10 +179,11 @@ def generate_video_script(api_url: str, api_key: str, chat_model_name: str,
 
 
 def generate_promo_script(api_url: str, api_key: str, chat_model_name: str,
-                          novel_content: str) -> List[dict]:
-    """单段 FB 推广：LLM 从小说原文挑出最具推广冲击力的一段，输出单个 10-15 秒连续镜头。
+                          novel_content: str, max_candidates: int = 5) -> List[dict]:
+    """单段 FB 推广：LLM 从小说原文产出多个（默认 5 个）候选推广剧本，每个是 10-15 秒连续镜头。
 
-    返回单元素 list（schema 与镜头脚本一致，便于沿用前端/历史渲染）。时长强制落在 10-15。"""
+    返回候选 list（每个元素 schema 与镜头脚本一致），由前端/调用方选一个再出片。
+    每个候选时长强制落在 10-15。"""
     system = _PROMO_PROMPT_PATH.read_text(encoding="utf-8")
     payload = {
         "model": chat_model_name,
@@ -190,8 +191,8 @@ def generate_promo_script(api_url: str, api_key: str, chat_model_name: str,
             {"role": "system", "content": system},
             {"role": "user", "content": f"INPUT NOVEL CONTENT:\n{novel_content.strip()}"},
         ],
-        "temperature": 0.85,
-        "max_tokens": 4096,
+        "temperature": 0.9,
+        "max_tokens": 12000,
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     url = api_url.rstrip("/") + "/chat/completions"
@@ -202,14 +203,22 @@ def generate_promo_script(api_url: str, api_key: str, chat_model_name: str,
     print(f"[VIDEO PROMO] 原始响应({len(raw)}字符)")
     shots = _parse_shot_json(raw)
     if not shots:
-        raise ValueError("未提取到有效推广片段")
-    s = shots[0]
-    try:
-        dur = int(s.get("duration_seconds") or 12)
-    except (TypeError, ValueError):
-        dur = 12
-    s["duration_seconds"] = max(10, min(15, dur))  # grok 单次上限 15s，LLM 在 10-15 内自选
-    return [s]
+        raise ValueError("未提取到有效推广剧本")
+    out = []
+    for s in shots[:max_candidates]:
+        if not isinstance(s, dict) or not str(s.get("visual_prompt", "")).strip():
+            continue
+        s.setdefault("concept_title", "推广片段" + str(len(out) + 1))
+        s.setdefault("hook", "")
+        try:
+            dur = int(s.get("duration_seconds") or 12)
+        except (TypeError, ValueError):
+            dur = 12
+        s["duration_seconds"] = max(10, min(15, dur))  # grok 单次上限 15s，LLM 在 10-15 内自选
+        out.append(s)
+    if not out:
+        raise ValueError("候选剧本均无有效 visual_prompt")
+    return out
 
 
 # ====== 步骤2：统一视频模型适配层 ======
@@ -361,10 +370,11 @@ def run_video_generation(batch_dir: Path, chat_cfg: dict, video_cfg: dict, param
         script = params.get("script") or []
         if not script:
             snap(stage="script")
-            # 单段 FB 推广模式：从小说原文提取 1 条 10-15s 片段
-            script = generate_promo_script(
+            # 单段 FB 推广模式：先产出候选剧本，直接生成时默认取第 1 个出片（正常前端会先选好传 script）
+            candidates = generate_promo_script(
                 chat_cfg["api_url"], chat_cfg["api_key"], chat_cfg["chat_model_name"],
                 params["novel_content"])
+            script = candidates[:1]
             state["script"] = script
             snap(stage="generate")
         else:

@@ -1093,7 +1093,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="space-y-4">
           <div class="card p-5 space-y-4">
-            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">视频生成 <span class="text-[11px] text-slate-400 font-normal">小说 → 提取推广片段 → grok 单条 10-15s（FB 9:16 竖屏）</span></h3>
+            <h3 class="text-sm font-semibold text-slate-800 pb-2 border-b border-slate-50">视频生成 <span class="text-[11px] text-slate-400 font-normal">小说 → 候选推广剧本 → 点选 → grok 单条 10-15s（FB 9:16 竖屏）</span></h3>
             <div class="flex items-center gap-2">
               <span class="text-[11px] font-medium text-slate-500 shrink-0">或输入小说ID</span>
               <input id="vgNovelId" type="text" class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-[13px] input-focus bg-slate-50/50" placeholder="输入小说ID，点击「生成脚本预览」自动获取内容..." />
@@ -1118,7 +1118,7 @@
           </div>
           <div class="grid grid-cols-2 gap-3">
             <button id="vgAnalyzeBtn" type="button" onclick="vgAnalyze()" class="rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-700 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-indigo-500/20 hover:from-indigo-700 hover:to-blue-800 transition-all active:scale-[0.98] disabled:opacity-50 border-0 cursor-pointer">
-              提取推广片段
+              生成候选剧本
             </button>
             <button id="vgGenBtn" type="button" onclick="vgGenerate()" class="rounded-2xl bg-gradient-to-r from-violet-600 to-purple-700 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-violet-500/20 hover:from-violet-700 hover:to-purple-800 transition-all active:scale-[0.98] disabled:opacity-50 border-0 cursor-pointer">
               生成推广视频
@@ -1132,7 +1132,7 @@
         <div class="card p-5 flex flex-col min-h-[600px]">
           <h3 class="text-sm font-semibold text-slate-800 mb-4 pb-2 border-b border-slate-50">生成结果</h3>
           <div id="vgEmpty" class="flex-1 flex flex-col items-center justify-center text-slate-300">
-            <p class="text-sm text-slate-400">粘贴小说（或输入小说ID）→ 提取推广片段 → 生成推广视频</p>
+            <p class="text-sm text-slate-400">粘贴小说（或输入小说ID）→ 生成候选剧本 → 点选一个 → 生成推广视频</p>
           </div>
           <div id="vgResultContent" hidden class="space-y-4">
             <div id="vgScriptSection" hidden>
@@ -4466,7 +4466,7 @@
     document.getElementById('nav-video-gen').addEventListener('click', function() { switchTab('video-gen'); });
 
     // ====== 视频生成（小说 → 镜头脚本 → 视频，UI 与小说分析一致） ======
-    var _vgScript = [], _vgBatchId = null, _vgTimer = null;
+    var _vgScript = [], _vgCandidates = [], _vgBatchId = null, _vgTimer = null;
 
     function _vgEsc(s) { return escapeHtml(String(s == null ? '' : s)); }
 
@@ -4481,6 +4481,13 @@
       sec.hidden = _vgScript.length === 0;
       if (!_vgScript.length) return;
       var s = _vgScript[0];
+      var candNav = (_vgCandidates.length > 1)
+        ? '<div class="flex justify-end"><button type="button" onclick="vgRenderCandidates()" class="text-[11px] text-indigo-600 hover:underline bg-transparent border-0 cursor-pointer">← 返回候选列表</button></div>'
+        : '';
+      var titleBlock = (s.concept_title || s.hook)
+        ? '<div class="text-[13px] font-semibold text-slate-800">🎬 ' + _vgEsc(s.concept_title || '') +
+          (s.hook ? '<span class="font-normal text-slate-500 ml-1.5">' + _vgEsc(s.hook) + '</span>' : '') + '</div>'
+        : '';
       var beatsHtml = '';
       if (Array.isArray(s.story_beats) && s.story_beats.length) {
         beatsHtml = '<div class="rounded-lg border border-amber-200 bg-amber-50/50 p-2 space-y-1">' +
@@ -4491,23 +4498,49 @@
               (b.emotion ? ' <em class="text-amber-700 not-italic">(' + _vgEsc(b.emotion) + ')</em>' : '') + '</span></div>';
           }).join('') + '</div>';
       }
-      document.getElementById('vgScriptMeta').textContent = '剧本 3 拍 · ' + (parseInt(s.duration_seconds) || 12) + ' 秒';
+      document.getElementById('vgScriptMeta').textContent = '已选候选 · ' + (parseInt(s.duration_seconds) || 12) + ' 秒';
       document.getElementById('vgScriptTable').innerHTML =
         '<div class="p-3 space-y-2">' +
-          beatsHtml +
+          candNav + titleBlock + beatsHtml +
           '<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">' +
             '<span>景别: ' + _vgEsc(s.shot_type || '-') + '</span>' +
             '<span>运镜: ' + _vgEsc(s.camera_movement || '-') + '</span>' +
             '<span>时长: ' + _vgEsc(s.duration_seconds) + ' 秒</span>' +
             '<span>音效: ' + _vgEsc(s.audio_cue || '-') + '</span>' +
           '</div>' +
-          '<textarea id="vgPromoPrompt" rows="6" class="w-full rounded-lg border border-indigo-200 bg-indigo-50/40 px-3 py-2 text-[13px] leading-relaxed text-slate-700 input-focus resize-none"></textarea>' +
+          '<textarea id="vgPromoPrompt" rows="7" class="w-full rounded-lg border border-indigo-200 bg-indigo-50/40 px-3 py-2 text-[13px] leading-relaxed text-slate-700 input-focus resize-none"></textarea>' +
           '<p class="text-[11px] text-slate-400">下方描述已按剧本把三拍动作排进一条连续镜头；可直接编辑，改完点「生成推广视频」按新描述出片。</p>' +
         '</div>';
       var ta = document.getElementById('vgPromoPrompt');
       ta.value = s.visual_prompt || '';
       ta.addEventListener('input', function() { if (_vgScript[0]) _vgScript[0].visual_prompt = ta.value; });
       _vgShowResult(true);
+    }
+
+    function vgRenderCandidates() {
+      _vgScript = [];   // 未选定时不允许直接生成旧选择
+      var sec = document.getElementById('vgScriptSection');
+      sec.hidden = !_vgCandidates.length;
+      if (!_vgCandidates.length) return;
+      document.getElementById('vgScriptMeta').textContent = _vgCandidates.length + ' 个候选剧本 · 点选一个查看详情';
+      var h = '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3">';
+      _vgCandidates.forEach(function(c, i) {
+        var d = parseInt(c.duration_seconds) || 0;
+        h += '<button type="button" class="text-left rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 p-3 transition-all cursor-pointer bg-white" onclick="vgPickCandidate(' + i + ')">' +
+          '<div class="text-[13px] font-semibold text-slate-800">🎬 ' + _vgEsc(c.concept_title || ('候选 ' + (i + 1))) + '</div>' +
+          (c.hook ? '<div class="text-[11px] text-slate-500 mt-0.5 leading-snug">' + _vgEsc(c.hook) + '</div>' : '') +
+          '<div class="text-[10px] text-slate-400 mt-1">时长 ' + d + 's · ' + _vgEsc(c.shot_type || '-') + ' · ' + _vgEsc(c.camera_movement || '-') + '</div>' +
+          '<div class="mt-1.5 text-[11px] text-indigo-600">查看详情并生成 ›</div></button>';
+      });
+      h += '</div>';
+      document.getElementById('vgScriptTable').innerHTML = h;
+      _vgShowResult(true);
+    }
+
+    function vgPickCandidate(i) {
+      var c = _vgCandidates[i];
+      if (!c) return;
+      vgRenderScript([c]);
     }
 
     function vgRenderProgress(state) {
@@ -4595,8 +4628,8 @@
       var novel = document.getElementById('vgNovel').value.trim();
       if (!novel) { alert('请粘贴小说内容或输入小说ID'); return; }
       var btn = document.getElementById('vgAnalyzeBtn');
-      btn.disabled = true; btn.textContent = '提取中...';
-      document.getElementById('vgMsg').textContent = '正在从小说中提取推广片段（约 30-60 秒）...';
+      btn.disabled = true; btn.textContent = '生成中...';
+      document.getElementById('vgMsg').textContent = '正在从小说生成 5 个候选推广剧本（约 1-2 分钟）...';
       try {
         var resp = await fetch('/api/video/analyze', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -4605,12 +4638,15 @@
         });
         var data = await resp.json();
         if (!resp.ok) throw new Error(data.detail || '失败');
-        vgRenderScript(data.script);
-        document.getElementById('vgMsg').innerHTML = '<span class="text-emerald-600">已提取推广片段：' + data.total_duration + ' 秒单段。可编辑描述后点「生成推广视频」。</span>';
+        _vgScript = [];
+        _vgCandidates = data.script || [];
+        if (!_vgCandidates.length) throw new Error('未返回候选剧本');
+        vgRenderCandidates();
+        document.getElementById('vgMsg').innerHTML = '<span class="text-emerald-600">已生成 ' + _vgCandidates.length + ' 个候选剧本——点选一个查看详细剧情并生成视频。</span>';
       } catch (e) {
         document.getElementById('vgMsg').innerHTML = '<span class="text-red-500">提取失败: ' + _vgEsc(e.message) + '</span>';
       }
-      btn.disabled = false; btn.textContent = '提取推广片段';
+      btn.disabled = false; btn.textContent = '生成候选剧本';
     }
 
     async function vgGenerate() {
