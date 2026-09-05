@@ -1239,7 +1239,19 @@
             <h3 class="text-xs font-semibold text-slate-300">广告设置</h3>
             <input id="dwAdName" placeholder="广告名（所有广告同名）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white">
             <textarea id="dwMessage" rows="4" placeholder="广告文案（可粘贴完整正文，保留换行与段落）" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white resize-y"></textarea>
-            <div><label class="mb-1 block text-xs text-slate-400">广告标题（5-10 个，随机分配）</label><div id="dwHeadlines" class="space-y-2"></div><div class="flex gap-2"><button onclick="dwAddHeadline()" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">+ 添加标题</button><button onclick="dwSaveHeadlines()" class="rounded-lg border border-emerald-600 px-3 py-1.5 text-xs text-emerald-400">保存标题库（下次自动加载）</button></div></div>
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs text-slate-400">广告标题（从标题库随机抽取，逐广告随机分配）</label>
+                <span class="text-[11px] text-slate-500">本次已随机 <b id="dwHeadlineCount">0</b> 条</span>
+              </div>
+              <div id="dwHeadlines" class="space-y-2"></div>
+              <div class="flex flex-wrap gap-2 mt-1.5">
+                <button onclick="dwAddHeadline()" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">+ 手动加一条</button>
+                <button onclick="dwRerollHeadlines()" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">🎲 换一批随机</button>
+                <button onclick="openHeadlineLib()" class="rounded-lg border border-emerald-600 px-3 py-1.5 text-xs text-emerald-400">标题库管理…</button>
+              </div>
+              <p id="dwHeadlineHint" class="hidden text-[11px] text-amber-400 mt-1.5">标题库为空：点「标题库管理…」先保存一批，之后每次进入向导自动随机抽取。</p>
+            </div>
             <div><label class="mb-1 block text-xs text-slate-400">行动号召（CTA）</label><select id="dwCTA" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white"><option value="LEARN_MORE">了解更多</option><option value="SHOP_NOW">立即购买</option><option value="SIGN_UP">注册</option><option value="SUBSCRIBE">订阅</option><option value="DOWNLOAD">下载</option><option value="CONTACT_US">联系我们</option></select></div>
             <label class="inline-flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" id="dwAdvantageCreative" checked> 进阶赋能型素材文案（Advantage+ 标准增强，让 Meta 自动优化文案/标题）</label>
             <label class="inline-flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" id="dwMultiAdvertiser"> 多广告主广告</label>
@@ -1259,6 +1271,25 @@
           </div>
           <div id="dwPublishProgress" class="text-xs text-slate-400"></div>
           <div class="flex justify-between"><button onclick="dwGoto(3)" class="rounded-lg border border-slate-700 px-5 py-2.5 text-sm text-slate-300">上一步</button><button onclick="dwPublishBatch()" class="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white">发布到 Meta</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 标题库管理弹窗（投放向导） -->
+    <div id="headlineLibModal" hidden class="fixed inset-0 z-[135] flex items-center justify-center bg-black/60">
+      <div class="bg-slate-800 rounded-2xl w-full max-w-xl mx-4 flex flex-col border border-slate-700 shadow-2xl max-h-[85vh]">
+        <div class="px-5 py-3 border-b border-slate-700 flex items-center justify-between shrink-0">
+          <h3 class="text-sm font-bold text-white">标题库管理</h3>
+          <button onclick="closeHeadlineLib()" class="w-7 h-7 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-400 cursor-pointer border-0 bg-transparent text-lg">✕</button>
+        </div>
+        <div class="px-5 py-4 space-y-2 overflow-y-auto">
+          <p class="text-xs text-slate-400">每行一条标题。保存后，投放向导每次进入会自动从里面随机抽取标题分配。</p>
+          <textarea id="headlineLibText" rows="14" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-white resize-none" placeholder="标题1&#10;标题2&#10;标题3&#10;…"></textarea>
+        </div>
+        <div class="px-5 py-3 border-t border-slate-700 flex justify-end gap-2 shrink-0">
+          <span id="headlineLibMsg" class="text-xs text-emerald-400 self-center mr-auto hidden">已保存 ✓</span>
+          <button onclick="closeHeadlineLib()" class="rounded-lg border border-slate-600 px-4 py-2 text-xs text-slate-300">取消</button>
+          <button onclick="saveHeadlineLib()" class="rounded-lg bg-emerald-600 px-5 py-2 text-xs font-medium text-white hover:bg-emerald-500">保存标题库</button>
         </div>
       </div>
     </div>
@@ -3967,7 +3998,7 @@
 
     function dwInitBatch() {
       dwLoadOptions();
-      dwRenderHeadlines();
+      dwLoadHeadlineLib(function() { dwRenderHeadlines(); });
       dwGoto(1);
     }
 
@@ -4008,20 +4039,12 @@
       if (needEl) needEl.textContent = total;
     }
 
-    function dwHeadlineLibKey() { return 'dw_headline_lib'; }
+    var _dwHeadlineLib = [];   // 广告标题库（服务端按用户保存，跨浏览器生效）
 
-    function dwLoadHeadlineLib() {
-      try { return JSON.parse(localStorage.getItem(dwHeadlineLibKey()) || '[]'); } catch (e) { return []; }
-    }
-
-    function dwRenderHeadlines() {
-      var el = document.getElementById('dwHeadlines');
-      var lib = dwLoadHeadlineLib();
-      el.innerHTML = '';
-      // 标题库不足 5 个时补空框，超过 5 个只取前 5 个
-      var vals = lib.slice(0, 5);
-      while (vals.length < 5) vals.push('');
-      for (var i = 0; i < vals.length; i++) el.appendChild(dwHeadlineInput(vals[i]));
+    function dwLoadHeadlineLib(cb) {
+      fetch('/api/delivery/headlines').then(function(r) { return r.json(); })
+        .then(function(d) { _dwHeadlineLib = (d && d.headlines) || []; if (cb) cb(); })
+        .catch(function() { _dwHeadlineLib = []; if (cb) cb(); });
     }
 
     function dwHeadlineInput(v) {
@@ -4032,14 +4055,66 @@
       return inp;
     }
 
-    function dwAddHeadline() { document.getElementById('dwHeadlines').appendChild(dwHeadlineInput('')); }
+    function dwAddHeadline() {
+      document.getElementById('dwHeadlines').appendChild(dwHeadlineInput(''));
+      dwSyncHeadlineCount();
+    }
 
-    function dwSaveHeadlines() {
+    function _dwShuffle(a) {
+      a = a.slice();
+      for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+      return a;
+    }
+
+    function dwSyncHeadlineCount() {
+      var n = document.querySelectorAll('#dwHeadlines input').length;
+      var c = document.getElementById('dwHeadlineCount'); if (c) c.textContent = n;
+      var hint = document.getElementById('dwHeadlineHint');
+      if (hint) hint.classList.toggle('hidden', _dwHeadlineLib.length > 0);
+    }
+
+    function dwRenderHeadlines() {
+      var el = document.getElementById('dwHeadlines');
+      el.innerHTML = '';
+      // 每次进入/换一批：从标题库随机抽最多 10 条作为本次标题池；库为空则给 5 个空框（可立即使用，仍建议先建库）
+      var lib = _dwHeadlineLib.filter(function(x) { return x && x.trim(); });
+      var pick = lib.length ? _dwShuffle(lib).slice(0, 10) : ['', '', '', '', ''];
+      pick.forEach(function(v) { el.appendChild(dwHeadlineInput(v)); });
+      dwSyncHeadlineCount();
+    }
+
+    function dwRerollHeadlines() {
+      if (!_dwHeadlineLib.length) { alert('标题库为空，请先点「标题库管理…」保存标题'); return; }
+      dwRenderHeadlines();
+    }
+
+    function dwCurrentHeadlines() {
       var vals = [];
-      document.querySelectorAll('#dwHeadlines input').forEach(function(inp){ var v = inp.value.trim(); if (v) vals.push(v); });
-      if (vals.length < 1) { alert('请至少填写 1 个标题再保存'); return; }
-      localStorage.setItem(dwHeadlineLibKey(), JSON.stringify(vals));
-      alert('已保存 ' + vals.length + ' 个标题到标题库，下次投放自动加载');
+      document.querySelectorAll('#dwHeadlines input').forEach(function(inp) { var v = inp.value.trim(); if (v) vals.push(v); });
+      return vals;
+    }
+
+    function openHeadlineLib() {
+      document.getElementById('headlineLibText').value = (_dwHeadlineLib || []).join('\n');
+      document.getElementById('headlineLibMsg').hidden = true;
+      document.getElementById('headlineLibModal').hidden = false;
+    }
+
+    function closeHeadlineLib() { document.getElementById('headlineLibModal').hidden = true; }
+
+    function saveHeadlineLib() {
+      var lines = document.getElementById('headlineLibText').value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+      if (!lines.length) { alert('请至少填写 1 条标题'); return; }
+      fetch('/api/delivery/headlines', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ headlines: lines })
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (!d || !d.headlines) throw new Error('保存失败');
+        _dwHeadlineLib = d.headlines;
+        var msg = document.getElementById('headlineLibMsg');
+        if (msg) { msg.textContent = '已保存 ' + d.headlines.length + ' 条 ✓'; msg.hidden = false; }
+        dwRenderHeadlines();
+      }).catch(function(e) { alert('保存失败: ' + e.message); });
     }
 
     function dwOnBudgetStrategy() {

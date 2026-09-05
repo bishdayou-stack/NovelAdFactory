@@ -6143,6 +6143,37 @@ class BatchPublishBody(BaseModel):
     # 素材
     assets: List[BatchAsset] = []
 
+
+class HeadlinesBody(BaseModel):
+    headlines: List[str] = []
+
+
+@app.get("/api/delivery/headlines")
+def _get_headline_lib(user: dict = Depends(get_current_user)):
+    """返回当前登录用户的广告标题库列表"""
+    uid = user["id"]
+    raw = (database.get_user_config(uid) or {}).get("delivery_headlines", "")
+    try:
+        arr = json.loads(raw) if raw else []
+    except Exception:
+        arr = []
+    return {"headlines": [x for x in arr if isinstance(x, str) and x.strip()]}
+
+
+@app.post("/api/delivery/headlines")
+def _save_headline_lib(body: HeadlinesBody, user: dict = Depends(get_current_user)):
+    """覆盖保存当前登录用户的广告标题库（trim + 去空 + 去重）"""
+    uid = user["id"]
+    seen, out = set(), []
+    for t in (body.headlines or []):
+        t = (t or "").strip()
+        if t and t not in seen:
+            seen.add(t)
+            out.append(t)
+    database.set_user_config(uid, "delivery_headlines", json.dumps(out, ensure_ascii=False))
+    return {"headlines": out}
+
+
 @app.post("/api/delivery/batch-publish")
 def _batch_publish(body: BatchPublishBody, user: dict = Depends(get_current_user)):
     uid = _opt_user_id(user)
