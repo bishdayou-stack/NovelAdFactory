@@ -2848,7 +2848,8 @@ class VideoAnalyzeRequest(BaseModel):
 
 class VideoGenerateRequest(BaseModel):
     novel_content: str = ""
-    script: list = []            # 已有脚本则跳过步骤1
+    script: list = []            # 已有脚本则跳过步骤1（本次实际选中的那个）
+    all_scripts: list = []       # 该次分析的整批候选剧本（含未选中），随批次保存供历史再次选择生成
     video_model: str = ""        # 前端传配置管理的视频模型
     shot_count: int = Field(default=6, ge=4, le=8)
     aspect_ratio: str = "16:9"
@@ -3003,7 +3004,7 @@ def _finalize_video_meta(batch_id: int) -> None:
 
 @app.post("/api/video/analyze")
 def api_video_analyze(body: VideoAnalyzeRequest, user: dict = Depends(get_current_user)):
-    """步骤1 only：小说原文 → 生成多个候选推广剧本（10-15s），并自动整批保存到剧本库"""
+    """步骤1 only：小说原文 → 生成多个候选推广剧本（10-15s）。整批候选在真正生成时随批次保存。"""
     cfg = _video_config(user, body.api_key, body.api_url)
     if not body.novel_content.strip():
         raise HTTPException(400, "请输入小说原文")
@@ -3015,26 +3016,8 @@ def api_video_analyze(body: VideoAnalyzeRequest, user: dict = Depends(get_curren
             body.novel_content)
     except Exception as e:
         raise HTTPException(500, f"推广剧本生成失败: {e}")
-    # 自动保存整批候选（含未选中的），供历史记录里再次挑选生成
-    script_id = database.insert_video_script(
-        user["id"], body.novel_id or "", body.aspect_ratio or "9:16", shots)
-    return {"script": shots, "script_id": script_id,
+    return {"script": shots,
             "total_duration": sum(int(s.get("duration_seconds", 3) or 3) for s in shots)}
-
-
-@app.get("/api/video/scripts")
-def api_video_scripts(user: dict = Depends(get_current_user)):
-    """列出当前用户的剧本库（每次分析整批候选）"""
-    return {"scripts": database.list_video_scripts(user["id"])}
-
-
-@app.get("/api/video/scripts/{script_id}")
-def api_video_script_detail(script_id: int, user: dict = Depends(get_current_user)):
-    """取某个剧本批次（含所有候选）"""
-    row = database.get_video_script(script_id, user["id"])
-    if not row:
-        raise HTTPException(404, "剧本不存在")
-    return row
 
 
 @app.post("/api/video/generate")
@@ -3057,6 +3040,7 @@ def api_video_generate(body: VideoGenerateRequest, user: dict = Depends(get_curr
             "batch_id": str(batch_id), "user_id": user["id"], "status": "running",
             "source": "video", "novel_id": body.novel_id, "video_model": video_model,
             "aspect_ratio": body.aspect_ratio, "chat_status": "" if body.script else "running",
+            "video_candidates": body.all_scripts or [],
             "message": "", "created_at": datetime.now().isoformat(),
         })
         meta_path.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
@@ -3544,6 +3528,7 @@ def api_history_detail(batch_id: str, user: dict = Depends(get_current_user)):
         "aspect_ratio": meta.get("aspect_ratio", "9:16"),
         "video_script": video_script,
         "video_shots": video_shots,
+        "video_candidates": meta.get("video_candidates", []),
         "image_count": len(imgs),
         "video_count": len(vids) + len(popups),
         "progress": _get_progress(int(batch_id)),

@@ -313,14 +313,6 @@
 
     <!-- ====== Tab: 历史记录 ====== -->
     <div id="tab-history" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
-      <!-- 剧本库：每次「生成候选剧本」自动保存整批，供挑选未生成的剧本再次出片 -->
-      <div class="card p-4 mb-4">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-sm font-semibold text-slate-800">剧本库 <span class="text-[11px] text-slate-400 font-normal">（自动保存每次分析的整批候选，含未选中的剧本）</span></h3>
-          <button type="button" onclick="loadVideoScripts()" class="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium transition-colors bg-transparent border-0 cursor-pointer">刷新</button>
-        </div>
-        <div id="videoScriptsList" class="text-xs text-slate-400">加载中...</div>
-      </div>
       <div class="card overflow-hidden">
         <div class="px-5 py-4 border-b border-slate-50 flex items-center justify-between flex-wrap gap-2">
           <h3 class="text-sm font-semibold text-slate-800">生成历史</h3>
@@ -2198,7 +2190,7 @@
       document.getElementById('statsBar').style.display = showStats ? '' : 'none';
 
       // 加载数据
-      if (tab === 'history') { loadCreators(); loadHistory(); loadVideoScripts(); document.getElementById('batchDetailPanel').hidden = true; }
+      if (tab === 'history') { loadCreators(); loadHistory(); document.getElementById('batchDetailPanel').hidden = true; }
       if (tab === 'assets') { loadCreators(); loadAssets(); }
       if (tab === 'video-style') { loadStyleLibrary().then(function() { loadFonts(); }); }
       if (tab === 'novel-analyze') {
@@ -2286,67 +2278,6 @@
         document.getElementById('historyCreatorFilter').innerHTML = opts;
         document.getElementById('assetFilterCreator').innerHTML = opts;
       }).catch(function() {});
-    }
-
-    // ====== 剧本库（历史记录页顶部）：整批候选剧本，可随时挑选未生成的再次出片 ======
-    function loadVideoScripts() {
-      var list = document.getElementById('videoScriptsList');
-      if (!list) return;
-      list.innerHTML = '加载中...';
-      fetch('/api/video/scripts').then(function(r) { return r.json(); }).then(function(d) {
-        var rows = (d && d.scripts) || [];
-        if (!rows.length) { list.innerHTML = '<span class="text-slate-400">暂无保存的剧本（到「视频生成」页点「生成候选剧本」会自动整批保存）。</span>'; return; }
-        var h = '<div class="space-y-2">';
-        rows.forEach(function(s) {
-          var titles = (s.titles || []).filter(Boolean);
-          var titleTxt = titles.length ? titles.slice(0, 3).map(function(t) { return escapeHtml(t); }).join('、') + (titles.length > 3 ? ' 等' : '') : '';
-          h += '<div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">' +
-            '<div class="flex items-center justify-between gap-2 flex-wrap">' +
-            '<div class="text-[11px] text-slate-500">#' + s.id + ' · ' + escapeHtml(s.novel_id || '-') + ' · ' + escapeHtml(String(s.created_at || '').slice(0, 19).replace('T', ' ')) + ' · ' + s.candidate_count + ' 个候选</div>' +
-            '<button type="button" class="text-[11px] text-indigo-600 bg-transparent border-0 cursor-pointer hover:underline" onclick="toggleVidScriptCandidates(' + s.id + ', this)">查看并选择生成 ▾</button>' +
-            '</div>' +
-            '<div class="text-[11px] text-slate-400 mt-1">' + titleTxt + '</div>' +
-            '<div class="cand-wrap mt-2 hidden" data-script="' + s.id + '"></div></div>';
-        });
-        list.innerHTML = h + '</div>';
-      }).catch(function() { list.innerHTML = '<span class="text-red-400">加载失败</span>'; });
-    }
-
-    function toggleVidScriptCandidates(id, btn) {
-      var wrap = document.querySelector('.cand-wrap[data-script="' + id + '"]');
-      if (!wrap) return;
-      if (wrap.dataset.open === '1') { wrap.classList.toggle('hidden'); return; }
-      wrap.dataset.open = '1'; wrap.classList.remove('hidden');
-      wrap.innerHTML = '<div class="text-slate-400 py-2">加载候选…</div>';
-      fetch('/api/video/scripts/' + id).then(function(r) { return r.json(); }).then(function(d) {
-        var cands = (d && d.candidates) || [];
-        if (!cands.length) { wrap.innerHTML = '<div class="text-slate-400 py-1">无候选</div>'; return; }
-        var h = '<div class="space-y-1.5 mt-1 pt-2 border-t border-slate-200">';
-        cands.forEach(function(c, i) {
-          var dur = parseInt(c.duration_seconds) || 0;
-          h += '<div class="flex items-center justify-between gap-2 bg-white rounded-lg border border-slate-200 px-3 py-2">' +
-            '<div class="min-w-0"><div class="text-[12px] font-medium text-slate-700 truncate">🎬 ' + escapeHtml(c.concept_title || ('候选 ' + (i + 1))) + '</div>' +
-            (c.hook ? '<div class="text-[11px] text-slate-400 truncate">' + escapeHtml(c.hook) + '</div>' : '') + '</div>' +
-            '<button type="button" class="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500 border-0 cursor-pointer" onclick="genScriptCandidate(' + id + ',' + i + ')">生成此剧本</button></div>';
-        });
-        wrap.innerHTML = h + '</div>';
-      }).catch(function() { wrap.innerHTML = '<div class="text-red-400 py-1">加载失败</div>'; });
-    }
-
-    // 从剧本库挑某个候选 → 载入视频生成页（可编辑后生成）
-    function genScriptCandidate(scriptId, idx) {
-      fetch('/api/video/scripts/' + scriptId).then(function(r) { return r.json(); }).then(function(d) {
-        var cands = (d && d.candidates) || [];
-        var c = cands[idx];
-        if (!c) { alert('候选不存在'); return; }
-        switchTab('video-gen');
-        var asp = document.getElementById('vgAspect');
-        if (asp && d.aspect_ratio) asp.value = d.aspect_ratio;
-        _vgCandidates = cands;
-        vgRenderScript([c]);
-        var m = document.getElementById('vgMsg');
-        if (m) m.innerHTML = '<span class="text-emerald-600">已从剧本库载入「' + escapeHtml(c.concept_title || '') + '」——可编辑画面描述后点「生成推广视频」。</span>';
-      }).catch(function() { alert('加载剧本失败'); });
     }
 
     function loadHistory(page, perPage) {
@@ -2476,7 +2407,14 @@
             vInfo += '<div class="mt-3"><div class="flex items-center justify-between text-xs mb-1"><span class="font-medium text-slate-700">生产进度</span><span class="font-mono text-indigo-600 font-semibold">' + pct + '%</span></div><div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden"><div class="bg-gradient-to-r from-indigo-500 to-indigo-700 h-full rounded-full transition-all" style="width:' + pct + '%"></div></div><div class="text-xs text-slate-500 mt-1">' + (data.progress.step || '') + '</div></div>';
           }
           if (script.length) {
-            vInfo += '<button type="button" onclick="regenFromHistoryVideo()" class="mt-3 rounded-xl bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm border-0 cursor-pointer">🎬 用此剧本重新生成（可先编辑）</button>';
+            vInfo += '<button type="button" onclick="regenFromHistoryVideo()" class="mt-3 rounded-xl bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white hover:bg-indigo-700 transition-all shadow-sm border-0 cursor-pointer">🎬 用已生成剧本再出一次（可先编辑）</button>';
+          }
+          var cands = data.video_candidates || [];
+          if (cands.length) {
+            vInfo += '<div class="mt-3"><div class="text-[11px] font-semibold text-slate-700 mb-1.5">该批候选剧本（' + cands.length + ' 个 · 含未生成的，可任选再次出片）</div><div class="flex flex-wrap gap-1.5">' +
+              cands.map(function(c, i) {
+                return '<button type="button" class="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all cursor-pointer bg-white" onclick="regenCandidateFromHistory(' + i + ')">🎬 ' + escapeHtml(c.concept_title || ('候选 ' + (i + 1))) + '</button>';
+              }).join('') + '</div></div>';
           }
           document.getElementById('detailInfo').innerHTML = vInfo;
 
@@ -4762,6 +4700,7 @@
           body: JSON.stringify({
             novel_content: novel,
             script: _vgScript,
+            all_scripts: (_vgCandidates && _vgCandidates.length) ? _vgCandidates : [],
             aspect_ratio: document.getElementById('vgAspect').value,
             novel_id: document.getElementById('vgNovelId').value.trim(),
             api_key: apiConfig.api_key, api_url: apiConfig.api_url
@@ -4789,18 +4728,34 @@
       document.getElementById('vgMsg').textContent = '正在取消...';
     }
 
-    // 历史记录「用此剧本重新生成」：把该批次的剧本载入视频生成页（可编辑后生成）
+    // 历史记录「用已生成剧本重新生成」：把该批次用到的剧本载入视频生成页（可编辑后生成）
     function regenFromHistoryVideo() {
       var data = window._lastVidDetail;
       if (!data || !Array.isArray(data.video_script) || !data.video_script.length) { alert('该批次没有可复用的剧本'); return; }
       switchTab('video-gen');
       var asp = document.getElementById('vgAspect');
       if (asp && data.aspect_ratio) asp.value = data.aspect_ratio;
-      _vgCandidates = [];
+      _vgCandidates = data.video_candidates || [];
       _vgScript = data.video_script.slice();
       vgRenderScript(_vgScript);
       var m = document.getElementById('vgMsg');
       if (m) m.innerHTML = '<span class="text-emerald-600">已从历史载入该剧本，可直接点「生成推广视频」重新生成，也可先编辑下方画面描述。</span>';
+    }
+
+    // 历史批次详情里挑整批候选中的某个（可未生成过）再出片
+    function regenCandidateFromHistory(i) {
+      var data = window._lastVidDetail;
+      if (!data) return;
+      var cands = data.video_candidates || [];
+      var c = cands[i];
+      if (!c) { alert('该候选不存在'); return; }
+      switchTab('video-gen');
+      var asp = document.getElementById('vgAspect');
+      if (asp && data.aspect_ratio) asp.value = data.aspect_ratio;
+      _vgCandidates = cands;
+      vgRenderScript([c]);
+      var m = document.getElementById('vgMsg');
+      if (m) m.innerHTML = '<span class="text-emerald-600">已从该批次载入候选「' + escapeHtml(c.concept_title || '') + '」——可编辑画面描述后点「生成推广视频」。</span>';
     }
 
     document.getElementById('vgClearNovelBtn').addEventListener('click', function() {
