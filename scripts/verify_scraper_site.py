@@ -52,6 +52,18 @@ def main():
     assert sess.pingykj_username == "b_user", sess.pingykj_username
     scraper._user_sessions.clear()
 
+    # 验证码链路同样必须按站点取生效凭据（桩掉真实取码网络请求）
+    orig_fetch = scraper.fetch_captcha_with_creds
+    seen = []
+    scraper.fetch_captcha_with_creds = lambda u, p, site=None: (seen.append((u, site)) or "img", "ck", None)
+    try:
+        scraper.fetch_captcha_for_user(uid, "b")
+        scraper.fetch_captcha_for_user(uid, "a")
+    finally:
+        scraper.fetch_captcha_with_creds = orig_fetch
+    assert seen == [("b_user", "b"), ("shared", "a")], seen
+    print("OK: 取验证码按站点取生效凭据——B 站专属、A 站回落通用")
+
     shutil.rmtree(tmp.parent, ignore_errors=True)
     print("OK: 站点凭据解析——B 站专属、A 站回落通用")
 

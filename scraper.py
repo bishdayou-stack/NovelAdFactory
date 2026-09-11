@@ -1091,8 +1091,8 @@ def fetch_captcha() -> Tuple[Optional[str], Optional[str], Optional[str]]:
 
 
 def fetch_captcha_for_user(user_id: int, site: str = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """为指定用户获取验证码（使用已保存的凭据）"""
-    creds = database.get_user_pingykj_credentials(user_id)
+    """为指定用户获取验证码（使用该站点生效的凭据）"""
+    creds = database.get_effective_pingykj_credentials(user_id, site)
     if not creds or not creds.get("username"):
         return None, None, "请先设置书城凭据"
     return fetch_captcha_with_creds(creds["username"], creds["password"], site=site)
