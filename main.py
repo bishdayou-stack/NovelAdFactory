@@ -233,30 +233,36 @@ def _recover_incomplete_batches():
 from apscheduler.schedulers.background import BackgroundScheduler
 _scheduler = BackgroundScheduler(executors={'default': {'type': 'threadpool', 'max_workers': 20}})
 
+def _parse_ts(s: str) -> datetime:
+    """解析 sync_state 中记录的同步时间（ISO 时间或日期），无法解析时按最早时间处理（即需要同步）。"""
+    try:
+        return datetime.fromisoformat(s)
+    except (ValueError, TypeError):
+        return datetime.min
+
+
 def _auto_sync_all_users():
-    """每 120 秒检查一次，按用户各自间隔决定是否同步（间隔从 user_config 读取）"""
+    """每 120 秒检查一次，按用户 + 站点各自间隔决定是否同步（间隔从 user_config 读取，站点级节流）"""
     try:
         users = database.list_active_users_with_credentials()
-        now = time.time()
         for u in users:
             uid = u["id"]
-            try:
-                # 获取该用户设置的同步间隔（秒）
-                interval = database.get_sync_interval(uid)
-                # 检查该用户上次同步时间，未到间隔则跳过
-                last_sync = _last_user_sync.get(uid, 0)
-                if now - last_sync < interval:
-                    continue
-                scraper.run_full_sync(uid)
-                _last_user_sync[uid] = now
-            except Exception as e:
-                print(f"[Scheduler] 用户 {u['username']} 同步失败: {e}")
+            interval = database.get_sync_interval(uid) or 180
+            for s in scraper.get_sites():
+                site = s["key"]
+                try:
+                    # 按 (用户, 站点) 维度节流：游标用 sync_all，与 run_full_sync 内部写的
+                    # ads/orders/novels 游标互不干扰
+                    last = database.get_last_sync_date("sync_all", user_id=uid, site=site)
+                    if last and (datetime.now() - _parse_ts(last)).total_seconds() < interval:
+                        continue
+                    scraper.run_full_sync(uid, site=site)
+                    database.set_last_sync_date("sync_all", datetime.now().isoformat(),
+                                                user_id=uid, site=site)
+                except Exception as e:
+                    print(f"[AUTO SYNC] user={uid} site={site} 失败: {e}")
     except Exception as e:
         print(f"[Scheduler] 自动同步失败: {e}")
-
-
-# 记录每个用户上次同步时间戳
-_last_user_sync: Dict[int, float] = {}
 
 
 def _auto_keepalive():
@@ -296,14 +302,16 @@ def _auto_full_novel_sync():
         users = database.list_active_users_with_credentials()
         for u in users:
             uid = u["id"]
-            try:
-                count, err = scraper.sync_novel_books(uid, full_sync=True)
-                if err:
-                    print(f"[全量小说同步] 用户 {u['username']}: {count} 本, 警告: {err}")
-                else:
-                    print(f"[全量小说同步] 用户 {u['username']}: {count} 本")
-            except Exception as e:
-                print(f"[全量小说同步] 用户 {u['username']} 失败: {e}")
+            for s in scraper.get_sites():
+                site = s["key"]
+                try:
+                    count, err = scraper.sync_novel_books(uid, full_sync=True, site=site)
+                    if err:
+                        print(f"[全量小说同步] 用户 {u['username']} site={site}: {count} 本, 警告: {err}")
+                    else:
+                        print(f"[全量小说同步] 用户 {u['username']} site={site}: {count} 本")
+                except Exception as e:
+                    print(f"[全量小说同步] 用户 {u['username']} site={site} 失败: {e}")
     except Exception as e:
         print(f"[全量小说同步] 异常: {e}")
 
@@ -323,14 +331,16 @@ _scheduler.start()
 def _auto_chapter_sync():
     users = database.list_active_users_with_credentials()
     for u in users:
-        try:
-            count, err = scraper.sync_missing_chapters(u["id"])
-            if count > 0:
-                print(f"[章节补缺] 用户 {u['username']}: {count} 章")
-            if err:
-                print(f"[章节补缺] 用户 {u['username']} 错误: {err}")
-        except Exception as e:
-            print(f"[章节补缺] 用户 {u.get('username', '?')} 失败: {e}")
+        for s in scraper.get_sites():
+            site = s["key"]
+            try:
+                count, err = scraper.sync_missing_chapters(u["id"], site=site)
+                if count > 0:
+                    print(f"[章节补缺] 用户 {u['username']} site={site}: {count} 章")
+                if err:
+                    print(f"[章节补缺] 用户 {u['username']} site={site} 错误: {err}")
+            except Exception as e:
+                print(f"[章节补缺] 用户 {u.get('username', '?')} site={site} 失败: {e}")
 _scheduler.add_job(
     _auto_chapter_sync,
     'interval',
