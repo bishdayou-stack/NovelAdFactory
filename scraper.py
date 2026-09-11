@@ -70,10 +70,6 @@ def site_content_url(site: str) -> str:
     return _site_conf(site)["content_url"]
 
 
-# 过渡常量（Task 4 删除，届时所有引用改为按站点取值）
-BASE_URL = site_base_url(DEFAULT_SITE)
-_CONTENT_API = site_content_url(DEFAULT_SITE)
-
 # ====== 代理支持 ======
 
 def _get_proxy_url() -> Optional[str]:
@@ -165,17 +161,20 @@ _NOVEL_BOOK_PATH = "/jeecgboot/novel/novel/list"
 _NOVEL_BOOK_PATH_ALT = "/jeecgboot/novel/bookList"
 
 # ====== 多用户 session 缓存 ======
-_user_sessions: Dict[int, "ScraperSession"] = {}
+_user_sessions: Dict[Any, "ScraperSession"] = {}   # 键: (user_id, site)
 _pending_logins: Dict[str, "ScraperSession"] = {}  # check_key → 临时 session（验证码用）
 
 
 # ====== ScraperSession ======
 
 class ScraperSession:
-    """每个用户独立的书城登录 session"""
+    """每个用户独立（按站点分开）的书城登录 session"""
 
-    def __init__(self, user_id: int, pingykj_user: str, pingykj_pass: str):
+    def __init__(self, user_id: int, pingykj_user: str, pingykj_pass: str, site: str = None):
         self.user_id = user_id
+        self.site = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
+        self.base_url = site_base_url(self.site)
+        self.content_url = site_content_url(self.site)
         self.pingykj_username = pingykj_user
         self.pingykj_password = pingykj_pass
         self._token: Optional[str] = None
@@ -228,7 +227,7 @@ class ScraperSession:
     def fetch_captcha(self) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """获取登录验证码。返回 (data_uri, check_key, error_message)"""
         check_key = uuid.uuid4().hex
-        url = f"{BASE_URL}{CAPTCHA_API_PATH}/{check_key}"
+        url = f"{self.base_url}{CAPTCHA_API_PATH}/{check_key}"
         raw, cookies_str, err = self._curl_get_raw(url, timeout=15)
         if err:
             return None, None, f"请求失败: {err}"
@@ -282,7 +281,7 @@ class ScraperSession:
             body["checkKey"] = check_key
 
         data, code, err = _curl_post(
-            f"{BASE_URL}{LOGIN_API_PATH}",
+            f"{self.base_url}{LOGIN_API_PATH}",
             body=body,
             cookies=self._captcha_cookies if captcha else None,
             timeout=15
@@ -319,7 +318,7 @@ class ScraperSession:
         """用最小开销的 API 调用验证 token 是否仍然有效（pageSize=1）。
         网络临时故障时保持乐观（不因网络抖动就清除 token）。"""
         headers = {"X-Access-Token": self._token}
-        url = f"{BASE_URL}{_AD_API_PATH}?pageNo=1&pageSize=1&{_AD_API_PARAMS}"
+        url = f"{self.base_url}{_AD_API_PATH}?pageNo=1&pageSize=1&{_AD_API_PARAMS}"
         data, code, err = _curl_get(url, headers=headers, timeout=10)
         if err:
             # 网络故障，保持乐观（不因临时网络问题清除 token）
@@ -388,7 +387,7 @@ class ScraperSession:
         page_no = 1
 
         while True:
-            url = f"{BASE_URL}{api_path}?pageNo={page_no}&pageSize={page_size}&{api_params}{date_filter}"
+            url = f"{self.base_url}{api_path}?pageNo={page_no}&pageSize={page_size}&{api_params}{date_filter}"
             data, code, err = _curl_get(url, headers=headers, timeout=30)
             if err:
                 if all_records:
@@ -453,56 +452,64 @@ class ScraperSession:
 
 # ====== 用户 session 管理 ======
 
-def _get_or_create_session(user_id: int) -> Tuple[Optional[ScraperSession], str]:
-    """获取用户的 ScraperSession。优先用缓存，验证 token 有效性；过期则自动重新登录。"""
-    if user_id in _user_sessions:
-        session = _user_sessions[user_id]
+def _get_or_create_session(user_id: int, site: str = None) -> Tuple[Optional[ScraperSession], str]:
+    """获取用户某站点的 ScraperSession。优先用缓存，验证 token 有效性；过期则自动重新登录。"""
+    site = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
+    key = (user_id, site)
+    if key in _user_sessions:
+        session = _user_sessions[key]
         if session._ensure_valid_token():
             return session, ""
         # 缓存过期且自动续期失败，清除
-        print(f"[Scraper] 用户 {user_id} session 无效，清除缓存")
+        print(f"[Scraper] 用户 {user_id} 站点 {site} session 无效，清除缓存")
         database.set_pingykj_offline(user_id)
-        del _user_sessions[user_id]
+        del _user_sessions[key]
 
     creds = database.get_user_pingykj_credentials(user_id)
     if not creds or not creds.get("username"):
         return None, "未配置书城凭据，请在数据看板页面设置"
 
     # 尝试自动重新登录（不带验证码，大多数情况下可直接登录）
-    session = ScraperSession(user_id, creds["username"], creds["password"])
+    session = ScraperSession(user_id, creds["username"], creds["password"], site=site)
     ok, msg = session.login()
     if ok:
-        _user_sessions[user_id] = session
-        print(f"[Scraper] 用户 {user_id} 自动重新登录成功")
+        _user_sessions[key] = session
+        print(f"[Scraper] 用户 {user_id} 站点 {site} 自动重新登录成功")
         return session, ""
 
     # 自动登录失败（可能需要验证码），提示用户手动操作
     return None, f"书城登录会话已过期: {msg}。请在数据看板页面重新设置凭据（需输入验证码）"
 
 
-def keepalive_all_sessions() -> Dict[int, bool]:
+def keepalive_all_sessions() -> Dict[Any, bool]:
     """对所有活跃 session 做 token 保活验证（供定时器调用）。
-    返回 {user_id: is_valid} 字典。"""
+    返回 {(user_id, site): is_valid} 字典。"""
     results = {}
-    for user_id, session in list(_user_sessions.items()):
+    for key, session in list(_user_sessions.items()):
         try:
             valid = session._ensure_valid_token()
-            results[user_id] = valid
+            results[key] = valid
             if not valid:
-                print(f"[Scraper] 保活失败 user={user_id}，将从缓存清除")
-                database.set_pingykj_offline(user_id)
-                del _user_sessions[user_id]
+                print(f"[Scraper] 保活失败 user={key[0]} site={key[1]}，将从缓存清除")
+                database.set_pingykj_offline(key[0])
+                del _user_sessions[key]
         except Exception as e:
-            print(f"[Scraper] 保活异常 user={user_id}: {e}")
-            results[user_id] = False
+            print(f"[Scraper] 保活异常 user={key[0]} site={key[1]}: {e}")
+            results[key] = False
     return results
 
 
-def clear_user_session(user_id: int) -> None:
-    """清除用户 session（切换凭据时使用）"""
-    if user_id in _user_sessions:
-        _user_sessions[user_id].logout()
-        del _user_sessions[user_id]
+def clear_user_session(user_id: int, site: str = None) -> None:
+    """清除用户 session（切换凭据时使用）。
+    site=None 表示清除该用户所有站点的会话（凭据两站共用，改凭据需一起清）。"""
+    if site:
+        keys = [(user_id, (site or "").strip() or DEFAULT_SITE)]
+    else:
+        keys = [k for k in _user_sessions if k[0] == user_id]
+    for k in keys:
+        session = _user_sessions.pop(k, None)
+        if session:
+            session.logout()
 
 
 # ====== 广告数据采集 ======
@@ -564,14 +571,15 @@ def _aggregate_ad_rows(raw_rows: List[Dict[str, str]]) -> List[Dict[str, Any]]:
     return list(groups.values())
 
 
-def sync_ads(user_id: int) -> Tuple[int, str]:
-    session, err = _get_or_create_session(user_id)
+def sync_ads(user_id: int, site: str = None) -> Tuple[int, str]:
+    site = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
+    session, err = _get_or_create_session(user_id, site)
     if not session:
         return 0, err
 
     try:
         today = time.strftime("%Y-%m-%d")
-        last_date = database.get_last_sync_date("ads", user_id)
+        last_date = database.get_last_sync_date("ads", user_id, site=site)
         date_start = None
         date_end = None
 
@@ -580,9 +588,9 @@ def sync_ads(user_id: int) -> Tuple[int, str]:
             overlap = (dt.strptime(last_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
             date_start = f"statDate_begin={overlap}"
             date_end = f"statDate_end={today}"
-            print(f"[Scraper] 增量同步广告(user={user_id}): {overlap} ~ {today}")
+            print(f"[Scraper] 增量同步广告(user={user_id}, site={site}): {overlap} ~ {today}")
         else:
-            print(f"[Scraper] 首次全量同步广告(user={user_id})...")
+            print(f"[Scraper] 首次全量同步广告(user={user_id}, site={site})...")
 
         records, err = session._fetch_with_token(
             _AD_API_PATH, _AD_API_PARAMS,
@@ -602,14 +610,14 @@ def sync_ads(user_id: int) -> Tuple[int, str]:
                 unique.append(r)
         print(f"[Scraper] 广告去重后: {len(unique)} 条")
 
-        raw_count = database.save_raw_ad_stats(unique, user_id)
+        raw_count = database.save_raw_ad_stats(unique, user_id, site=site)
         print(f"[Scraper] 原始广告数据已保存: {raw_count} 条")
 
         aggregated = _aggregate_ad_rows(unique)
-        count = database.upsert_ad_stats(aggregated, user_id)
+        count = database.upsert_ad_stats(aggregated, user_id, site=site)
 
         if count > 0:
-            database.set_last_sync_date("ads", today, user_id)
+            database.set_last_sync_date("ads", today, user_id, site=site)
         return count, ""
 
     except Exception as e:
@@ -618,11 +626,12 @@ def sync_ads(user_id: int) -> Tuple[int, str]:
         return 0, str(e)
 
 
-def reset_sync_state(user_id: int) -> None:
+def reset_sync_state(user_id: int, site: str = None) -> None:
     """清除用户的同步状态，下次同步时将全量拉取"""
+    site = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
     for sync_type in ["ads", "orders"]:
-        database.delete_sync_state(sync_type, user_id)
-    # 也清除 Meta 同步状态
+        database.delete_sync_state(sync_type, user_id, site=site)
+    # 也清除 Meta 同步状态（Meta 与站点无关，统一落在默认站点）
     accounts = database.get_meta_accounts(user_id)
     for a in accounts:
         database.delete_sync_state(f"meta_{a['act_id']}", user_id)
@@ -658,14 +667,15 @@ def _parse_order_rows(raw_rows: List[Dict[str, str]]) -> List[Dict[str, Any]]:
     return results
 
 
-def sync_orders(user_id: int) -> Tuple[int, str]:
-    session, err = _get_or_create_session(user_id)
+def sync_orders(user_id: int, site: str = None) -> Tuple[int, str]:
+    site = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
+    session, err = _get_or_create_session(user_id, site)
     if not session:
         return 0, err
 
     try:
         today = time.strftime("%Y-%m-%d")
-        last_date = database.get_last_sync_date("orders", user_id)
+        last_date = database.get_last_sync_date("orders", user_id, site=site)
         date_start = None
         date_end = None
 
@@ -674,9 +684,9 @@ def sync_orders(user_id: int) -> Tuple[int, str]:
             overlap = (dt.strptime(last_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
             date_start = f"createTime_begin={overlap}"
             date_end = f"createTime_end={today}"
-            print(f"[Scraper] 增量同步订单(user={user_id}): {overlap} ~ {today}")
+            print(f"[Scraper] 增量同步订单(user={user_id}, site={site}): {overlap} ~ {today}")
         else:
-            print(f"[Scraper] 首次全量同步订单(user={user_id})...")
+            print(f"[Scraper] 首次全量同步订单(user={user_id}, site={site})...")
 
         records, err = session._fetch_with_token(
             _ORDER_API_PATH, _ORDER_API_PARAMS,
@@ -696,14 +706,14 @@ def sync_orders(user_id: int) -> Tuple[int, str]:
                 unique.append(r)
         print(f"[Scraper] 订单去重后: {len(unique)} 条")
 
-        raw_count = database.save_raw_orders(unique, user_id)
+        raw_count = database.save_raw_orders(unique, user_id, site=site)
         print(f"[Scraper] 原始订单数据已保存: {raw_count} 条")
 
         orders = _parse_order_rows(unique)
-        count = database.upsert_orders(orders, user_id)
+        count = database.upsert_orders(orders, user_id, site=site)
 
         if count > 0:
-            database.set_last_sync_date("orders", today, user_id)
+            database.set_last_sync_date("orders", today, user_id, site=site)
         return count, ""
 
     except Exception as e:
@@ -901,7 +911,7 @@ def _fetch_novel_books(api_path: str, session: ScraperSession,
     elif date_start:
         date_filter = f"&updateTime_begin={date_start}"
     while True:
-        url = f"{BASE_URL}{api_path}?pageNo={page_no}&pageSize=500{date_filter}"
+        url = f"{session.base_url}{api_path}?pageNo={page_no}&pageSize=500{date_filter}"
         data, code, err = _curl_get(url, headers=headers, timeout=30)
         if err:
             return [], f"请求异常: {err}"
@@ -922,18 +932,20 @@ def _fetch_novel_books(api_path: str, session: ScraperSession,
     return all_raw, ""
 
 
-def sync_novel_books(user_id: int = None, full_sync: bool = False) -> Tuple[int, str]:
+def sync_novel_books(user_id: int = None, full_sync: bool = False,
+                     site: str = None) -> Tuple[int, str]:
     """同步书籍列表。
     full_sync=False: 增量同步（按 updateTime 过滤，仅拉取近期更新的书籍）
     full_sync=True:  全量同步（不过滤日期，拉取全部书籍并更新消耗数据）"""
+    site = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
     session = None
     if user_id:
-        session, _ = _get_or_create_session(user_id)
+        session, _ = _get_or_create_session(user_id, site)
 
     if not session:
         active_users = database.list_active_users_with_credentials()
         for u in active_users:
-            session, _ = _get_or_create_session(u["id"])
+            session, _ = _get_or_create_session(u["id"], site)
             if session:
                 break
 
@@ -944,17 +956,17 @@ def sync_novel_books(user_id: int = None, full_sync: bool = False) -> Tuple[int,
     date_start = None
     date_end = None
     if full_sync:
-        print(f"[Scraper] 全量同步书籍（更新消耗与订单数据）...")
+        print(f"[Scraper] 全量同步书籍（site={site}，更新消耗与订单数据）...")
     else:
-        last_date = database.get_last_sync_date("novels")
+        last_date = database.get_last_sync_date("novels", site=site)
         if last_date:
             from datetime import datetime as dt, timedelta
             overlap = (dt.strptime(last_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
             date_start = overlap
             date_end = today
-            print(f"[Scraper] 增量同步书籍: {overlap} ~ {today}")
+            print(f"[Scraper] 增量同步书籍(site={site}): {overlap} ~ {today}")
         else:
-            print(f"[Scraper] 首次全量同步书籍...")
+            print(f"[Scraper] 首次全量同步书籍(site={site})...")
 
     err_msgs = []
     for api_path in (_NOVEL_BOOK_PATH, _NOVEL_BOOK_PATH_ALT):
@@ -962,11 +974,11 @@ def sync_novel_books(user_id: int = None, full_sync: bool = False) -> Tuple[int,
                                           date_start=date_start, date_end=date_end)
         if all_raw:
             books = _parse_novel_books(all_raw)
-            count = database.upsert_novel_books(books)
+            count = database.upsert_novel_books(books, site=site)
             if count > 0 or full_sync:
-                database.set_last_sync_date("novels", today)
+                database.set_last_sync_date("novels", today, site=site)
             # 保存当日消耗快照（用于计算区间消耗增量）
-            snap_count = database.save_novel_spend_snapshots(books)
+            snap_count = database.save_novel_spend_snapshots(books, site=site)
             if snap_count > 0:
                 print(f"[Scraper] 小说消耗快照已保存: {snap_count} 本")
             return count, ""
@@ -978,17 +990,18 @@ def sync_novel_books(user_id: int = None, full_sync: bool = False) -> Tuple[int,
     return 0, "; ".join(err_msgs)
 
 
-def sync_missing_chapters(user_id: int = None) -> Tuple[int, str]:
+def sync_missing_chapters(user_id: int = None, site: str = None) -> Tuple[int, str]:
     """检查并同步章节缺失的书籍内容"""
+    site = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
     with database.get_conn() as conn:
-        # 找出 total_chapters > 已存储章节数的书籍
+        # 找出 total_chapters > 已存储章节数的书籍（仅本站点）
         rows = conn.execute("""
             SELECT nb.novel_id, nb.novel_name, nb.total_chapters,
-                   COALESCE((SELECT COUNT(*) FROM novel_chapters nc WHERE nc.novel_id = nb.novel_id), 0) AS stored_chapters
+                   COALESCE((SELECT COUNT(*) FROM novel_chapters nc WHERE nc.novel_id = nb.novel_id AND nc.site = nb.site), 0) AS stored_chapters
             FROM novel_books nb
-            WHERE nb.total_chapters > COALESCE((SELECT COUNT(*) FROM novel_chapters nc WHERE nc.novel_id = nb.novel_id), 0)
+            WHERE nb.site = ? AND nb.total_chapters > COALESCE((SELECT COUNT(*) FROM novel_chapters nc WHERE nc.novel_id = nb.novel_id AND nc.site = nb.site), 0)
             ORDER BY nb.total_chapters - stored_chapters DESC
-        """).fetchall()
+        """, (site,)).fetchall()
 
     if not rows:
         return 0, ""
@@ -1000,7 +1013,7 @@ def sync_missing_chapters(user_id: int = None) -> Tuple[int, str]:
         missing = r["total_chapters"] - r["stored_chapters"]
         print(f"[Novel] 章节缺失: {novel_name} ({novel_id}) 需补 {missing} 章")
         try:
-            count, err = sync_novel_chapters(novel_id)
+            count, err = sync_novel_chapters(novel_id, site=site)
             if not err and count > 0:
                 synced += 1
                 print(f"[Novel] {novel_name} 章节同步完成: +{count} 章")
@@ -1012,11 +1025,12 @@ def sync_missing_chapters(user_id: int = None) -> Tuple[int, str]:
     return synced, ""
 
 
-def sync_novel_chapters(novel_id: str) -> Tuple[int, str]:
+def sync_novel_chapters(novel_id: str, site: str = None) -> Tuple[int, str]:
     """同步单本书的章节内容"""
+    site = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
     try:
         from urllib.parse import quote
-        url = f"{_CONTENT_API}{_CONTENT_PATH}?novelId={quote(novel_id, safe='')}&viewFree=false"
+        url = f"{site_content_url(site)}{_CONTENT_PATH}?novelId={quote(novel_id, safe='')}&viewFree=false"
         data, code, err = _curl_get(url, timeout=60)
         if err:
             return 0, err
@@ -1024,25 +1038,27 @@ def sync_novel_chapters(novel_id: str) -> Tuple[int, str]:
             return 0, f"HTTP {code}"
         html_text = data if isinstance(data, str) else json.dumps(data)
         chapters = _parse_chapters_from_html(html_text, novel_id)
-        count = database.upsert_novel_chapters(chapters)
+        count = database.upsert_novel_chapters(chapters, site=site)
         return count, ""
     except Exception as e:
         return 0, str(e)
 
 
-def sync_all_novel_content(novel_id: str = None, concurrency: int = 8) -> Dict[str, Any]:
-    """同步章节内容，可指定 novel_id 或全部"""
+def sync_all_novel_content(novel_id: str = None, concurrency: int = 8,
+                           site: str = None) -> Dict[str, Any]:
+    """同步章节内容，可指定 novel_id 或全部（限定本站点）"""
+    site = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
     if novel_id:
         ids = [novel_id]
     else:
-        ids = database.get_all_novel_ids()
+        ids = database.get_all_novel_ids(site=site)
 
     result = {"total": len(ids), "books": {}, "concurrency": concurrency}
     lock = __import__('threading').Lock()
     completed = [0]
 
     def _sync_one(nid):
-        count, err = sync_novel_chapters(nid)
+        count, err = sync_novel_chapters(nid, site=site)
         with lock:
             completed[0] += 1
             if not err and count > 0:
@@ -1067,54 +1083,60 @@ def fetch_captcha() -> Tuple[Optional[str], Optional[str], Optional[str]]:
     return fetch_captcha_for_user(1)
 
 
-def fetch_captcha_for_user(user_id: int) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+def fetch_captcha_for_user(user_id: int, site: str = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """为指定用户获取验证码（使用已保存的凭据）"""
     creds = database.get_user_pingykj_credentials(user_id)
     if not creds or not creds.get("username"):
         return None, None, "请先设置书城凭据"
-    return fetch_captcha_with_creds(creds["username"], creds["password"])
+    return fetch_captcha_with_creds(creds["username"], creds["password"], site=site)
 
 
-def fetch_captcha_with_creds(username: str, password: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+def fetch_captcha_with_creds(username: str, password: str,
+                             site: str = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """用指定凭据获取验证码，缓存 session 供后续登录复用"""
-    session = ScraperSession(0, username, password)
+    session = ScraperSession(0, username, password, site=site)
     data_uri, check_key, err = session.fetch_captcha()
     if check_key and session._captcha_cookies:
         _pending_logins[check_key] = session  # 缓存临时 session，登录时复用
     return data_uri, check_key, err
 
 
-def login_via_api(username: str, password: str,
+def login_via_api(username: str, password: str, site: str = None,
                   captcha: str = "", check_key: str = "") -> Tuple[bool, str]:
     """兼容旧版"""
-    return login_via_api_for_user(1, username, password, captcha, check_key)
+    return login_via_api_for_user(1, username, password, site=site,
+                                  captcha=captcha, check_key=check_key)
 
 
 def login_via_api_for_user(user_id: int, username: str, password: str,
+                           site: str = None,
                            captcha: str = "", check_key: str = "") -> Tuple[bool, str]:
     """用指定凭据登录书城，复用验证码获取时的 session（保持 cookies 关联）"""
+    site = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
     # 优先复用验证码获取时缓存的 session（cookies 关联 checkKey→验证码）
     if check_key and check_key in _pending_logins:
         session = _pending_logins.pop(check_key)
         session.user_id = user_id
+        site = session.site  # 沿用取验证码时的站点
         # 注意：session 上已有 _captcha_cookies，login 方法会用到
     else:
-        session = ScraperSession(user_id, username, password)
+        session = ScraperSession(user_id, username, password, site=site)
 
     ok, msg = session.login(captcha, check_key)
     if ok:
-        _user_sessions[user_id] = session
+        _user_sessions[(user_id, site)] = session
     return ok, msg
 
 
 # ---- 主同步入口 ----
 
-def run_full_sync(user_id: int = None) -> Dict[str, Any]:
+def run_full_sync(user_id: int = None, site: str = None) -> Dict[str, Any]:
     """数据看板同步（仅广告 + 订单，不包含小说和 Meta）"""
     uid = user_id or 1
-    print(f"[Scraper] run_full_sync 开始, user_id={uid}")
+    site = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
+    print(f"[Scraper] run_full_sync 开始, user_id={uid}, site={site}")
 
-    session, sess_err = _get_or_create_session(uid)
+    session, sess_err = _get_or_create_session(uid, site)
     if not session:
         return {"success": False, "login_required": True, "message": sess_err}
 
@@ -1123,24 +1145,24 @@ def run_full_sync(user_id: int = None) -> Dict[str, Any]:
               "orders": {"count": 0, "error": ""},
               "novels": {"count": 0, "error": ""}}
 
-    ads_count, ads_err = sync_ads(uid)
+    ads_count, ads_err = sync_ads(uid, site)
     result["ads"]["count"] = ads_count
     result["ads"]["error"] = ads_err
-    database.log_sync("ads", "success" if not ads_err else "failed", ads_count, ads_err, uid)
+    database.log_sync("ads", "success" if not ads_err else "failed", ads_count, ads_err, uid, site=site)
 
-    orders_count, orders_err = sync_orders(uid)
+    orders_count, orders_err = sync_orders(uid, site)
     result["orders"]["count"] = orders_count
     result["orders"]["error"] = orders_err
-    database.log_sync("orders", "success" if not orders_err else "failed", orders_count, orders_err, uid)
+    database.log_sync("orders", "success" if not orders_err else "failed", orders_count, orders_err, uid, site=site)
 
     # 增量同步书籍列表
-    novels_count, novels_err = sync_novel_books(uid)
+    novels_count, novels_err = sync_novel_books(uid, site=site)
     result["novels"]["count"] = novels_count
     result["novels"]["error"] = novels_err
 
     login_lost = ("登录已失效" in ads_err or "登录已失效" in orders_err)
     if login_lost:
-        clear_user_session(uid)
+        clear_user_session(uid, site)
         result["login_required"] = True
 
     all_failed = ads_err and orders_err and novels_err
