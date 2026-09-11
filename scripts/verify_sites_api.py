@@ -138,6 +138,99 @@ def main():
     r = c.post(f"/api/users/{u2['id']}/reconnect-pingykj", params={"site": "b"})
     assert r.status_code == 200 and calls["login"]["username"] == "b_user", (r.text, calls)
 
+    # --- Important 1：非 id=1 的管理员改名必须生效（读侧不能把 uid 写死成 1）---
+    admin2 = database.get_user(database.create_user("admin2", "p2", "admin"))
+    assert admin2["id"] != 1, admin2
+    c.app.dependency_overrides[get_current_user] = lambda: admin2
+    c.app.dependency_overrides[get_current_admin] = lambda: admin2
+    seen_before = c.get("/api/sites").json()["sites"][0]["name"]
+    r = c.put("/api/sites/names", json={"names": {"a": "副站"}})
+    assert r.status_code == 200, r.text
+    got_a2 = c.get("/api/sites").json()["sites"][0]["name"]
+    assert got_a2 == "副站", \
+        f"副管理员改名没生效（读侧按 uid=1 读？）：改名前 {seen_before!r}，PUT 后仍是 {got_a2!r}"
+    me_a2 = [u for u in c.get("/api/users").json() if u["id"] == admin2["id"]][0]
+    assert me_a2["sites"]["a"]["name"] == "副站", me_a2["sites"]
+    c.app.dependency_overrides[get_current_user] = lambda: admin
+    c.app.dependency_overrides[get_current_admin] = lambda: admin
+    assert c.get("/api/sites").json()["sites"][0]["name"] == "番茄", "副管理员的改名污染了主管理员"
+
+    # --- Minor：部分提交只更新本次给的 key，不清掉其它站的改名 ---
+    r = c.put("/api/sites/names", json={"names": {"b": "B站新名"}})
+    assert r.status_code == 200, r.text
+    got = [s["name"] for s in c.get("/api/sites").json()["sites"]]
+    assert got[:2] == ["番茄", "B站新名"], f"部分提交清掉了没提交的站: {got}"
+
+    # --- Minor：值为 null 不改名（不能变成字面量 "None"）---
+    r = c.put("/api/sites/names", json={"names": {"a": None}})
+    assert r.status_code == 200, r.text
+    assert c.get("/api/sites").json()["sites"][0]["name"] == "番茄", \
+        f"null 值不该改名，更不该写成 'None': {c.get('/api/sites').json()['sites'][0]}"
+
+    # --- Minor：站点名要有长度上限 ---
+    r = c.put("/api/sites/names", json={"names": {"a": "x" * 5000}})
+    assert r.status_code == 400, f"超长站点名应 400，实际 {r.status_code}"
+    assert c.get("/api/sites").json()["sites"][0]["name"] == "番茄", "超长名不该入库"
+
+    # --- Important 2：站点凭据「有用户名/空密码」不许造行，历史坏行也不得遮蔽通用凭据 ---
+    u5 = database.get_user(database.create_user("u5", "p5", "user",
+                                                pingykj_username="gen", pingykj_password="gen_pw"))
+    c.app.dependency_overrides[get_current_user] = lambda: u5
+    r = c.put("/api/auth/pingykj-credentials",
+              json={"pingykj_username": "onlyname", "pingykj_password": "", "site": "b"})
+    assert r.status_code == 400, f"站点凭据缺密码应 400，实际 {r.status_code} {r.text}"
+    assert database.get_site_credentials(u5["id"], "b") is None, "不该造出坏行"
+    r = c.put("/api/auth/pingykj-credentials",
+              json={"pingykj_username": "", "pingykj_password": "pw", "site": "b"})
+    assert r.status_code == 400, f"站点凭据缺用户名应 400，实际 {r.status_code} {r.text}"
+    # 通用分支保持现状（允许只存用户名），别被这条裁决波及
+    r = c.put("/api/auth/pingykj-credentials",
+              json={"pingykj_username": "gen", "pingykj_password": ""})
+    assert r.status_code == 200, f"通用分支不该被波及: {r.status_code} {r.text}"
+    database.update_user(u5["id"], pingykj_username="gen", pingykj_password="gen_pw")
+
+    # 历史脏行（用户名有、密码空）→ 视为未配置 → 回落通用，不再遮蔽
+    database.set_site_credentials(u5["id"], "b", "onlyname", "")
+    eff = database.get_effective_pingykj_credentials(u5["id"], "b")
+    assert eff and eff["username"] == "gen", f"坏行遮蔽了通用凭据: {eff}"
+    c.app.dependency_overrides[get_current_user] = lambda: admin
+    c.app.dependency_overrides[get_current_admin] = lambda: admin
+    me5 = [u for u in c.get("/api/users").json() if u["id"] == u5["id"]][0]
+    assert me5["sites"]["b"]["username"] == "gen", me5["sites"]
+    assert me5["sites"]["b"]["configured"] is True, me5["sites"]
+    # configured 与 reconnect 前置条件必须一致：不再「显示已配置、点下去报未配置」
+    calls.clear()
+    r = c.post(f"/api/users/{u5['id']}/reconnect-pingykj", params={"site": "b"})
+    assert r.status_code == 200 and calls["login"]["username"] == "gen", (r.text, calls)
+
+    # 既无通用凭据、只有坏行的用户 → configured 必须 false
+    u6 = database.get_user(database.create_user("u6", "p6", "user"))
+    database.set_site_credentials(u6["id"], "b", "onlyname", "")
+    assert database.get_effective_pingykj_credentials(u6["id"], "b") is None
+    me6 = [u for u in c.get("/api/users").json() if u["id"] == u6["id"]][0]
+    assert me6["sites"]["b"]["configured"] is False, me6["sites"]
+    r = c.post(f"/api/users/{u6['id']}/reconnect-pingykj", params={"site": "b"})
+    assert r.status_code == 400, r.text
+
+    # --- Minor：保活探测抛异常不该让 /api/users 整个 500 ---
+    class _Boom:
+        def check_valid(self):
+            raise RuntimeError("boom")
+
+    key = (u2["id"], "a")
+    saved = scraper._user_sessions.get(key)
+    scraper._user_sessions[key] = _Boom()
+    try:
+        r = c.get("/api/users")
+        assert r.status_code == 200, f"探测异常不该让管理页 500: {r.status_code} {r.text[:200]}"
+        me_b = [u for u in r.json() if u["id"] == u2["id"]][0]
+        assert me_b["sites"]["a"]["online"] is False, me_b["sites"]
+    finally:
+        if saved is None:
+            scraper._user_sessions.pop(key, None)
+        else:
+            scraper._user_sessions[key] = saved
+
     c.app.dependency_overrides.clear()
     shutil.rmtree(tmp.parent, ignore_errors=True)
     print("OK: 站点接口——列表/改名(每用户独立)/每站凭据(非法 site 400)/管理页每站状态/仅站点凭据可登录")

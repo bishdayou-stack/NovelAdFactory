@@ -1289,7 +1289,11 @@ def set_site_credentials(user_id: int, site: str, username: str, password: str) 
 
 
 def get_site_credentials(user_id: int, site: str) -> Optional[Dict[str, str]]:
-    """取某用户某站点的专属凭据（解密后）；未配置返回 None。"""
+    """取某用户某站点的专属凭据（解密后）；未配置返回 None。
+
+    用户名或密码为空的行（历史脏数据）同样视为未配置：否则它会遮蔽通用凭据，
+    而下游登录又因密码为空失败，表现为「管理页显示已配置、点重新登录报未配置」。
+    """
     if not site:
         return None
     with get_conn() as conn:
@@ -1299,8 +1303,10 @@ def get_site_credentials(user_id: int, site: str) -> Optional[Dict[str, str]]:
         ).fetchone()
     if not row or not row["username"]:
         return None
-    return {"username": row["username"],
-            "password": decrypt_pingykj_password(row["password_encrypted"])}
+    password = decrypt_pingykj_password(row["password_encrypted"])
+    if not password:
+        return None
+    return {"username": row["username"], "password": password}
 
 
 def delete_site_credentials(user_id: int, site: str) -> None:

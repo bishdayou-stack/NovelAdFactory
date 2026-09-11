@@ -3794,6 +3794,9 @@ def api_update_pingykj_creds(body: PingykjCredsBody, user: dict = Depends(get_cu
     """
     site = _norm_site(body.site, write=True) or ""
     if site:
+        # 空密码的站点凭据会遮蔽通用凭据又登不上去，直接拒绝，别造坏行
+        if not body.pingykj_username or not body.pingykj_password:
+            raise HTTPException(status_code=400, detail="站点专属凭据必须同时提供用户名和密码")
         database.set_site_credentials(user["id"], site, body.pingykj_username, body.pingykj_password)
         return {"status": "ok", "message": f"已保存 {site} 站凭据", "site": site}
     database.update_user(user["id"],
@@ -3819,16 +3822,22 @@ def api_list_users(user: dict = Depends(get_current_admin)):
     # 每站状态（仅查缓存，不触发自动登录）
     for u in users:
         uid = u["id"]
+        names = _site_names(uid)  # 用户循环外读一次，别在站点循环里重复查库
         per_site = {}
         for s in scraper.get_sites():
             key = s["key"]
             site_creds = database.get_effective_pingykj_credentials(uid, key)
             session = scraper._user_sessions.get((uid, key))
+            try:
+                online = bool(session and session.check_valid())
+            except Exception:
+                online = False  # 保活探测失败不该让整个管理页 500
             per_site[key] = {
-                "online": bool(session and session.check_valid()),
-                "configured": bool(site_creds and site_creds.get("username")),
+                "online": online,
+                # 与 reconnect 的前置条件同一判定（用户名+密码），别让管理页显示「已配置」却点不动
+                "configured": bool(site_creds and site_creds.get("username") and site_creds.get("password")),
                 "username": (site_creds or {}).get("username", ""),
-                "name": _site_display_name(uid, s),
+                "name": _site_display_name(s, names),
             }
         u["sites"] = per_site
         u["pingykj_online"] = any(v["online"] for v in per_site.values())
@@ -3980,21 +3989,27 @@ def api_get_user_pingykj_captcha(user_id: int, user: dict = Depends(get_current_
 
 # ====== 站点 API ======
 
-def _site_display_name(user_id: int, site: dict) -> str:
-    """显示名解析：用户改的名 → config 的 name → key。"""
+def _site_names(user_id: int) -> dict:
+    """该用户的站点改名表 {site_key: 显示名}。"""
     try:
-        names = json.loads(database.get_user_config(user_id).get("site_names") or "{}")
+        return json.loads(database.get_user_config(user_id).get("site_names") or "{}") or {}
     except Exception:
-        names = {}
+        return {}
+
+
+def _site_display_name(site: dict, names: dict) -> str:
+    """显示名解析：用户改的名 → config 的 name → key。"""
     return (names.get(site["key"]) or "").strip() or site.get("name") or site["key"]
 
 
 @app.get("/api/sites")
 def api_sites(user: dict = Depends(get_current_user)):
     """返回站点列表；name 已按当前用户的改名解析。"""
-    uid = _opt_user_id(user) or 1
-    return {"sites": [{**s, "name": _site_display_name(uid, s)} for s in scraper.get_sites()]}
+    names = _site_names(user["id"])  # 与 PUT 同源：都按 user["id"]，admin 也不例外
+    return {"sites": [{**s, "name": _site_display_name(s, names)} for s in scraper.get_sites()]}
 
+
+SITE_NAME_MAX = 20
 
 class SiteNamesBody(BaseModel):
     names: dict = {}
@@ -4002,9 +4017,20 @@ class SiteNamesBody(BaseModel):
 
 @app.put("/api/sites/names")
 def api_sites_names(body: SiteNamesBody, user: dict = Depends(get_current_user)):
-    """保存当前用户的站点显示名（key 为站点 key）。只接受已存在的站点 key。"""
+    """保存当前用户的站点显示名（key 为站点 key）。
+
+    只接受已存在的站点 key；值为 None = 不改该站；与已有改名合并（不是整体替换）。
+    """
     valid = {s["key"] for s in scraper.get_sites()}
-    names = {k: str(v).strip() for k, v in (body.names or {}).items() if k in valid}
+    incoming = {}
+    for k, v in (body.names or {}).items():
+        if k not in valid or v is None:
+            continue
+        name = str(v).strip()
+        if len(name) > SITE_NAME_MAX:
+            raise HTTPException(status_code=400, detail=f"站点名最长 {SITE_NAME_MAX} 字符: {k}")
+        incoming[k] = name
+    names = {**_site_names(user["id"]), **incoming}
     database.set_user_config(user["id"], "site_names", json.dumps(names, ensure_ascii=False))
     return {"status": "ok", "names": names}
 
