@@ -214,6 +214,8 @@
           <option value="a">A站</option>
           <option value="b">B站</option>
         </select>
+        <button id="btnRenameSites" type="button" title="重命名站点"
+                class="px-2 py-1 text-[11px] rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer">重命名</button>
       </div>
     </header>
 
@@ -650,6 +652,12 @@
               </div>
               <div class="px-6 py-5 space-y-4">
                 <p class="text-xs text-slate-500">输入 pingykj 书城平台的登录账号密码，获取验证码后登录验证。验证通过后自动保存凭据。</p>
+                <div>
+                  <label class="block text-xs font-medium text-slate-500 mb-1">作用于</label>
+                  <select id="pingykjCredsSite" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus">
+                    <option value="">通用（两个站点共用）</option>
+                  </select>
+                </div>
                 <div>
                   <label class="block text-xs font-medium text-slate-500 mb-1">书城账号</label>
                   <input id="pingykjUserInput" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="输入 pingykj 平台账号" />
@@ -1694,6 +1702,50 @@
     document.getElementById('siteSelect').value = window.currentSite;
     applyAggregateReadOnly();
 
+    // ====== 站点显示名（每用户可改；key 不可变，只改显示名）======
+    window._siteNames = {};   // site key → 显示名（来自 /api/sites，已按当前用户解析）
+    function siteDisplayName(key) { return window._siteNames[key] || key; }
+
+    function loadSiteOptions() {
+      return fetch('/api/sites').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+        if (!d || !d.sites || !d.sites.length) return;
+        var sel = document.getElementById('siteSelect');
+        var cur = sel.value;
+        window._siteNames = {};
+        sel.innerHTML = '<option value="">合计</option>' + d.sites.map(function (s) {
+          window._siteNames[s.key] = s.name;
+          return '<option value="' + s.key + '">' + escapeHtml(s.name) + '</option>';
+        }).join('');
+        sel.value = cur;                    // cur 不在新选项里时会落回 ''（合计）
+        fillCredsSiteOptions();
+      }).catch(function () {});
+    }
+
+    // 逐个站点改名；取消即整体放弃。空串 = 恢复默认名（后端把 null 当"不改"，只有空串会清空改名）
+    function renameSites() {
+      var keys = Object.keys(window._siteNames);
+      var names = {};
+      for (var i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        var v = prompt('「' + window._siteNames[k] + '」的显示名（留空恢复默认名，最多 20 字）：', window._siteNames[k]);
+        if (v === null) return;             // 取消则整体放弃
+        v = v.trim();
+        if (v.length > 20) { alert('站点名最长 20 字符'); return; }   // 后端 SITE_NAME_MAX=20，超长 400
+        if (v !== window._siteNames[k]) names[k] = v;
+      }
+      if (!Object.keys(names).length) return;
+      fetch('/api/sites/names', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ names: names })
+      }).then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, detail: d && d.detail }; });
+      }).then(function (d) {
+        if (!d.ok) { alert(d.detail || '重命名失败'); return; }
+        return loadSiteOptions();
+      }).catch(function () { alert('网络错误'); });
+    }
+    document.getElementById('btnRenameSites').addEventListener('click', renameSites);
+
     // 全局 fetch 拦截器 - 自动注入 auth header
     var _justLoggedIn = false;
     var _justLoggedInTimer = null;
@@ -1764,6 +1816,7 @@
             if (_justLoggedInTimer) clearTimeout(_justLoggedInTimer);
             _justLoggedInTimer = setTimeout(function() { _justLoggedIn = false; }, 3000);
             loadSyncInterval();
+            loadSiteOptions();   // 站点名按用户解析，登录后重新拉一次
             refreshAllData();
           } else {
             document.getElementById('loginError').textContent = result.data.detail || '登录失败';
@@ -1953,11 +2006,7 @@
             '<td class="py-3 px-4 text-slate-500">' + created + '</td>' +
             '<td class="py-3 px-4 text-slate-500 text-[11px]">' + lastLogin + (lastIp ? '<br><span class="text-slate-500 text-[10px]">IP: ' + lastIp + '</span>' : '') + (offlineTime ? '<br><span class="text-red-400 text-[10px]">书城掉线: ' + offlineTime + '</span>' : '') + '</td>' +
             '<td class="py-3 px-4 text-right whitespace-nowrap">' +
-            (u.pingykj_username ? (
-              u.pingykj_online
-                ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-medium mr-2">● 在线</span>'
-                : '<button class="text-amber-400 hover:text-amber-300 mr-2 font-medium text-[10px] border border-amber-600 rounded-lg px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer" onclick="reconnectPingykj(' + u.id + ',\'' + escapeHtml(u.username).replace(/'/g, "\\'") + '\',this)">🔐 重新登录</button>'
-            ) : '') +
+            siteBadges(u) +
             '<button class="text-indigo-400 hover:text-indigo-300 mr-2 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="editUser(' + u.id + ')">编辑</button>' +
             (u.id !== 1 ? '<button class="text-red-400 hover:text-red-300 font-medium text-[11px] border-0 bg-transparent cursor-pointer" onclick="deleteUser(' + u.id + ',\'' + escapeHtml(u.username).replace(/'/g, "\\'") + '\')">删除</button>' : '<span class="text-slate-600 text-[11px]">—</span>') +
             '</td></tr>';
@@ -1965,6 +2014,26 @@
       }).catch(function(e) {
         document.getElementById('userTableBody').innerHTML = '<tr><td colspan="8" class="py-10 text-center text-red-400">加载失败</td></tr>';
       });
+    }
+
+    // 每站一个徽标：在线 / 未登录(带重新登录) / 未配凭据。
+    // 按 u.sites 渲染，不再以"通用凭据存在"为前提 —— 只配了站点专属凭据的用户也要有徽标。
+    function siteBadges(u) {
+      if (!u.sites) {
+        return u.pingykj_online ? '<span class="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-medium mr-1">● 在线</span>' : '';
+      }
+      var uname = escapeHtml(u.username).replace(/'/g, "\\'");
+      return Object.keys(u.sites).map(function(k) {
+        var s = u.sites[k], label = htmlEscape(s.name || k);
+        if (!s.configured) {
+          return '<span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-500/20 text-slate-400 text-[10px] font-medium mr-1" title="未配置该站凭据">' + label + ' 未配凭据</span>';
+        }
+        if (s.online) {
+          return '<span class="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-medium mr-1">● ' + label + ' 在线</span>';
+        }
+        return '<span class="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-medium mr-1">' + label +
+          ' 未登录<button class="ml-1 text-amber-400 hover:text-amber-300 font-medium text-[10px] border-0 bg-transparent cursor-pointer" onclick="reconnectPingykj(' + u.id + ',\'' + uname + '\',\'' + k + '\',this)">🔐 重新登录</button></span>';
+      }).join('');
     }
 
     function editUser(uid) {
@@ -1975,13 +2044,14 @@
       });
     }
 
-    function reconnectPingykj(uid, uname, btn) {
-      if (!confirm('将为 "' + uname + '" 登录书城，确定吗？')) return;
+    function reconnectPingykj(uid, uname, site, btn) {
+      var siteName = site ? siteDisplayName(site) : '';
+      if (!confirm('将为 "' + uname + '" 登录' + (siteName ? ('「' + siteName + '」') : '书城') + '，确定吗？')) return;
       var origText = btn.textContent;
       btn.textContent = '登录中...';
       btn.disabled = true;
-      // 第一步：尝试无验证码快速登录
-      fetch('/api/users/' + uid + '/reconnect-pingykj', { method: 'POST' })
+      // 第一步：尝试无验证码快速登录（site 是 query 参数，显式带上）
+      fetch('/api/users/' + uid + '/reconnect-pingykj' + (site ? ('?site=' + encodeURIComponent(site)) : ''), { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function(d) {
           if (d.status === 'ok') {
@@ -1993,24 +2063,26 @@
             // 快速登录失败 → 自动弹出验证码窗口
             btn.textContent = origText;
             btn.disabled = false;
-            showCaptchaLogin(uid, uname);
+            showCaptchaLogin(uid, uname, site);
           }
         }).catch(function() {
           // 网络错误也弹出验证码窗口
           btn.textContent = origText;
           btn.disabled = false;
-          showCaptchaLogin(uid, uname);
+          showCaptchaLogin(uid, uname, site);
         });
     }
 
     // ====== 管理员验证码登录书城 ======
     var _adminCaptchaUserId = null;
     var _adminCaptchaCheckKey = '';
+    var _adminCaptchaSite = '';
 
-    function showCaptchaLogin(uid, uname) {
+    function showCaptchaLogin(uid, uname, site) {
       _adminCaptchaUserId = uid;
       _adminCaptchaCheckKey = '';
-      document.getElementById('adminCaptchaUser').textContent = '用户: ' + uname;
+      _adminCaptchaSite = site || '';
+      document.getElementById('adminCaptchaUser').textContent = '用户: ' + uname + (_adminCaptchaSite ? (' · ' + siteDisplayName(_adminCaptchaSite)) : '');
       document.getElementById('adminCaptchaImg').style.display = 'none';
       document.getElementById('adminCaptchaRow').classList.add('hidden');
       document.getElementById('adminCaptchaInput').value = '';
@@ -2032,7 +2104,7 @@
       var btn = this;
       btn.disabled = true;
       btn.textContent = '登录中...';
-      fetch('/api/users/' + _adminCaptchaUserId + '/reconnect-pingykj?captcha=' + encodeURIComponent(captcha) + '&check_key=' + encodeURIComponent(_adminCaptchaCheckKey), { method: 'POST' })
+      fetch('/api/users/' + _adminCaptchaUserId + '/reconnect-pingykj?captcha=' + encodeURIComponent(captcha) + '&check_key=' + encodeURIComponent(_adminCaptchaCheckKey) + (_adminCaptchaSite ? ('&site=' + encodeURIComponent(_adminCaptchaSite)) : ''), { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function(d) {
           if (d.status === 'ok') {
@@ -2058,7 +2130,7 @@
       btn.textContent = '获取中...';
       document.getElementById('adminCaptchaInput').value = '';
       showAdminCaptchaMsg('正在获取验证码...', 'info');
-      fetch('/api/users/' + _adminCaptchaUserId + '/pingykj-captcha')
+      fetch('/api/users/' + _adminCaptchaUserId + '/pingykj-captcha' + (_adminCaptchaSite ? ('?site=' + encodeURIComponent(_adminCaptchaSite)) : ''))
         .then(function(r) { return r.json().then(function(d) { return {status: r.status, data: d}; }); })
         .then(function(r) {
           if (r.status === 200 && r.data.image) {
@@ -4934,6 +5006,7 @@
       bindConfigAutoSave();
     });
     loadPromptRules();
+    loadSiteOptions();   // 站点下拉文案来自 /api/sites（每用户可改名）
     loadStats();
     loadTemplates();
     loadStyleLibrary();
@@ -5006,6 +5079,25 @@
       updatePingykjCredsUI(false);
     }
 
+    // 凭据弹窗的"作用于"站点（'' = 通用）
+    function credsSite() {
+      var el = document.getElementById('pingykjCredsSite');
+      return el ? el.value : '';
+    }
+    function siteQS() {
+      var s = credsSite();
+      return s ? ('&site=' + encodeURIComponent(s)) : '';
+    }
+    function fillCredsSiteOptions() {
+      var el = document.getElementById('pingykjCredsSite');
+      if (!el) return;
+      var cur = el.value;
+      el.innerHTML = '<option value="">通用（两个站点共用）</option>' + Object.keys(window._siteNames).map(function (k) {
+        return '<option value="' + k + '">' + escapeHtml(window._siteNames[k]) + '</option>';
+      }).join('');
+      el.value = cur;
+    }
+
     function updatePingykjCredsUI(hasCreds, username) {
       var label = document.getElementById('pingykjCredsLabel');
       if (hasCreds) {
@@ -5032,6 +5124,8 @@
     document.getElementById('btnPingykjCreds').addEventListener('click', function() {
       if (!currentUser) { alert('请先登录应用'); return; }
       fetch('/api/auth/me').then(function(r) { return r.json(); }).then(function(u) {
+        fillCredsSiteOptions();
+        document.getElementById('pingykjCredsSite').value = '';
         document.getElementById('pingykjUserInput').value = u.pingykj_username || '';
         document.getElementById('pingykjPassInput').value = '';
         document.getElementById('pingykjCredsMsg').classList.add('hidden');
@@ -5058,7 +5152,7 @@
       var btn = this;
       btn.disabled = true;
       btn.textContent = '获取中...';
-      var captchaUrl = '/api/scraper/captcha?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password);
+      var captchaUrl = '/api/scraper/captcha?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password) + siteQS();
       fetch(captchaUrl).then(function(r) {
         return r.json().then(function(d) { return {status: r.status, data: d}; });
       }).then(function(r) {
@@ -5094,7 +5188,8 @@
 
     // 刷新验证码
     document.getElementById('btnPingykjRefreshCaptcha').addEventListener('click', function() {
-      fetch('/api/scraper/captcha').then(function(r) { return r.json(); }).then(function(d) {
+      var s = credsSite();
+      fetch('/api/scraper/captcha' + (s ? ('?site=' + encodeURIComponent(s)) : '')).then(function(r) { return r.json(); }).then(function(d) {
         if (d.image) {
           _pingykjCheckKey = d.check_key;
           document.getElementById('pingykjCaptchaImg').src = d.image;
@@ -5119,8 +5214,9 @@
       btn.textContent = '登录中...';
       var msg = document.getElementById('pingykjCredsMsg');
 
-      // 用直接凭据尝试登录
-      fetch('/api/scraper/login', {
+      // 用直接凭据尝试登录（/api/scraper/login 的 site 是 query 参数，不在 applySiteParam 白名单，必须显式带）
+      var site = credsSite();
+      fetch('/api/scraper/login' + (site ? ('?site=' + encodeURIComponent(site)) : ''), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -5136,7 +5232,7 @@
             return fetch('/api/auth/pingykj-credentials', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ pingykj_username: username, pingykj_password: password })
+              body: JSON.stringify({ pingykj_username: username, pingykj_password: password, site: site })
             }).then(function(r) { return r.json().then(function(d2) { return {status: r.status, data: d2, loginOk: true}; }); });
           } else {
             return {status: 400, data: d, loginOk: false};
