@@ -126,6 +126,8 @@ def _ensure_user_id_columns(conn) -> None:
     # 检查 ad_daily_stats 的唯一键是否包含 user_id
     try:
         col_names = [r["name"] for r in conn.execute("PRAGMA table_info('ad_daily_stats')").fetchall()]
+        if "site" in col_names:
+            return  # 已有 site：本分支的 DDL 不含 site，重建会丢列丢数据；交给 _migrate_site_isolation
         if "user_id" not in set(col_names):
             pass  # user_id 列不存在，跳过（由上面的 ALTER TABLE 处理）
         else:
@@ -1935,7 +1937,11 @@ def upsert_novel_chapters(rows: List[Dict[str, Any]], site: str = None) -> int:
 
 
 def get_novel_chapters(novel_id: str, page: int = 1, page_size: int = 50, site: str = None) -> dict:
-    """分页查询某书的章节列表"""
+    """分页查询某书的章节列表。
+
+    site=None 时合计：同一 chapter_no 两站各存一行，按 chapter_no 分组去重（id 取组内任一行）。
+    唯一键含 (site, novel_id, chapter_no)，故指定站点时每章号本就只有一行，分组不改变结果。
+    """
     with get_conn() as conn:
         where, params = ["novel_id = ?"], [novel_id]
         if site:
@@ -1943,12 +1949,14 @@ def get_novel_chapters(novel_id: str, page: int = 1, page_size: int = 50, site: 
             params.append(site)
         where_clause = " AND ".join(where)
         total = conn.execute(
-            f"SELECT COUNT(*) AS cnt FROM novel_chapters WHERE {where_clause}", params
+            f"SELECT COUNT(DISTINCT chapter_no) AS cnt FROM novel_chapters WHERE {where_clause}", params
         ).fetchone()["cnt"]
         offset = (page - 1) * page_size
         rows = conn.execute(
-            f"""SELECT id, novel_id, chapter_no, chapter_name, word_count, synced_at
+            f"""SELECT id, novel_id, chapter_no, MAX(chapter_name) AS chapter_name,
+                       MAX(word_count) AS word_count, MAX(synced_at) AS synced_at
                FROM novel_chapters WHERE {where_clause}
+               GROUP BY chapter_no
                ORDER BY chapter_no ASC LIMIT ? OFFSET ?""",
             params + [page_size, offset]
         ).fetchall()
@@ -1970,7 +1978,7 @@ def get_novel_chapter_count(novel_id: str, site: str = None) -> int:
             where.append("site = ?")
             params.append(site)
         row = conn.execute(
-            f"SELECT COUNT(*) AS cnt FROM novel_chapters WHERE {' AND '.join(where)}", params
+            f"SELECT COUNT(DISTINCT chapter_no) AS cnt FROM novel_chapters WHERE {' AND '.join(where)}", params
         ).fetchone()
         return row["cnt"] if row else 0
 

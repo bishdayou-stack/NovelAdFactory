@@ -256,7 +256,12 @@ def _auto_sync_all_users():
                     last = database.get_last_sync_date("sync_all", user_id=uid, site=site)
                     if last and (datetime.now() - _parse_ts(last)).total_seconds() < interval:
                         continue
-                    scraper.run_full_sync(uid, site=site)
+                    result = scraper.run_full_sync(uid, site=site) or {}
+                    # run_full_sync 失败是返回 dict（不抛异常）：失败不写节流游标，让下一轮重试
+                    if not result.get("success"):
+                        print(f"[AUTO SYNC] user={uid} site={site} 未成功，不写节流游标: "
+                              f"{result.get('message') or ('需要登录' if result.get('login_required') else '未知原因')}")
+                        continue
                     database.set_last_sync_date("sync_all", datetime.now().isoformat(),
                                                 user_id=uid, site=site)
                 except Exception as e:

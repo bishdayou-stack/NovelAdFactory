@@ -9,6 +9,20 @@ Task 9 交付物。分两块：**(a) 本机确定性验证**（可随时重跑�
 
 ---
 
+## Step 0（务必最先做）——先备份 `data/dashboard.db`
+
+**新版服务一启动就会自动迁移，不可逆，代码不会替你备份**（`_SITE_REBUILD_DDL` 会重建 9 张表，
+`update.sh` / `更新.bat` 里既没有备份也没有磁盘检查）：
+
+```bash
+cp data/dashboard.db data/dashboard.db.bak-$(date +%Y%m%d-%H%M%S)
+```
+
+停干净服务再拷贝，并确认没有遗留 `-wal` / `-shm`（否则拷到的是不一致的中间态）。
+库会临时膨胀到约 2 倍，先确认磁盘剩余空间 > 当前库文件大小。详见 (c)。
+
+---
+
 ## (a) 本机确定性验证：`scripts/verify_site_e2e.py`
 
 ### 跑法
@@ -94,8 +108,8 @@ A 站书目查询返回了合计消耗 140 —— 小说维度的隔离失效同
 以下 8 个脚本在本机全部通过（7 个既有 + 本次新增）：
 
 ```
-verify_sites_config        PASS  OK: 站点配置读取正确
-verify_site_io             PASS  OK: 读写按 site 隔离，合计=去重+相加
+verify_sites_config        PASS  OK: 站点配置读取正确（含漏填字段回落默认值）
+verify_site_io             PASS  OK: 读写按 site 隔离，合计=去重+相加（书籍/章节/订单/同步游标）
 verify_site_migration      PASS  OK: 半迁移表（有 site 列、唯一键无 site）会被继续重建
 verify_scraper_site        PASS  OK: 会话按 (user, site) 分开，URL 与落库均按站点取
 verify_analytics_site      PASS  OK: 看板按 site 过滤，合计=两站相加
@@ -103,6 +117,16 @@ verify_routes_site         PASS  OK: 非法 site —— 写类 400 / 读类归�
 verify_scheduler_sites     PASS  ALL OK: 定时任务按站点遍历（站点=['a', 'b']）
 verify_site_e2e            PASS  OK: 多书城端到端验证通过（隔离 / 合计=相加 / 比率重算 / 路由透传）
 ```
+
+终审修复波之后的补充断言（同一批脚本内，不新增文件）：
+
+- `verify_site_io`：两站都有的书、同 `chapter_no` 两站各一行 → 合计视图 `get_novel_chapters(site=None)`
+  **不重复**、`total` = 去重后章数（修复前断言失败：`[1, 1, 2, 2, 3]`）。
+- `verify_scheduler_sites`：`run_full_sync` 返回 `{"success": False}`（失败是返回 dict、不抛异常）时
+  **不写** `sync_all` 节流游标（修复前断言失败：写入了 `('sync_all', 7, 'a')` / `('sync_all', 7, 'b')`）；
+  返回 `{"success": True}` 时照写。
+- `verify_sites_config`：`config.json` 漏填 `base_url` / `content_url` 时回落 `DEFAULT_SITES` 同 key 默认值
+  （修复前 `content_url` 为空串，会拼出相对 URL `/novel/novel/getChaptersContent`）。
 
 另有 `python -c "import main"` 退出码 0（无语法/导入错误）。运行过程中 `data/dashboard.db` 的 mtime 未变。
 
@@ -113,11 +137,19 @@ verify_site_e2e            PASS  OK: 多书城端到端验证通过（隔离 / �
 > 以下命令里的 `<token>` 为登录后拿到的 `session_token`；`BASE=http://127.0.0.1:8000`。
 > 登录：`curl -s -X POST $BASE/api/auth/login -H 'Content-Type: application/json' -d '{"username":"admin","password":"<你的口令>"}'`
 
-**Step 0 —— 先备份数据库**（迁移不可逆，且没有自动备份）
+**前提：下方 (b) 的步骤必须在「新版服务已启动、迁移已跑过」之后再做。**
+旧版服务不认 `site` 参数，此时触发同步会把 B 站数据全落进 `site='a'`，
+后面 Step 4/5/6 就会看到「B 站为空」的假故障——那不是 bug，是拿旧代码跑新步骤。
+确认迁移已跑：启动日志里应出现 `[database] 重建 …：唯一键加入 site...`，或直接查：
 
 ```bash
-cp data/dashboard.db data/dashboard.db.bak-$(date +%Y%m%d-%H%M%S)
+python -c "
+import sqlite3
+c = sqlite3.connect('data/dashboard.db')
+print([r[0] for r in c.execute(\"PRAGMA table_info('ad_daily_stats')\") if r[0]=='site'])"
 ```
+
+输出 `['site']` 即表示迁移已完成。
 
 **Step 1 —— 确认两个站点都已配置**
 
@@ -128,11 +160,25 @@ python -c "import json;print([s['key'] for s in json.load(open('config.json'))['
 Expected：`['a', 'b']`。若缺 `b`，在 `config.json` 的 `meta.pingykj_sites` 补齐
 （`key` / `name` / `base_url` / `content_url`，换域名只改这里，不改代码）。
 
-**Step 2 —— 确认 B 站凭据**
+**Step 2 —— 确认凭据**
 
 `users.pingykj_username` / `pingykj_password` 是每用户凭据，两站复用同一份（不新增凭据列）。
-B 站账号密码若与 A 站不同，需先在前端「用户管理」里重新绑定。
-可用 `GET /api/users/{id}/pingykj-captcha` + `POST /api/users/{id}/reconnect-pingykj` 验证能被 B 站接受。
+
+- **`GET /api/users/{id}/pingykj-captcha` 与 `POST /api/users/{id}/reconnect-pingykj` 没有 `site` 参数**
+  （Ruling 12 裁决不加），它们验的是**A 站**会话。想用它们确认「凭据能被接受」，结论只对 A 站成立。
+- **B 站若也需要验证码，只能走 scraper 这条 API 路径**（前端没有 B 站的凭据弹窗）：
+
+  ```bash
+  # 取验证码（返回 base64 图片，人工识别验证码文本）
+  curl -s "$BASE/api/scraper/captcha?site=b" -H "Authorization: Bearer <token>"
+  # 用识别出的验证码登录 B 站
+  curl -s -X POST "$BASE/api/scraper/login?site=b" -H "Authorization: Bearer <token>" \
+       -H 'Content-Type: application/json' \
+       -d '{"username":"<书城账号>","password":"<书城口令>","captcha":"<验证码>","check_key":"<上一步的 checkKey>"}'
+  ```
+
+  `username` / `password` 仍取该用户的 `pingykj_username` / `pingykj_password`；
+  B 站账号密码若与 A 站不同，需先在前端「用户管理」里重新绑定。
 
 **Step 3 —— 分别同步两个站点**
 
@@ -141,7 +187,18 @@ curl -s -X POST "$BASE/api/scraper/sync?site=a" -H "Authorization: Bearer <token
 curl -s -X POST "$BASE/api/scraper/sync?site=b" -H "Authorization: Bearer <token>"
 ```
 
-Expected：两次均返回成功，进度经 `/api/meta/sync-progress` 或 `/api/scraper/sync-status` 可见。
+Expected：两次均返回成功。该接口是**异步**的，立即返回 `{"status":"started"}`，
+真实进度与逐站点的 `success` / `message` 要看 **`/api/scraper/sync-status`**（书城同步专用；
+`/api/meta/sync-progress` 是 **Meta** 的同步进度，与此无关，别拿它查书城）：
+
+```bash
+curl -s "$BASE/api/scraper/sync-status" -H "Authorization: Bearer <token>"
+```
+
+`running=false` 时，`last_result` 里每个站点一条（普通用户 key 形如 `site:b`），
+`success=false` 的那条就是失败站点，`message` 会写明原因（如「需要重新登录」）。
+前端「同步数据」按钮也会轮询这个接口，结束后把失败的站点弹窗报出来。
+
 不带 `site` 的 `POST /api/scraper/sync` 会**遍历所有站点**（Task 7 定时任务同此行为）。
 
 **Step 4 —— 核对库内 site 分布**
@@ -191,6 +248,17 @@ print('OK: 两站共有小说消耗 = A + B；合计不重复计数')
 
 Expected：`OK: 两站共有小说消耗 = A + B`。
 
+**已知限制（合计视图的「近 7 日消耗」）**
+
+`analytics.get_novel_stats` 用「当前累计消耗 − 窗口起点前最近的快照」算近 7 日消耗
+（`database.get_novel_spend_snapshot`，合计时按站点各取最近一行再求和）。
+**若某站在窗口起点之前一行快照都没有**，该站在合计里按 0 计入起点值，
+于是这站**整段累计消耗**都会被算进「近 7 日消耗」（`recent_spend` 偏大、`conversion_cost` 随之偏高）。
+
+- 只影响 B 站刚接入、快照还没攒起来的头几天；快照每天落一行，**几天后自愈**。
+- 单站视图不受影响（`site` 指定时该站没有快照会回退成 `recent_spend = null`，不虚高）。
+- 想立刻消掉：切到单站视图看，或等 B 站的 `novel_spend_snapshots` 攒够几天。
+
 **Step 7 —— 前端核对**
 
 「数据看板」与「小说管理」顶部切「合计 / A站 / B站」：同名小说在合计下只出现一行，消耗为两站相加；
@@ -207,13 +275,9 @@ Expected：`OK: 两站共有小说消耗 = A + B`。
   → `DROP`，新旧两份数据在事务内共存。**先确认磁盘剩余空间 > 当前库文件大小**再启动。
   重建在 `BEGIN IMMEDIATE` 显式事务里，中途失败会整体回滚（不会留下「空表 + 孤儿 `*__pre_site`」）。
 - **代码不会自动备份**：迁移里没有任何 `shutil.copy` / `.bak` 逻辑
-  （`data/dashboard.db.bak-20260911` 是人工做的）。**务必先 `cp` 一份再启动新版本**：
-
-  ```bash
-  cp data/dashboard.db data/dashboard.db.bak-$(date +%Y%m%d-%H%M%S)
-  ```
-
-  同时确认没有 `-wal` / `-shm` 遗留（服务须先停干净，否则拷贝到的可能是不一致的中间态）。
+  （`data/dashboard.db.bak-20260911` 是人工做的）。**务必先 `cp` 一份再启动新版本**——
+  见文首的 **Step 0**。`update.sh` / `更新.bat` 里既没有备份、也没有磁盘空间检查，
+  恢复配置后重启即自动迁移。
 - **幂等**：迁移按「`site` 列是否存在 + 唯一键是否含 `site`」（`_site_unique_ok`）判断，
   半迁移状态（列已加、唯一键未改）会被继续重建；重复启动无副作用。
 - 迁移只在 `init_db()` 里跑一次；`data/dashboard.db` 已达 GB 级时首次启动会明显变慢，属正常。

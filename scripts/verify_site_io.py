@@ -49,6 +49,30 @@ def main():
     assert ball["order_count"] == 5, f"合计订单数应为 2+3=5（不得被 JOIN 放大），实际 {ball['order_count']}"
     assert ball["conversion_cost"] == 28.0, f"合计转化成本应为 140/5=28.0，实际 {ball['conversion_cost']}"
 
+    # 章节：两站都有的书，同一 chapter_no 两站各存一行；合计视图必须按 chapter_no 去重、total 不翻倍
+    database.upsert_novel_chapters([
+        {"novel_id": "n1", "chapter_no": 1, "chapter_name": "第一章", "content": "A1", "word_count": 11},
+        {"novel_id": "n1", "chapter_no": 2, "chapter_name": "第二章", "content": "A2", "word_count": 12},
+        {"novel_id": "n1", "chapter_no": 3, "chapter_name": "第三章", "content": "A3", "word_count": 13},
+    ], site="a")
+    database.upsert_novel_chapters([
+        {"novel_id": "n1", "chapter_no": 1, "chapter_name": "第一章", "content": "B1", "word_count": 21},
+        {"novel_id": "n1", "chapter_no": 2, "chapter_name": "第二章", "content": "B2", "word_count": 22},
+    ], site="b")
+
+    ca = database.get_novel_chapters("n1", page_size=50, site="a")
+    assert [c["chapter_no"] for c in ca["data"]] == [1, 2, 3] and ca["total"] == 3, ca
+    cb = database.get_novel_chapters("n1", page_size=50, site="b")
+    assert [c["chapter_no"] for c in cb["data"]] == [1, 2] and cb["total"] == 2, cb
+    call = database.get_novel_chapters("n1", page_size=50, site=None)
+    got_nos = [c["chapter_no"] for c in call["data"]]
+    assert got_nos == [1, 2, 3], f"合计章节必须按 chapter_no 去重，实际 {got_nos}"
+    assert call["total"] == 3, f"合计 total 应为去重后的 3（不得翻倍为 5），实际 {call['total']}"
+    assert database.get_novel_chapter_count("n1", site=None) == 3, \
+        f"合计章数应为 3，实际 {database.get_novel_chapter_count('n1', site=None)}"
+    assert database.get_novel_chapter_count("n1", site="b") == 2, \
+        database.get_novel_chapter_count("n1", site="b")
+
     # sync_state 按站点独立
     database.set_last_sync_date("ads", "2026-09-01", user_id=1, site="a")
     database.set_last_sync_date("ads", "2026-09-02", user_id=1, site="b")
@@ -56,7 +80,7 @@ def main():
     assert database.get_last_sync_date("ads", user_id=1, site="b") == "2026-09-02"
 
     shutil.rmtree(tmp.parent, ignore_errors=True)
-    print("OK: 读写按 site 隔离，合计=去重+相加")
+    print("OK: 读写按 site 隔离，合计=去重+相加（书籍/章节/订单/同步游标）")
 
 if __name__ == "__main__":
     main()

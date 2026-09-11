@@ -27,22 +27,29 @@ DEFAULT_SITES = [
 
 
 def get_sites() -> List[Dict[str, str]]:
-    """返回站点列表；config.json 的 meta.pingykj_sites 优先，未配置时用默认值。"""
+    """返回站点列表；config.json 的 meta.pingykj_sites 优先，未配置时用默认值。
+
+    config.json 里某站漏填 base_url / content_url 时回落 DEFAULT_SITES 同 key 的默认值，
+    避免拼出相对 URL 静默打歪；DEFAULT_SITES 里没有该 key 才留空。
+    """
     sites = []
     try:
         config = json.loads((BASE_PATH / "config.json").read_text(encoding="utf-8"))
         sites = config.get("meta", {}).get("pingykj_sites") or []
     except Exception:
         sites = []
+    defaults = {d["key"]: d for d in DEFAULT_SITES}
     out = []
     for s in sites:
         if not isinstance(s, dict) or not s.get("key"):
             continue
+        key = str(s["key"])
+        d = defaults.get(key, {})
         out.append({
-            "key": str(s["key"]),
-            "name": str(s.get("name") or s["key"]),
-            "base_url": str(s.get("base_url") or "").rstrip("/"),
-            "content_url": str(s.get("content_url") or "").rstrip("/"),
+            "key": key,
+            "name": str(s.get("name") or key),
+            "base_url": str(s.get("base_url") or d.get("base_url") or "").rstrip("/"),
+            "content_url": str(s.get("content_url") or d.get("content_url") or "").rstrip("/"),
         })
     return out or [dict(d) for d in DEFAULT_SITES]
 

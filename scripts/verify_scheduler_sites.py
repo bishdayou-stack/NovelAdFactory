@@ -4,7 +4,8 @@
 覆盖：`_auto_sync_all_users` / `_auto_full_novel_sync` / `_auto_chapter_sync`
 对 `scraper.get_sites()` 里每个站点各跑一次、透传正确的 site；
 `_auto_sync_all_users` 的节流游标是 (sync_all, 用户, 站点) 维度；
-单个站点抛异常不中断其余站点、且失败站点不会被标记为已同步。
+单个站点抛异常不中断其余站点、且失败站点不会被标记为已同步；
+`run_full_sync` 返回 `{"success": False}`（失败不抛异常）时同样不写游标。
 
 全部打桩，不联网。导入 main 会启动 BackgroundScheduler，但任务首次触发在 120 秒后，
 本脚本不 sleep、几秒内退出，故不会真的跑到任务（也不主动触发任何网络请求）。
@@ -27,13 +28,13 @@ def _install_stubs():
     )
     calls = {"run_full_sync": [], "sync_novel_books": [], "sync_missing_chapters": [],
              "set_last_sync_date": []}
-    state = {"last": None, "raise_on": None}  # last = get_last_sync_date 的返回值
+    state = {"last": None, "raise_on": None, "success": True}  # last = get_last_sync_date 的返回值
 
     def _run_full_sync(uid, site=None):
         calls["run_full_sync"].append((uid, site))
         if state["raise_on"] == site:
             raise RuntimeError(f"site {site} 故意失败")
-        return {"success": True}
+        return {"success": state["success"]}
 
     def _sync_novel_books(uid, full_sync=False, site=None):
         calls["sync_novel_books"].append((uid, site, full_sync))
@@ -98,7 +99,25 @@ def _check_auto_sync_all_users(main, calls, state, sites):
     marked = [t[2] for t in calls["set_last_sync_date"]]
     assert sites[0] not in marked, f"失败站点不该被标记已同步: {marked}"
     assert marked == sites[1:], marked
-    print("OK: _auto_sync_all_users —— 按站点遍历 / (sync_all,用户,站点) 节流 / 单站点失败隔离")
+
+    # 5) run_full_sync 返回 {"success": False}（失败是返回 dict、不抛异常）→ 不写节流游标，下轮重试
+    calls["run_full_sync"].clear()
+    calls["set_last_sync_date"].clear()
+    state["last"], state["raise_on"], state["success"] = None, None, False
+    main._auto_sync_all_users()
+    assert [s for _, s in calls["run_full_sync"]] == sites, calls["run_full_sync"]
+    assert calls["set_last_sync_date"] == [], \
+        f"同步返回 success=False 时不得写节流游标（写了就会被当成已同步）: {calls['set_last_sync_date']}"
+
+    # 6) success=True → 同一路径必须写游标（证明 5) 的断言不是恒真）
+    calls["set_last_sync_date"].clear()
+    state["success"] = True
+    main._auto_sync_all_users()
+    assert calls["set_last_sync_date"] == [("sync_all", 7, s) for s in sites], \
+        calls["set_last_sync_date"]
+
+    print("OK: _auto_sync_all_users —— 按站点遍历 / (sync_all,用户,站点) 节流 / "
+          "单站点失败隔离 / success=False 不写游标")
 
 
 def _check_full_novel_sync(main, calls, state, sites):
