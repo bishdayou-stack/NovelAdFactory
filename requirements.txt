@@ -10,3 +10,4 @@ imageio-ffmpeg
 apscheduler
 beautifulsoup4
 lxml
+cryptography

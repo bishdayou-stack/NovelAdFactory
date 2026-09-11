@@ -5053,18 +5053,23 @@
       setDashSessionStatus('checking', '检查中...');
       fetch('/api/auth/me').then(function(r) { return r.json(); }).then(function(u) {
         currentUser = u;
-        if (u.has_pingykj_creds) {
+        // 每站判定：任一站点 configured 即算「已配置」（只配站点专属凭据的用户此前被显示成未配置）
+        var sites = u.sites || {};
+        var cfgKeys = Object.keys(sites).filter(function(k) { return sites[k].configured; });
+        var cfgLabel = cfgKeys.map(function(k) { return sites[k].name || siteDisplayName(k); }).join('/');
+        var who = cfgLabel || u.pingykj_username;
+        if (cfgKeys.length || u.pingykj_username) {
           // 有凭据，再检查 scraper session 是否有效
           fetch('/api/scraper/session-status').then(function(r) { return r.json(); }).then(function(s) {
             if (s.valid) {
-              setDashSessionStatus('online', '书城在线 (' + u.pingykj_username + ')');
+              setDashSessionStatus('online', '书城在线（' + (who || '已配置') + '）');
             } else {
               setDashSessionStatus('offline', '书城掉线 — 点击"书城凭据"重新登录');
             }
           }).catch(function() {
-            setDashSessionStatus('online', '书城已配置 (' + u.pingykj_username + ')');
+            setDashSessionStatus('online', '书城凭据：' + (who || '已配置') + ' 已配置');
           });
-          updatePingykjCredsUI(true, u.pingykj_username);
+          updatePingykjCredsUI(true, who);
         } else {
           setDashSessionStatus('noconfig', '未配置书城凭据');
           updatePingykjCredsUI(false);

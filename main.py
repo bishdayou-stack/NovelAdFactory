@@ -3769,14 +3769,26 @@ def api_app_logout(user: dict = Depends(get_current_user)):
 
 @app.get("/api/auth/me")
 def api_auth_me(user: dict = Depends(get_current_user)):
-    """获取当前用户信息"""
+    """获取当前用户信息（含每站书城凭据是否已配置，判定与 /api/users 同源）。"""
+    names = _site_names(user["id"])
+    sites = {}
+    for s in scraper.get_sites():
+        creds = database.get_effective_pingykj_credentials(user["id"], s["key"])
+        sites[s["key"]] = {
+            "configured": bool(creds and creds.get("username") and creds.get("password")),
+            "username": (creds or {}).get("username", ""),
+            "name": _site_display_name(s, names),
+        }
     return {
         "id": user["id"],
         "username": user["username"],
         "role": user["role"],
         "display_name": user.get("display_name") or user["username"],
         "pingykj_username": user.get("pingykj_username") or "",
-        "has_pingykj_creds": bool(user.get("pingykj_username")),
+        # 兼容旧字段语义：任一站点配置了凭据即算「已配置」（只配站点凭据的用户此前被误判为未配置）
+        "has_pingykj_creds": bool(user.get("pingykj_username")) or any(
+            v["configured"] for v in sites.values()),
+        "sites": sites,
     }
 
 

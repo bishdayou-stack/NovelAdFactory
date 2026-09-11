@@ -567,24 +567,25 @@ def init_db() -> None:
         # 迁移：site（书城）维度隔离（幂等）
         _migrate_site_isolation(conn)
 
-        # 迁移：为 users 表补加最后登录时间/IP 列
-        if has_users_table:
-            cols_users = {r["name"] for r in conn.execute("PRAGMA table_info('users')").fetchall()}
-            if "last_login_at" not in cols_users:
-                try:
-                    conn.execute("ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP")
-                except Exception:
-                    pass
-            if "last_login_ip" not in cols_users:
-                try:
-                    conn.execute("ALTER TABLE users ADD COLUMN last_login_ip TEXT DEFAULT ''")
-                except Exception:
-                    pass
-            if "pingykj_offline_at" not in cols_users:
-                try:
-                    conn.execute("ALTER TABLE users ADD COLUMN pingykj_offline_at TIMESTAMP")
-                except Exception:
-                    pass
+        # 迁移：为 users 表补加最后登录时间/IP 列。
+        # 不能用 has_users_table 做前置条件：全新库走 _migrate_user_isolation 建表时没有
+        # pingykj_offline_at，若此处跳过，首启 list_users() 就会 no such column 直接 500。
+        cols_users = {r["name"] for r in conn.execute("PRAGMA table_info('users')").fetchall()}
+        if "last_login_at" not in cols_users:
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP")
+            except Exception:
+                pass
+        if "last_login_ip" not in cols_users:
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN last_login_ip TEXT DEFAULT ''")
+            except Exception:
+                pass
+        if "pingykj_offline_at" not in cols_users:
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN pingykj_offline_at TIMESTAMP")
+            except Exception:
+                pass
 
         # 确保 user_config 表存在（幂等，每次启动都检查）
         conn.execute("""
@@ -1212,11 +1213,21 @@ def list_users() -> List[Dict[str, Any]]:
         return [dict(r) for r in rows]
 
 def list_active_users_with_credentials() -> List[Dict[str, Any]]:
-    """返回有书城凭据的活跃用户列表（用于定时同步）"""
+    """返回有书城凭据的活跃用户列表（用于定时同步）。
+
+    判定必须含「任一站点专属凭据」：只配了站点凭据（通用为空）的用户同样要被自动/批量
+    同步枚举到，否则他在管理页显示「已配置」、手动同步也正常，但定时同步永远漏掉他。
+    站点凭据的有效性口径与 get_site_credentials 一致：用户名与密码都非空。
+    """
     with get_conn() as conn:
         rows = conn.execute("""
             SELECT * FROM users
-            WHERE is_active = 1 AND pingykj_username != ''
+            WHERE is_active = 1 AND (
+                pingykj_username != ''
+                OR EXISTS (SELECT 1 FROM user_site_credentials c
+                           WHERE c.user_id = users.id
+                             AND c.username != '' AND c.password_encrypted != '')
+            )
             ORDER BY id
         """).fetchall()
         return [dict(r) for r in rows]

@@ -128,6 +128,34 @@ def main():
 
     test_failure_injection()
     test_half_migrated()
+    test_fresh_db()
+
+
+def test_fresh_db():
+    """全新库首启：_migrate_user_isolation 建出的 users 表也必须补齐 pingykj_offline_at 等列。
+
+    否则首启时 database.list_users()（= 管理页 /api/users 的数据源）直接
+    sqlite3.OperationalError: no such column: pingykj_offline_at，重启一次才自愈。
+    """
+    tmpdir = tempfile.mkdtemp(prefix="site_mig_fresh_")
+    db_file = Path(tmpdir) / "dashboard.db"
+    assert not db_file.exists(), "前置：这里必须是全新库"
+
+    import database
+    database.DB_PATH = db_file
+    database.init_db()                       # 全新库走 _migrate_user_isolation 建 users 表
+
+    users = database.list_users()            # 修复前抛 no such column: pingykj_offline_at
+    assert users, "全新库至少应存在默认 admin"
+
+    conn = sqlite3.connect(str(db_file))
+    cols = {r[1] for r in conn.execute("PRAGMA table_info('users')")}
+    conn.close()
+    for col in ("pingykj_offline_at", "last_login_at", "last_login_ip"):
+        assert col in cols, f"全新库 users 表缺列 {col}"
+
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    print("OK: 全新库首启 users 表列齐备，list_users() 不抛异常")
 
 
 def test_half_migrated():

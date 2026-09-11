@@ -109,6 +109,16 @@ def main():
     assert not u4.get("pingykj_username"), u4
     database.set_site_credentials(u4["id"], "b", "b_only", "b_only_pw")
 
+    # /api/auth/me 也得认站点凭据：只配 B 站专属凭据的用户必须报 sites[b].configured=true，
+    # 否则看板顶部会显示琥珀色「未配置书城凭据」，与管理页「B站 已配置」自相矛盾。
+    c.app.dependency_overrides[get_current_user] = lambda: u4
+    me4 = c.get("/api/auth/me").json()
+    assert me4["sites"]["b"]["configured"] is True, me4["sites"]
+    assert me4["sites"]["b"]["username"] == "b_only", me4["sites"]
+    assert me4["sites"]["a"]["configured"] is False, me4["sites"]
+    assert me4["has_pingykj_creds"] is True, me4
+    c.app.dependency_overrides[get_current_user] = lambda: admin
+
     calls.clear()
     r = c.post(f"/api/users/{u4['id']}/reconnect-pingykj", params={"site": "b"})
     assert r.status_code == 200, f"只配 B 站凭据的用户带 site=b 不该被拦: {r.status_code} {r.text}"
