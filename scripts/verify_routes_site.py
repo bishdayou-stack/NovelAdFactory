@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """验证看板/小说/scraper 路由接受 site 参数并真正透传（TestClient + 打桩，不连真实书城）。
 
+依赖：本脚本需要 httpx（FastAPI TestClient 的依赖），未列入 requirements.txt（那是运行时依赖清单），
+本地跑之前先 `pip install httpx`。
+
 第一部分只证明「加了 site 不报错」（FastAPI 忽略未知 query 参数，故不报错≠过滤生效）；
 第二部分用打桩捕获下游函数收到的 site 关键字，证明透传与「空 = 遍历所有站点」确实成立。
 真正的数据过滤验证由 Task 9 的端到端承担。
@@ -138,6 +141,26 @@ def _check_site_passthrough(main):
     finally:
         scraper._user_sessions.clear()
         database.list_users = orig_list_users
+
+    # 7) 书籍详情：site 透传，空归一为 None（Ruling 10）
+    orig_book = database.get_novel_book
+    database.get_novel_book = lambda novel_id, site=None: seen.append(
+        ("get_novel_book", site)) or {"novel_id": novel_id}
+    main.api_novel_book_detail("N1", site="b", user=user)
+    main.api_novel_book_detail("N1", site="", user=user)
+    database.get_novel_book = orig_book
+    assert ("get_novel_book", "b") in seen, seen
+    assert ("get_novel_book", None) in seen, seen
+
+    # 8) 登出：传 site 只清该站点；空 = 传 None（清该用户所有站点，Ruling 11）
+    orig_clear = scraper.clear_user_session
+    scraper.clear_user_session = lambda uid, site=None: seen.append(("clear_user_session", site))
+    main.api_scraper_logout(site="b", user=user)
+    main.api_scraper_logout(site="", user=user)
+    scraper.clear_user_session = orig_clear
+    assert ("clear_user_session", "b") in seen, seen
+    assert ("clear_user_session", None) in seen, seen
+    assert ("clear_user_session", scraper.DEFAULT_SITE) not in seen, seen
 
     print("OK: site 透传（合计=None / 指定站点 / 空=遍历所有站点）均成立")
 

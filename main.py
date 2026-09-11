@@ -4123,8 +4123,9 @@ def api_session_status(site: str = Query(default=None), user: dict = Depends(get
 
 @app.post("/api/scraper/logout")
 def api_scraper_logout(site: str = Query(default=None), user: dict = Depends(get_current_user)):
-    """登出：清除书城 token（按站点；site 空 = 默认站点）"""
-    scraper.clear_user_session(user["id"], site or scraper.DEFAULT_SITE)
+    """登出：清除书城 token。指定 site 时只清该站点；site 空 = 清该用户所有站点
+    （与 clear_user_session(site=None) 的语义一致，避免留下另一站的旧 token 继续跑）"""
+    scraper.clear_user_session(user["id"], site or None)
     return {"status": "ok", "message": "已登出"}
 
 
@@ -4212,9 +4213,10 @@ def api_novel_books_list(
 
 
 @app.get("/api/novels/{novel_id}")
-def api_novel_book_detail(novel_id: str, user: dict = Depends(get_current_user)):
-    """查询书籍详情"""
-    book = database.get_novel_book(novel_id)
+def api_novel_book_detail(novel_id: str, site: str = Query(default=None),
+                          user: dict = Depends(get_current_user)):
+    """查询书籍详情（site 空 = 合计，database 层回落默认站点）"""
+    book = database.get_novel_book(novel_id, site=(site or None))
     if not book:
         raise HTTPException(status_code=404, detail="书籍不存在")
     return book
