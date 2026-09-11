@@ -733,7 +733,7 @@
             <h3 class="text-xs font-semibold text-slate-700">最近订单</h3>
             <div id="dashOrderPager" class="flex items-center gap-1"></div>
           </div>
-          <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-100 text-slate-500 text-left"><th class="pb-1.5 font-medium">订单号</th><th class="pb-1.5 font-medium">日期 <span class="text-[9px] text-slate-400">时区</span></th><th class="pb-1.5 font-medium">所属推广链接</th><th class="pb-1.5 font-medium">书籍</th><th class="pb-1.5 font-medium">订单类型</th><th class="pb-1.5 font-medium">书城账户</th><th class="pb-1.5 font-medium text-right">金额</th><th class="pb-1.5 font-medium">状态</th></tr></thead><tbody id="dashOrderBody"></tbody></table></div>
+          <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-100 text-slate-500 text-left"><th class="pb-1.5 font-medium">订单号</th><th class="pb-1.5 font-medium">站点</th><th class="pb-1.5 font-medium">日期 <span class="text-[9px] text-slate-400">时区</span></th><th class="pb-1.5 font-medium">所属推广链接</th><th class="pb-1.5 font-medium">书籍</th><th class="pb-1.5 font-medium">订单类型</th><th class="pb-1.5 font-medium">书城账户</th><th class="pb-1.5 font-medium text-right">金额</th><th class="pb-1.5 font-medium">状态</th></tr></thead><tbody id="dashOrderBody"></tbody></table></div>
         </div>
       </div>
 
@@ -1701,6 +1701,18 @@
     // ====== 站点显示名（每用户可改；key 不可变，只改显示名）======
     window._siteNames = {};   // site key → 显示名（来自 /api/sites，已按当前用户解析）
     function siteDisplayName(key) { return window._siteNames[key] || key; }
+
+    // 站点小徽标（订单等列表里标出来自哪个书城）；颜色按站点在列表中的次序取，站点 key 可配置
+    function _siteBadge(key) {
+      if (!key) return '<span class="text-slate-300">-</span>';
+      var palette = ['bg-sky-100 text-sky-700', 'bg-violet-100 text-violet-700',
+                     'bg-amber-100 text-amber-700', 'bg-emerald-100 text-emerald-700'];
+      var keys = Object.keys(window._siteNames || {});
+      var idx = keys.indexOf(key);
+      var cls = palette[(idx < 0 ? palette.length - 1 : idx) % palette.length];
+      return '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ' + cls + '">' +
+             escapeHtml(siteDisplayName(key)) + '</span>';
+    }
 
     function loadSiteOptions() {
       return fetch('/api/sites').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
@@ -5729,7 +5741,7 @@
           var html = data.map(function(r, i) {
             sumAmount += (r.amount||0);
             var novelInfo = r.novel_id || '-';
-            return '<tr class="' + (i%2?'bg-slate-50/50':'') + '"><td class="py-1 font-mono text-[11px] text-slate-600">'+(r.order_id||'')+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.order_date||'')+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.promotion_link_name||'-')+'</td><td class="py-1 text-slate-600 text-[11px]">'+escapeHtml(novelInfo)+'</td><td class="py-1 text-[11px] ' + (r.order_type === '金币' ? 'text-amber-600' : 'text-sky-600') + '">' + (r.order_type || '-') + '</td><td class="py-1 text-slate-500 text-xs">'+escapeHtml(r.user_name||'-')+'</td><td class="py-1 text-right text-slate-700">¥'+(r.amount||0).toLocaleString()+'</td><td class="py-1 text-slate-500">'+(r.status||'')+'</td></tr>';
+            return '<tr class="' + (i%2?'bg-slate-50/50':'') + '"><td class="py-1 font-mono text-[11px] text-slate-600">'+(r.order_id||'')+'</td><td class="py-1">'+_siteBadge(r.site)+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.order_date||'')+'</td><td class="py-1 text-slate-500 text-[11px]">'+(r.promotion_link_name||'-')+'</td><td class="py-1 text-slate-600 text-[11px]">'+escapeHtml(novelInfo)+'</td><td class="py-1 text-[11px] ' + (r.order_type === '金币' ? 'text-amber-600' : 'text-sky-600') + '">' + (r.order_type || '-') + '</td><td class="py-1 text-slate-500 text-xs">'+escapeHtml(r.user_name||'-')+'</td><td class="py-1 text-right text-slate-700">¥'+(r.amount||0).toLocaleString()+'</td><td class="py-1 text-slate-500">'+(r.status||'')+'</td></tr>';
           }).join('');
           html += '<tr class="border-t-2 border-slate-300 bg-slate-100 font-semibold text-xs">' +
             '<td class="py-2 text-slate-700">合计</td><td class="py-2 text-slate-500" colspan="5">' + data.length + ' 笔订单</td>' +

@@ -347,7 +347,7 @@ def get_orders(start_date: str = None, end_date: str = None, keyword: str = None
 
         offset = (page - 1) * page_size
         sql = f"""
-            SELECT o.order_id, o.order_date, o.amount, o.status, o.ad_account, o.synced_at,
+            SELECT o.order_id, o.order_date, o.amount, o.status, o.ad_account, o.synced_at, o.site,
                    json_extract(o.extra_data, '$.campaignLinkId_dictText') AS promotion_link_name,
                    json_extract(o.extra_data, '$.adId') AS ad_id,
                    CASE WHEN json_extract(o.extra_data, '$.rechargeCoins') IS NOT NULL THEN '金币' ELSE '订阅' END AS order_type,
