@@ -3873,6 +3873,10 @@ def api_create_user(body: CreateUserRequest, user: dict = Depends(get_current_ad
     """管理员创建用户"""
     if body.role not in ("admin", "user"):
         raise HTTPException(status_code=400, detail="角色必须为 admin 或 user")
+    # 管理员不参与书城同步，不该有书城凭据（见 PUT /api/auth/pingykj-credentials）。
+    # 这里拒绝而不是静默置空：静默丢弃会让管理员以为凭据设上了。
+    if body.role == "admin" and (body.pingykj_username or body.pingykj_password):
+        raise HTTPException(status_code=400, detail="管理员账号无需书城凭据（管理员看全部用户数据）")
     existing = database.get_user_by_username(body.username)
     if existing:
         raise HTTPException(status_code=400, detail="用户名已存在")
@@ -3886,8 +3890,10 @@ class UpdateUserRequest(BaseModel):
     role: str = None
     display_name: str = None
     is_active: bool = None
-    pingykj_username: str = None
-    pingykj_password: str = None
+    # Optional：null 与「字段缺失」同为「不改」的哨兵（下面的 `is not None` 判断即此语义）。
+    # 不加 Optional 时显式传 null 会被 pydantic 422 拦掉，前端整体回传表单就会误报。
+    pingykj_username: Optional[str] = None
+    pingykj_password: Optional[str] = None
     new_password: str = None
 
 @app.put("/api/users/{user_id}")
@@ -3896,6 +3902,12 @@ def api_update_user(user_id: int, body: UpdateUserRequest, user: dict = Depends(
     target = database.get_user(user_id)
     if not target:
         raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 管理员不该有书城凭据（同自助端点）：非空才算「写凭据」，None = 不改 —— 前端表单常整体回传，
+    # 带 None 就报错会把正常改资料也拦掉。判据用「本次更新后的角色」，挡住「提升为管理员 + 顺手塞凭据」。
+    effective_role = body.role if body.role is not None else target.get("role")
+    if effective_role == "admin" and (body.pingykj_username or body.pingykj_password):
+        raise HTTPException(status_code=400, detail="管理员账号无需书城凭据（管理员看全部用户数据）")
 
     # 构建更新字段
     fields = {}
