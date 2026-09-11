@@ -125,6 +125,19 @@ def main():
     r = c.post(f"/api/users/{u4['id']}/reconnect-pingykj")
     assert r.status_code == 400, f"没配通用凭据的用户不带 site 应 400: {r.status_code} {r.text}"
 
+    # 裁决 17：这两条也是写操作（建/换会话 + 向书城发起请求），非法 site 必须 400，不能静默按默认站登录。
+    # 用 u2（通用凭据有效）做样本：若只按读语义归一，非法 site 会回落到通用凭据一路 200 走完登录——
+    # 断言必须能区分「拦下」与「拿通用凭据照跑」。
+    calls.clear()
+    r = c.post(f"/api/users/{u2['id']}/reconnect-pingykj", params={"site": "x"})
+    assert r.status_code == 400, f"reconnect 非法 site 应 400: {r.status_code} {r.text}"
+    r = c.get(f"/api/users/{u2['id']}/pingykj-captcha", params={"site": "x"})
+    assert r.status_code == 400, f"captcha 非法 site 应 400: {r.status_code} {r.text}"
+    assert not calls, f"非法 site 不该发起任何登录/取码请求: {calls}"
+    # 合法站点仍照常
+    r = c.post(f"/api/users/{u2['id']}/reconnect-pingykj", params={"site": "b"})
+    assert r.status_code == 200 and calls["login"]["username"] == "b_user", (r.text, calls)
+
     c.app.dependency_overrides.clear()
     shutil.rmtree(tmp.parent, ignore_errors=True)
     print("OK: 站点接口——列表/改名(每用户独立)/每站凭据(非法 site 400)/管理页每站状态/仅站点凭据可登录")

@@ -3933,7 +3933,8 @@ def api_reconnect_user_pingykj(user_id: int, user: dict = Depends(get_current_ad
     if not target:
         raise HTTPException(status_code=404, detail="用户不存在")
     # 前置校验按「该站点生效凭据」判定：只在某站配了专属凭据的用户也是配了凭据
-    site = (site or "").strip() or None
+    # site 走 write 语义：登录会建立/替换 (uid, site) 会话，未知站点不能静默按默认站登录
+    site = _norm_site(site, write=True)
     creds = database.get_effective_pingykj_credentials(user_id, site)
     if not creds or not creds.get("username") or not creds.get("password"):
         raise HTTPException(status_code=400, detail="该用户未配置书城凭据")
@@ -3964,7 +3965,7 @@ def api_get_user_pingykj_captcha(user_id: int, user: dict = Depends(get_current_
     target = database.get_user(user_id)
     if not target:
         raise HTTPException(status_code=404, detail="用户不存在")
-    site = (site or "").strip() or None
+    site = _norm_site(site, write=True)  # 取验证码会建 (uid, site) 会话，未知站点 400
     creds = database.get_effective_pingykj_credentials(user_id, site)
     if not creds or not creds.get("username"):
         raise HTTPException(status_code=400, detail="该用户未配置书城账号")
