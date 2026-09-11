@@ -1370,18 +1370,19 @@ def clear_session_token(user_id: int) -> None:
 
 # ====== Ad Stats CRUD ======
 
-def upsert_ad_stats(rows: List[Dict[str, Any]], user_id: int = None) -> int:
+def upsert_ad_stats(rows: List[Dict[str, Any]], user_id: int = None, site: str = None) -> int:
     """批量 UPSERT 广告日报数据，返回实际写入行数"""
     if not rows:
         return 0
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         count = 0
         for r in rows:
             conn.execute("""
-                INSERT INTO ad_daily_stats (date, ad_account, total_spend, total_revenue, ad_count, impressions, clicks, extra_data, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(date, ad_account, source, user_id) DO UPDATE SET
+                INSERT INTO ad_daily_stats (date, ad_account, total_spend, total_revenue, ad_count, impressions, clicks, extra_data, user_id, site)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(date, ad_account, source, user_id, site) DO UPDATE SET
                     total_spend=excluded.total_spend,
                     total_revenue=excluded.total_revenue,
                     ad_count=excluded.ad_count,
@@ -1393,17 +1394,18 @@ def upsert_ad_stats(rows: List[Dict[str, Any]], user_id: int = None) -> int:
                 r.get("date"), r.get("ad_account"), r.get("total_spend", 0), r.get("total_revenue", 0),
                 r.get("ad_count", 0), r.get("impressions", 0), r.get("clicks", 0),
                 json.dumps(r.get("extra_data", {}), ensure_ascii=False) if r.get("extra_data") else None,
-                uid
+                uid, site
             ))
             count += 1
         return count
 
 # ====== Orders CRUD ======
 
-def upsert_orders(rows: List[Dict[str, Any]], user_id: int = None) -> int:
+def upsert_orders(rows: List[Dict[str, Any]], user_id: int = None, site: str = None) -> int:
     if not rows:
         return 0
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         count = 0
         for r in rows:
@@ -1418,9 +1420,9 @@ def upsert_orders(rows: List[Dict[str, Any]], user_id: int = None) -> int:
                 ed = json.dumps(ed, ensure_ascii=False)
 
             conn.execute("""
-                INSERT INTO orders (order_id, order_date, amount, status, customer_info, ad_account, extra_data, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(order_id) DO UPDATE SET
+                INSERT INTO orders (order_id, order_date, amount, status, customer_info, ad_account, extra_data, user_id, site)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(site, order_id) DO UPDATE SET
                     order_date=excluded.order_date,
                     amount=excluded.amount,
                     status=excluded.status,
@@ -1430,7 +1432,7 @@ def upsert_orders(rows: List[Dict[str, Any]], user_id: int = None) -> int:
                     synced_at=CURRENT_TIMESTAMP
             """, (
                 order_id, r.get("order_date"), r.get("amount", 0), r.get("status"),
-                ci, r.get("ad_account"), ed, uid
+                ci, r.get("ad_account"), ed, uid, site
             ))
             count += 1
         return count
@@ -1439,11 +1441,12 @@ def upsert_orders(rows: List[Dict[str, Any]], user_id: int = None) -> int:
 
 # ====== Raw Data CRUD ======
 
-def save_raw_ad_stats(records: List[Dict[str, Any]], user_id: int = None) -> int:
+def save_raw_ad_stats(records: List[Dict[str, Any]], user_id: int = None, site: str = None) -> int:
     """保存广告 API 原始记录（全字段），按 API 记录 id 去重"""
     if not records:
         return 0
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         count = 0
         for r in records:
@@ -1454,18 +1457,19 @@ def save_raw_ad_stats(records: List[Dict[str, Any]], user_id: int = None) -> int
                 continue
             raw_json_str = json.dumps(r, ensure_ascii=False)
             conn.execute("""
-                INSERT INTO raw_ad_stats (record_id, stat_date, ad_account_id, raw_json, user_id)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(record_id) DO UPDATE SET
+                INSERT INTO raw_ad_stats (record_id, stat_date, ad_account_id, raw_json, user_id, site)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(site, record_id) DO UPDATE SET
                     stat_date=excluded.stat_date,
                     ad_account_id=excluded.ad_account_id,
                     raw_json=excluded.raw_json,
                     synced_at=CURRENT_TIMESTAMP
-            """, (record_id, stat_date, ad_account_id, raw_json_str, uid))
+            """, (record_id, stat_date, ad_account_id, raw_json_str, uid, site))
             count += 1
         return count
 
-def get_raw_ad_stats(start_date: str = None, end_date: str = None, user_id: int = None) -> List[Dict[str, Any]]:
+def get_raw_ad_stats(start_date: str = None, end_date: str = None, user_id: int = None,
+                     site: str = None) -> List[Dict[str, Any]]:
     """读取原始广告数据，返回完整 JSON 字典列表"""
     with get_conn() as conn:
         where = ["1=1"]
@@ -1479,17 +1483,21 @@ def get_raw_ad_stats(start_date: str = None, end_date: str = None, user_id: int 
         if user_id is not None:
             where.append("user_id = ?")
             params.append(user_id)
+        if site:
+            where.append("site = ?")
+            params.append(site)
         rows = conn.execute(
             f"SELECT raw_json FROM raw_ad_stats WHERE {' AND '.join(where)} ORDER BY stat_date DESC",
             params
         ).fetchall()
         return [json.loads(r["raw_json"]) for r in rows]
 
-def save_raw_orders(records: List[Dict[str, Any]], user_id: int = None) -> int:
+def save_raw_orders(records: List[Dict[str, Any]], user_id: int = None, site: str = None) -> int:
     """保存订单 API 原始记录（全字段），按 order_id 去重"""
     if not records:
         return 0
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         count = 0
         for r in records:
@@ -1498,15 +1506,16 @@ def save_raw_orders(records: List[Dict[str, Any]], user_id: int = None) -> int:
                 continue
             raw_json_str = json.dumps(r, ensure_ascii=False)
             conn.execute("""
-                INSERT INTO raw_orders (order_id, raw_json, user_id)
-                VALUES (?, ?, ?)
-                ON CONFLICT(order_id) DO UPDATE SET
+                INSERT INTO raw_orders (order_id, raw_json, user_id, site)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(site, order_id) DO UPDATE SET
                     raw_json=excluded.raw_json, synced_at=CURRENT_TIMESTAMP
-            """, (order_id, raw_json_str, uid))
+            """, (order_id, raw_json_str, uid, site))
             count += 1
         return count
 
-def get_raw_orders(start_date: str = None, end_date: str = None, user_id: int = None) -> List[Dict[str, Any]]:
+def get_raw_orders(start_date: str = None, end_date: str = None, user_id: int = None,
+                   site: str = None) -> List[Dict[str, Any]]:
     """读取原始订单数据"""
     with get_conn() as conn:
         where = ["1=1"]
@@ -1520,6 +1529,9 @@ def get_raw_orders(start_date: str = None, end_date: str = None, user_id: int = 
         if user_id is not None:
             where.append("user_id = ?")
             params.append(user_id)
+        if site:
+            where.append("site = ?")
+            params.append(site)
         rows = conn.execute(
             f"SELECT raw_json FROM raw_orders WHERE {' AND '.join(where)} ORDER BY synced_at DESC",
             params
@@ -1529,33 +1541,37 @@ def get_raw_orders(start_date: str = None, end_date: str = None, user_id: int = 
 
 # ====== Sync State ======
 
-def get_last_sync_date(sync_type: str, user_id: int = None) -> Optional[str]:
+def get_last_sync_date(sync_type: str, user_id: int = None, site: str = None) -> Optional[str]:
     """获取上次同步日期，用于增量更新"""
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT last_sync_date FROM sync_state WHERE sync_type = ? AND user_id = ?", (sync_type, uid)
+            "SELECT last_sync_date FROM sync_state WHERE sync_type = ? AND user_id = ? AND site = ?",
+            (sync_type, uid, site)
         ).fetchone()
         return row["last_sync_date"] if row else None
 
-def set_last_sync_date(sync_type: str, date_str: str, user_id: int = None) -> None:
+def set_last_sync_date(sync_type: str, date_str: str, user_id: int = None, site: str = None) -> None:
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         conn.execute("""
-            INSERT INTO sync_state (sync_type, user_id, last_sync_date, last_sync_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(sync_type, user_id) DO UPDATE SET
+            INSERT INTO sync_state (sync_type, user_id, last_sync_date, last_sync_at, site)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
+            ON CONFLICT(sync_type, user_id, site) DO UPDATE SET
                 last_sync_date=excluded.last_sync_date, last_sync_at=CURRENT_TIMESTAMP
-        """, (sync_type, uid, date_str))
+        """, (sync_type, uid, date_str, site))
 
 
-def delete_sync_state(sync_type: str, user_id: int = None) -> None:
+def delete_sync_state(sync_type: str, user_id: int = None, site: str = None) -> None:
     """清除同步状态，用于全量重同步"""
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         conn.execute(
-            "DELETE FROM sync_state WHERE sync_type = ? AND user_id = ?",
-            (sync_type, uid)
+            "DELETE FROM sync_state WHERE sync_type = ? AND user_id = ? AND site = ?",
+            (sync_type, uid, site)
         )
 
 
@@ -1601,59 +1617,72 @@ def set_sync_interval(seconds: int, user_id: int = None) -> None:
 
 # ====== Account Aliases ======
 
-def get_account_aliases(user_id: int = None) -> Dict[str, str]:
+def get_account_aliases(user_id: int = None, site: str = None) -> Dict[str, str]:
     """返回 {account_id: alias} 映射"""
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         if user_id is not None:
             rows = conn.execute(
-                "SELECT account_id, alias FROM account_aliases WHERE user_id = ?", (user_id,)
+                "SELECT account_id, alias FROM account_aliases WHERE user_id = ? AND site = ?", (user_id, site)
             ).fetchall()
         else:
-            rows = conn.execute("SELECT account_id, alias FROM account_aliases").fetchall()
+            rows = conn.execute(
+                "SELECT account_id, alias FROM account_aliases WHERE site = ?", (site,)
+            ).fetchall()
         return {r["account_id"]: r["alias"] for r in rows}
 
-def set_account_alias(account_id: str, alias: str, user_id: int = None) -> None:
+def set_account_alias(account_id: str, alias: str, user_id: int = None, site: str = None) -> None:
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         conn.execute("""
-            INSERT INTO account_aliases (account_id, user_id, alias, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(account_id, user_id) DO UPDATE SET
+            INSERT INTO account_aliases (account_id, user_id, alias, updated_at, site)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
+            ON CONFLICT(account_id, user_id, site) DO UPDATE SET
                 alias=excluded.alias, updated_at=CURRENT_TIMESTAMP
-        """, (account_id, uid, alias))
+        """, (account_id, uid, alias, site))
 
-def delete_account_alias(account_id: str, user_id: int = None) -> None:
+def delete_account_alias(account_id: str, user_id: int = None, site: str = None) -> None:
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         conn.execute(
-            "DELETE FROM account_aliases WHERE account_id = ? AND user_id = ?", (account_id, uid)
+            "DELETE FROM account_aliases WHERE account_id = ? AND user_id = ? AND site = ?",
+            (account_id, uid, site)
         )
 
 
-def delete_account_all(account_id: str, user_id: int = None) -> None:
+def delete_account_all(account_id: str, user_id: int = None, site: str = None) -> None:
     """删除账户的所有数据（别名、日报统计、原始数据）"""
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
-        conn.execute("DELETE FROM account_aliases WHERE account_id = ? AND user_id = ?", (account_id, uid))
-        conn.execute("DELETE FROM ad_daily_stats WHERE ad_account = ? AND user_id = ?", (account_id, uid))
-        conn.execute("DELETE FROM raw_ad_stats WHERE ad_account_id = ? AND user_id = ?", (account_id, uid))
+        conn.execute("DELETE FROM account_aliases WHERE account_id = ? AND user_id = ? AND site = ?",
+                     (account_id, uid, site))
+        conn.execute("DELETE FROM ad_daily_stats WHERE ad_account = ? AND user_id = ? AND site = ?",
+                     (account_id, uid, site))
+        conn.execute("DELETE FROM raw_ad_stats WHERE ad_account_id = ? AND user_id = ? AND site = ?",
+                     (account_id, uid, site))
 
-def get_account_display_list(user_id: int = None) -> List[Dict[str, str]]:
-    """返回账户列表（仅 pingykj 来源，含别名）"""
+def get_account_display_list(user_id: int = None, site: str = None) -> List[Dict[str, str]]:
+    """返回账户列表（仅 pingykj 来源，含别名）。site=None 时合并两站账户（按 account_id 去重）"""
     with get_conn() as conn:
-        aliases = get_account_aliases(user_id)
+        aliases = get_account_aliases(user_id, site=site)
         result = []
         seen = set()
 
+        where, params = [], []
         if user_id is not None:
-            raw_rows = conn.execute(
-                "SELECT DISTINCT ad_account_id FROM raw_ad_stats WHERE user_id = ? ORDER BY ad_account_id",
-                (user_id,)
-            ).fetchall()
-        else:
-            raw_rows = conn.execute(
-                "SELECT DISTINCT ad_account_id FROM raw_ad_stats ORDER BY ad_account_id"
-            ).fetchall()
+            where.append("user_id = ?")
+            params.append(user_id)
+        if site:
+            where.append("site = ?")
+            params.append(site)
+        where_clause = (" WHERE " + " AND ".join(where)) if where else ""
+        raw_rows = conn.execute(
+            f"SELECT DISTINCT ad_account_id FROM raw_ad_stats{where_clause} ORDER BY ad_account_id",
+            params
+        ).fetchall()
         for r in raw_rows:
             acct_id = r["ad_account_id"]
             if acct_id and acct_id not in seen:
@@ -1669,32 +1698,34 @@ def get_account_display_list(user_id: int = None) -> List[Dict[str, str]]:
 
 
 def log_sync(sync_type: str, status: str, records_count: int = 0,
-             error_message: str = "", user_id: int = None) -> int:
+             error_message: str = "", user_id: int = None, site: str = None) -> int:
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         cur = conn.execute("""
-            INSERT INTO sync_logs (sync_type, status, records_count, error_message, user_id, finished_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        """, (sync_type, status, records_count, error_message or None, uid))
+            INSERT INTO sync_logs (sync_type, status, records_count, error_message, user_id, finished_at, site)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+        """, (sync_type, status, records_count, error_message or None, uid, site))
         log_id = cur.lastrowid
         return log_id
 
 
 # ====== Novel Books CRUD ======
 
-def upsert_novel_books(rows: List[Dict[str, Any]]) -> int:
+def upsert_novel_books(rows: List[Dict[str, Any]], site: str = None) -> int:
     """批量 UPSERT 书籍信息，返回写入行数"""
     if not rows:
         return 0
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         count = 0
         for r in rows:
             conn.execute("""
                 INSERT INTO novel_books (novel_id, novel_name, author, cover_url, status, category, intro,
                     total_chapters, create_time, book_ad_spend, promotion_link_count, source, region, tags,
-                    recommend, exclusive_status, create_by, word_count, collect_num, locale_code, raw_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(novel_id) DO UPDATE SET
+                    recommend, exclusive_status, create_by, word_count, collect_num, locale_code, raw_json, site)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(site, novel_id) DO UPDATE SET
                     novel_name=excluded.novel_name,
                     author=excluded.author,
                     cover_url=excluded.cover_url,
@@ -1726,16 +1757,17 @@ def upsert_novel_books(rows: List[Dict[str, Any]]) -> int:
                 r.get("recommend"), r.get("exclusive_status"),
                 r.get("create_by"), r.get("word_count", 0),
                 r.get("collect_num", 0), r.get("locale_code"),
-                r.get("raw_json")
+                r.get("raw_json"), site
             ))
             count += 1
         return count
 
 
-def save_novel_spend_snapshots(books: List[Dict[str, Any]]) -> int:
+def save_novel_spend_snapshots(books: List[Dict[str, Any]], site: str = None) -> int:
     """保存小说当日消耗快照（用于计算区间消耗增量）"""
     if not books:
         return 0
+    site = site or SITE_DEFAULT
     today = time.strftime("%Y-%m-%d")
     count = 0
     with get_conn() as conn:
@@ -1745,31 +1777,41 @@ def save_novel_spend_snapshots(books: List[Dict[str, Any]]) -> int:
             if not nid:
                 continue
             conn.execute("""
-                INSERT OR REPLACE INTO novel_spend_snapshots (novel_id, snap_date, book_ad_spend)
-                VALUES (?, ?, ?)
-            """, (nid, today, spend))
+                INSERT INTO novel_spend_snapshots (novel_id, snap_date, book_ad_spend, site)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(site, novel_id, snap_date) DO UPDATE SET
+                    book_ad_spend=excluded.book_ad_spend, created_at=CURRENT_TIMESTAMP
+            """, (nid, today, spend, site))
             count += 1
     return count
 
 
-def get_novel_spend_snapshot(novel_id: str, target_date: str) -> Optional[float]:
+def get_novel_spend_snapshot(novel_id: str, target_date: str, site: str = None) -> Optional[float]:
     """获取小说在指定日期或之前最近的消耗快照值"""
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         row = conn.execute("""
             SELECT book_ad_spend FROM novel_spend_snapshots
-            WHERE novel_id = ? AND snap_date <= ?
+            WHERE novel_id = ? AND snap_date <= ? AND site = ?
             ORDER BY snap_date DESC LIMIT 1
-        """, (novel_id, target_date)).fetchone()
+        """, (novel_id, target_date, site)).fetchone()
         return row["book_ad_spend"] if row else None
 
 
 def get_novel_books(page: int = 1, page_size: int = 20, keyword: str = None,
                     status_filter: str = None, sort_by: str = "create_time",
-                    sort_order: str = "DESC") -> dict:
-    """分页查询书籍列表，附加订单数和转化成本。支持排序"""
+                    sort_order: str = "DESC", site: str = None) -> dict:
+    """分页查询书籍列表，附加订单数和转化成本。支持排序。
+
+    site=None 时合计：按 novel_id 聚合，同一本书两站的 book_ad_spend / order_count 相加。
+    单站点时 GROUP BY novel_id 结果相同，故统一走聚合分支。
+    """
     with get_conn() as conn:
         where = []
         params = []
+        if site:
+            where.append("nb.site = ?")
+            params.append(site)
         if keyword:
             where.append("(nb.novel_name LIKE ? OR nb.author LIKE ? OR nb.novel_id LIKE ?)")
             params.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
@@ -1778,25 +1820,46 @@ def get_novel_books(page: int = 1, page_size: int = 20, keyword: str = None,
             params.append(status_filter)
         where_clause = (" WHERE " + " AND ".join(where)) if where else ""
         total = conn.execute(
-            f"SELECT COUNT(*) AS cnt FROM novel_books nb{where_clause}", params
+            f"SELECT COUNT(DISTINCT nb.novel_id) AS cnt FROM novel_books nb{where_clause}", params
         ).fetchone()["cnt"]
 
         # 排序字段映射（白名单防注入）
         sort_map = {
-            "create_time": "nb.create_time", "book_ad_spend": "nb.book_ad_spend",
+            "create_time": "nb.create_time", "book_ad_spend": "book_ad_spend",
             "order_count": "order_count", "conversion_cost": "conversion_cost",
             "promotion_link_count": "nb.promotion_link_count", "word_count": "nb.word_count",
-            "total_chapters": "nb.total_chapters", "novel_name": "nb.novel_name",
+            "total_chapters": "nb.total_chapters", "novel_name": "novel_name",
         }
         sort_col = sort_map.get(sort_by, "nb.create_time")
         sort_dir = "DESC" if sort_order.upper() == "DESC" else "ASC"
 
         offset = (page - 1) * page_size
         rows = conn.execute(
-            f"""SELECT nb.*,
-                COALESCE(oo.order_count, 0) AS order_count,
-                CASE WHEN COALESCE(oo.order_count, 0) > 0
-                     THEN ROUND(nb.book_ad_spend / CAST(oo.order_count AS REAL), 2)
+            f"""SELECT nb.novel_id,
+                MAX(nb.novel_name) AS novel_name,
+                MAX(nb.author) AS author,
+                MAX(nb.cover_url) AS cover_url,
+                MAX(nb.status) AS status,
+                MAX(nb.category) AS category,
+                MAX(nb.intro) AS intro,
+                MAX(nb.total_chapters) AS total_chapters,
+                MAX(nb.create_time) AS create_time,
+                SUM(nb.book_ad_spend) AS book_ad_spend,
+                MAX(nb.promotion_link_count) AS promotion_link_count,
+                MAX(nb.source) AS source,
+                MAX(nb.region) AS region,
+                MAX(nb.tags) AS tags,
+                MAX(nb.recommend) AS recommend,
+                MAX(nb.exclusive_status) AS exclusive_status,
+                MAX(nb.create_by) AS create_by,
+                MAX(nb.word_count) AS word_count,
+                MAX(nb.collect_num) AS collect_num,
+                MAX(nb.locale_code) AS locale_code,
+                MAX(nb.raw_json) AS raw_json,
+                MAX(nb.synced_at) AS synced_at,
+                COALESCE(SUM(oo.order_count), 0) AS order_count,
+                CASE WHEN COALESCE(SUM(oo.order_count), 0) > 0
+                     THEN ROUND(SUM(nb.book_ad_spend) / CAST(SUM(oo.order_count) AS REAL), 2)
                      ELSE NULL END AS conversion_cost
                 FROM novel_books nb
                 LEFT JOIN (
@@ -1805,37 +1868,45 @@ def get_novel_books(page: int = 1, page_size: int = 20, keyword: str = None,
                     FROM orders WHERE status = '成功'
                     GROUP BY json_extract(customer_info, '$.novelId')
                 ) oo ON nb.novel_id = oo.nid
-                {where_clause} ORDER BY {sort_col} {sort_dir} LIMIT ? OFFSET ?""",
+                {where_clause} GROUP BY nb.novel_id
+                ORDER BY {sort_col} {sort_dir} LIMIT ? OFFSET ?""",
             params + [page_size, offset]
         ).fetchall()
         return {"data": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
 
 
-def get_novel_book(novel_id: str) -> Optional[Dict[str, Any]]:
+def get_novel_book(novel_id: str, site: str = None) -> Optional[Dict[str, Any]]:
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT * FROM novel_books WHERE novel_id = ?", (novel_id,)
+            "SELECT * FROM novel_books WHERE novel_id = ? AND site = ?", (novel_id, site)
         ).fetchone()
         return dict(row) if row else None
 
 
-def get_all_novel_ids() -> List[str]:
+def get_all_novel_ids(site: str = None) -> List[str]:
     with get_conn() as conn:
-        rows = conn.execute("SELECT novel_id FROM novel_books").fetchall()
+        if site:
+            rows = conn.execute(
+                "SELECT DISTINCT novel_id FROM novel_books WHERE site = ?", (site,)
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT DISTINCT novel_id FROM novel_books").fetchall()
         return [r["novel_id"] for r in rows]
 
 
 # ====== Novel Chapters CRUD ======
 
-def upsert_novel_chapters(rows: List[Dict[str, Any]]) -> int:
+def upsert_novel_chapters(rows: List[Dict[str, Any]], site: str = None) -> int:
     """批量 UPSERT 章节，返回写入行数"""
     if not rows:
         return 0
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         conn.executemany("""
-            INSERT INTO novel_chapters (novel_id, chapter_no, chapter_name, content, word_count, raw_json)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(novel_id, chapter_no) DO UPDATE SET
+            INSERT INTO novel_chapters (novel_id, chapter_no, chapter_name, content, word_count, raw_json, site)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(site, novel_id, chapter_no) DO UPDATE SET
                 chapter_name=excluded.chapter_name,
                 content=excluded.content,
                 word_count=excluded.word_count,
@@ -1843,24 +1914,29 @@ def upsert_novel_chapters(rows: List[Dict[str, Any]]) -> int:
                 synced_at=CURRENT_TIMESTAMP
         """, [
             (r.get("novel_id"), r.get("chapter_no"), r.get("chapter_name"),
-             r.get("content"), r.get("word_count", 0), r.get("raw_json"))
+             r.get("content"), r.get("word_count", 0), r.get("raw_json"), site)
             for r in rows
         ])
         return len(rows)
 
 
-def get_novel_chapters(novel_id: str, page: int = 1, page_size: int = 50) -> dict:
+def get_novel_chapters(novel_id: str, page: int = 1, page_size: int = 50, site: str = None) -> dict:
     """分页查询某书的章节列表"""
     with get_conn() as conn:
+        where, params = ["novel_id = ?"], [novel_id]
+        if site:
+            where.append("site = ?")
+            params.append(site)
+        where_clause = " AND ".join(where)
         total = conn.execute(
-            "SELECT COUNT(*) AS cnt FROM novel_chapters WHERE novel_id = ?", (novel_id,)
+            f"SELECT COUNT(*) AS cnt FROM novel_chapters WHERE {where_clause}", params
         ).fetchone()["cnt"]
         offset = (page - 1) * page_size
         rows = conn.execute(
-            """SELECT id, novel_id, chapter_no, chapter_name, word_count, synced_at
-               FROM novel_chapters WHERE novel_id = ?
+            f"""SELECT id, novel_id, chapter_no, chapter_name, word_count, synced_at
+               FROM novel_chapters WHERE {where_clause}
                ORDER BY chapter_no ASC LIMIT ? OFFSET ?""",
-            (novel_id, page_size, offset)
+            params + [page_size, offset]
         ).fetchall()
         return {"data": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
 
@@ -1873,10 +1949,14 @@ def get_novel_chapter(chapter_id: int) -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 
-def get_novel_chapter_count(novel_id: str) -> int:
+def get_novel_chapter_count(novel_id: str, site: str = None) -> int:
     with get_conn() as conn:
+        where, params = ["novel_id = ?"], [novel_id]
+        if site:
+            where.append("site = ?")
+            params.append(site)
         row = conn.execute(
-            "SELECT COUNT(*) AS cnt FROM novel_chapters WHERE novel_id = ?", (novel_id,)
+            f"SELECT COUNT(*) AS cnt FROM novel_chapters WHERE {' AND '.join(where)}", params
         ).fetchone()
         return row["cnt"] if row else 0
 
@@ -2604,11 +2684,12 @@ def _extract_cost_per_action(cost_per_action: list, action_type: str) -> float:
     return 0.0
 
 def upsert_meta_insights(act_id: str, insights_rows: List[Dict[str, Any]],
-                         user_id: int = None) -> int:
+                         user_id: int = None, site: str = None) -> int:
     """批量写入 Meta Insights 数据到 ad_daily_stats，返回写入行数"""
     if not insights_rows:
         return 0
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         count = 0
         for r in insights_rows:
@@ -2628,9 +2709,9 @@ def upsert_meta_insights(act_id: str, insights_rows: List[Dict[str, Any]],
                     inline_link_clicks, inline_link_click_ctr,
                     add_to_cart, add_to_cart_cost,
                     purchases, cost_per_purchase, purchase_value,
-                    subscribe_count, initiate_checkout, user_id)
-                VALUES (?, ?, 'meta', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(date, ad_account, source, user_id) DO UPDATE SET
+                    subscribe_count, initiate_checkout, user_id, site)
+                VALUES (?, ?, 'meta', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(date, ad_account, source, user_id, site) DO UPDATE SET
                     total_spend=excluded.total_spend,
                     total_revenue=excluded.total_revenue,
                     impressions=excluded.impressions,
@@ -2667,6 +2748,7 @@ def upsert_meta_insights(act_id: str, insights_rows: List[Dict[str, Any]],
                 subscribe_count,
                 initiate_checkout,
                 uid,
+                site,
             ))
             count += 1
         return count
@@ -2950,25 +3032,27 @@ def get_meta_ad_ids_with_stats(act_id: str, user_id: int = None,
         rows = conn.execute(sql, params).fetchall()
         return [r["ad_id"] for r in rows]
 
-def get_meta_sync_state(act_id: str, user_id: int = None) -> Optional[str]:
+def get_meta_sync_state(act_id: str, user_id: int = None, site: str = None) -> Optional[str]:
     """获取 Meta 账户上次同步日期"""
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT last_sync_date FROM sync_state WHERE sync_type = ? AND user_id = ?",
-            (f"meta_{act_id}", uid)
+            "SELECT last_sync_date FROM sync_state WHERE sync_type = ? AND user_id = ? AND site = ?",
+            (f"meta_{act_id}", uid, site)
         ).fetchone()
         return row["last_sync_date"] if row else None
 
-def set_meta_sync_state(act_id: str, date_str: str, user_id: int = None) -> None:
+def set_meta_sync_state(act_id: str, date_str: str, user_id: int = None, site: str = None) -> None:
     uid = user_id or 1
+    site = site or SITE_DEFAULT
     with get_conn() as conn:
         conn.execute("""
-            INSERT INTO sync_state (sync_type, user_id, last_sync_date, last_sync_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(sync_type, user_id) DO UPDATE SET
+            INSERT INTO sync_state (sync_type, user_id, last_sync_date, last_sync_at, site)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
+            ON CONFLICT(sync_type, user_id, site) DO UPDATE SET
                 last_sync_date=excluded.last_sync_date, last_sync_at=CURRENT_TIMESTAMP
-        """, (f"meta_{act_id}", uid, date_str))
+        """, (f"meta_{act_id}", uid, date_str, site))
 
 
 def get_meta_last_sync_at(user_id: int = None) -> Optional[str]:
