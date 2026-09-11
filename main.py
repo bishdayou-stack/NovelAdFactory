@@ -3783,14 +3783,23 @@ def api_auth_me(user: dict = Depends(get_current_user)):
 class PingykjCredsBody(BaseModel):
     pingykj_username: str = ""
     pingykj_password: str = ""
+    site: str = ""
 
 @app.put("/api/auth/pingykj-credentials")
 def api_update_pingykj_creds(body: PingykjCredsBody, user: dict = Depends(get_current_user)):
-    """当前用户自助更新书城登录凭据。仅保存凭据到数据库，不清除已有 session。"""
+    """当前用户自助保存书城登录凭据。site 为空 = 通用凭据；非空 = 该站点专属凭据。
+
+    这是写操作，site 必须走 write 语义：站点名打错若被静默归一成空串，会覆盖掉通用凭据，
+    而用户以为只改了某一站。
+    """
+    site = _norm_site(body.site, write=True) or ""
+    if site:
+        database.set_site_credentials(user["id"], site, body.pingykj_username, body.pingykj_password)
+        return {"status": "ok", "message": f"已保存 {site} 站凭据", "site": site}
     database.update_user(user["id"],
                          pingykj_username=body.pingykj_username,
                          pingykj_password=body.pingykj_password)
-    return {"status": "ok", "message": "书城凭据已保存"}
+    return {"status": "ok", "message": "通用书城凭据已保存", "site": ""}
 
 
 # ====== 用户管理 API（管理员） ======
@@ -3807,15 +3816,22 @@ class CreateUserRequest(BaseModel):
 def api_list_users(user: dict = Depends(get_current_admin)):
     """管理员查看所有用户（含书城在线状态）"""
     users = database.list_users()
-    # 为有书城凭据的用户检查在线状态（仅查缓存，不触发自动登录）
+    # 每站状态（仅查缓存，不触发自动登录）
     for u in users:
-        if u.get("pingykj_username"):
-            uid = u["id"]
-            # 检查是否有缓存的活跃 session（会话键为 (user_id, site)，任一站点在线即在线）
-            sessions = [s for (sid, _site), s in list(scraper._user_sessions.items()) if sid == uid]
-            u["pingykj_online"] = any(s.check_valid() for s in sessions)
-        else:
-            u["pingykj_online"] = False
+        uid = u["id"]
+        per_site = {}
+        for s in scraper.get_sites():
+            key = s["key"]
+            site_creds = database.get_effective_pingykj_credentials(uid, key)
+            session = scraper._user_sessions.get((uid, key))
+            per_site[key] = {
+                "online": bool(session and session.check_valid()),
+                "configured": bool(site_creds and site_creds.get("username")),
+                "username": (site_creds or {}).get("username", ""),
+                "name": _site_display_name(uid, s),
+            }
+        u["sites"] = per_site
+        u["pingykj_online"] = any(v["online"] for v in per_site.values())
     return users
 
 @app.post("/api/users")
@@ -3910,24 +3926,25 @@ def api_delete_user(user_id: int, user: dict = Depends(get_current_admin)):
 
 @app.post("/api/users/{user_id}/reconnect-pingykj")
 def api_reconnect_user_pingykj(user_id: int, user: dict = Depends(get_current_admin),
-                                captcha: str = "", check_key: str = ""):
-    """管理员用已存储的凭据重新登录书城（可选验证码）"""
+                                captcha: str = "", check_key: str = "",
+                                site: str = Query(default=None)):
+    """管理员用已存储的凭据重新登录书城（可选验证码）。site 为空 = 通用凭据。"""
     target = database.get_user(user_id)
     if not target:
         raise HTTPException(status_code=404, detail="用户不存在")
-    if not target.get("pingykj_username") or not target.get("pingykj_password_encrypted"):
+    # 前置校验按「该站点生效凭据」判定：只在某站配了专属凭据的用户也是配了凭据
+    site = (site or "").strip() or None
+    creds = database.get_effective_pingykj_credentials(user_id, site)
+    if not creds or not creds.get("username") or not creds.get("password"):
         raise HTTPException(status_code=400, detail="该用户未配置书城凭据")
 
-    # 清除旧 session
-    scraper.clear_user_session(user_id)
+    # 清除旧 session（site 为空 = 清该用户所有站点）
+    scraper.clear_user_session(user_id, site or None)
 
     # 用已存储的凭据尝试登录
     try:
-        creds = database.get_user_pingykj_credentials(user_id)
-        if not creds:
-            raise HTTPException(status_code=400, detail="无法解密凭据")
         ok, msg = scraper.login_via_api_for_user(
-            user_id, creds["username"], creds["password"],
+            user_id, creds["username"], creds["password"], site=site,
             captcha=captcha, check_key=check_key
         )
         if ok:
@@ -3941,24 +3958,54 @@ def api_reconnect_user_pingykj(user_id: int, user: dict = Depends(get_current_ad
 
 
 @app.get("/api/users/{user_id}/pingykj-captcha")
-def api_get_user_pingykj_captcha(user_id: int, user: dict = Depends(get_current_admin)):
-    """管理员为指定用户获取书城登录验证码"""
+def api_get_user_pingykj_captcha(user_id: int, user: dict = Depends(get_current_admin),
+                                 site: str = Query(default=None)):
+    """管理员为指定用户获取书城登录验证码。site 为空 = 通用凭据。"""
     target = database.get_user(user_id)
     if not target:
         raise HTTPException(status_code=404, detail="用户不存在")
-    if not target.get("pingykj_username"):
+    site = (site or "").strip() or None
+    creds = database.get_effective_pingykj_credentials(user_id, site)
+    if not creds or not creds.get("username"):
         raise HTTPException(status_code=400, detail="该用户未配置书城账号")
 
-    creds = database.get_user_pingykj_credentials(user_id)
-    if not creds:
-        raise HTTPException(status_code=400, detail="无法解密凭据")
-
     data_uri, check_key, err = scraper.fetch_captcha_with_creds(
-        creds["username"], creds["password"]
+        creds["username"], creds["password"], site=site
     )
     if err:
         raise HTTPException(status_code=502, detail=err)
     return {"image": data_uri, "check_key": check_key}
+
+
+# ====== 站点 API ======
+
+def _site_display_name(user_id: int, site: dict) -> str:
+    """显示名解析：用户改的名 → config 的 name → key。"""
+    try:
+        names = json.loads(database.get_user_config(user_id).get("site_names") or "{}")
+    except Exception:
+        names = {}
+    return (names.get(site["key"]) or "").strip() or site.get("name") or site["key"]
+
+
+@app.get("/api/sites")
+def api_sites(user: dict = Depends(get_current_user)):
+    """返回站点列表；name 已按当前用户的改名解析。"""
+    uid = _opt_user_id(user) or 1
+    return {"sites": [{**s, "name": _site_display_name(uid, s)} for s in scraper.get_sites()]}
+
+
+class SiteNamesBody(BaseModel):
+    names: dict = {}
+
+
+@app.put("/api/sites/names")
+def api_sites_names(body: SiteNamesBody, user: dict = Depends(get_current_user)):
+    """保存当前用户的站点显示名（key 为站点 key）。只接受已存在的站点 key。"""
+    valid = {s["key"] for s in scraper.get_sites()}
+    names = {k: str(v).strip() for k, v in (body.names or {}).items() if k in valid}
+    database.set_user_config(user["id"], "site_names", json.dumps(names, ensure_ascii=False))
+    return {"status": "ok", "names": names}
 
 
 # ====== 数据看板 API ======
