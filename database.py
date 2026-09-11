@@ -168,6 +168,121 @@ def _ensure_user_id_columns(conn) -> None:
         pass
 
 
+SITE_DEFAULT = "a"
+
+# 需要重建（唯一键含 site）的表：表名 -> 新 DDL。
+# 新 DDL 必须包含 site 列，且唯一键/主键含 site。
+_SITE_REBUILD_DDL = {
+    "ad_daily_stats": """
+        CREATE TABLE ad_daily_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, date DATE NOT NULL, ad_account TEXT NOT NULL,
+            total_spend REAL DEFAULT 0, total_revenue REAL DEFAULT 0, ad_count INTEGER DEFAULT 0,
+            impressions INTEGER DEFAULT 0, clicks INTEGER DEFAULT 0, extra_data TEXT,
+            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, source TEXT DEFAULT 'pingykj',
+            meta_account_id TEXT, ctr REAL, cpm REAL, cpc REAL, inline_link_clicks INTEGER,
+            inline_link_click_ctr REAL, add_to_cart INTEGER, add_to_cart_cost REAL,
+            purchases INTEGER, cost_per_purchase REAL, purchase_value REAL, user_id INTEGER DEFAULT 1,
+            site TEXT NOT NULL DEFAULT 'a', UNIQUE(date, ad_account, source, user_id, site))""",
+    "orders": """
+        CREATE TABLE orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT NOT NULL, order_date DATE,
+            amount REAL, status TEXT, customer_info TEXT, ad_account TEXT, extra_data TEXT,
+            user_id INTEGER DEFAULT 1, synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            site TEXT NOT NULL DEFAULT 'a', UNIQUE(site, order_id))""",
+    "raw_ad_stats": """
+        CREATE TABLE raw_ad_stats (
+            record_id TEXT NOT NULL, stat_date TEXT NOT NULL, ad_account_id TEXT NOT NULL,
+            raw_json TEXT NOT NULL, user_id INTEGER DEFAULT 1,
+            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            site TEXT NOT NULL DEFAULT 'a', UNIQUE(site, record_id))""",
+    "raw_orders": """
+        CREATE TABLE raw_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT NOT NULL, raw_json TEXT NOT NULL,
+            user_id INTEGER DEFAULT 1, synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            site TEXT NOT NULL DEFAULT 'a', UNIQUE(site, order_id))""",
+    "sync_state": """
+        CREATE TABLE sync_state (
+            sync_type TEXT NOT NULL, user_id INTEGER NOT NULL DEFAULT 1, last_sync_date TEXT,
+            last_sync_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            site TEXT NOT NULL DEFAULT 'a', PRIMARY KEY (sync_type, user_id, site))""",
+    "account_aliases": """
+        CREATE TABLE account_aliases (
+            account_id TEXT NOT NULL, user_id INTEGER NOT NULL DEFAULT 1, alias TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            site TEXT NOT NULL DEFAULT 'a', PRIMARY KEY (account_id, user_id, site))""",
+    "novel_books": """
+        CREATE TABLE novel_books (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, novel_id TEXT NOT NULL, novel_name TEXT,
+            author TEXT, cover_url TEXT, status TEXT, category TEXT, intro TEXT,
+            total_chapters INTEGER DEFAULT 0, create_time TEXT, book_ad_spend REAL DEFAULT 0,
+            promotion_link_count INTEGER DEFAULT 0, source TEXT, region TEXT, tags TEXT,
+            recommend INTEGER DEFAULT 0, exclusive_status TEXT, create_by TEXT,
+            word_count INTEGER DEFAULT 0, collect_num INTEGER DEFAULT 0, locale_code TEXT,
+            raw_json TEXT, synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            site TEXT NOT NULL DEFAULT 'a', UNIQUE(site, novel_id))""",
+    "novel_chapters": """
+        CREATE TABLE novel_chapters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, novel_id TEXT NOT NULL, chapter_no INTEGER,
+            chapter_name TEXT, content TEXT, word_count INTEGER DEFAULT 0, raw_json TEXT,
+            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            site TEXT NOT NULL DEFAULT 'a', UNIQUE(site, novel_id, chapter_no))""",
+    "novel_spend_snapshots": """
+        CREATE TABLE novel_spend_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, novel_id TEXT NOT NULL, snap_date DATE NOT NULL,
+            book_ad_spend REAL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            site TEXT NOT NULL DEFAULT 'a', UNIQUE(site, novel_id, snap_date))""",
+}
+
+# 只需补列（无唯一键约束涉及 site）的表
+_SITE_ADD_COLUMN = ["sync_logs"]
+
+
+def _rebuild_table_with_site(conn, table: str, create_sql: str) -> None:
+    """把表重建为带 site 列的版本。列顺序按 PRAGMA 实际列序取，避免 ALTER 过的表列序错位。
+
+    老库里存在的、新 DDL 未声明的历史列（如 ad_daily_stats.link_id）会被原样带回，
+    否则重建会直接报错或静默丢列。
+    """
+    tmp = f"{table}__pre_site"
+    old_info = conn.execute(f"PRAGMA table_info('{table}')").fetchall()
+    cols = [r["name"] for r in old_info]
+    conn.execute(f"ALTER TABLE {table} RENAME TO {tmp}")
+    conn.execute(create_sql)
+    new_cols = {r["name"] for r in conn.execute(f"PRAGMA table_info('{table}')").fetchall()}
+    for r in old_info:
+        if r["name"] in new_cols or r["pk"]:
+            continue
+        ddl = f'"{r["name"]}" {r["type"] or "TEXT"}'
+        if r["dflt_value"] is not None:
+            ddl += f' DEFAULT {r["dflt_value"]}'
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+        new_cols.add(r["name"])
+    collist = ", ".join(f'"{c}"' for c in cols)
+    conn.execute(f"INSERT INTO {table} ({collist}, site) SELECT {collist}, ? FROM {tmp}", (SITE_DEFAULT,))
+    conn.execute(f"DROP TABLE {tmp}")
+
+
+def _migrate_site_isolation(conn) -> None:
+    """一次性迁移：为 pingykj 来源的表加 site 列（老数据为 'a'），唯一键含 site。幂等。"""
+    for table, ddl in _SITE_REBUILD_DDL.items():
+        try:
+            cols = {r["name"] for r in conn.execute(f"PRAGMA table_info('{table}')").fetchall()}
+        except Exception:
+            continue                                   # 表不存在，跳过
+        if not cols or "site" in cols:
+            continue                                   # 已是新结构
+        print(f"[database] 重建 {table}：唯一键加入 site...")
+        _rebuild_table_with_site(conn, table, ddl)
+
+    for table in _SITE_ADD_COLUMN:
+        try:
+            cols = {r["name"] for r in conn.execute(f"PRAGMA table_info('{table}')").fetchall()}
+            if cols and "site" not in cols:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN site TEXT NOT NULL DEFAULT '{SITE_DEFAULT}'")
+        except Exception:
+            pass
+
+
 def _migrate_user_isolation(conn) -> None:
     """一次性迁移：添加用户隔离支持"""
     # 1. 创建 users 表
@@ -422,6 +537,9 @@ def init_db() -> None:
             # 每次启动时幂等补加可能遗漏的 user_id 列
             _ensure_user_id_columns(conn)
 
+        # 迁移：site（书城）维度隔离（幂等）
+        _migrate_site_isolation(conn)
+
         # 迁移：为 users 表补加最后登录时间/IP 列
         if has_users_table:
             cols_users = {r["name"] for r in conn.execute("PRAGMA table_info('users')").fetchall()}
@@ -478,7 +596,8 @@ def init_db() -> None:
                 cost_per_purchase REAL,
                 purchase_value REAL,
                 user_id INTEGER DEFAULT 1,
-                UNIQUE(date, ad_account, source, user_id)
+                site TEXT NOT NULL DEFAULT 'a',
+                UNIQUE(date, ad_account, source, user_id, site)
             );
 
             CREATE TABLE IF NOT EXISTS meta_adset_stats (
@@ -565,7 +684,7 @@ def init_db() -> None:
 
             CREATE TABLE IF NOT EXISTS orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_id TEXT UNIQUE NOT NULL,
+                order_id TEXT NOT NULL,
                 order_date DATE,
                 amount REAL,
                 status TEXT,
@@ -573,7 +692,9 @@ def init_db() -> None:
                 ad_account TEXT,
                 extra_data TEXT,
                 user_id INTEGER DEFAULT 1,
-                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                site TEXT NOT NULL DEFAULT 'a',
+                UNIQUE(site, order_id)
             );
 
             CREATE TABLE IF NOT EXISTS sync_logs (
@@ -584,7 +705,8 @@ def init_db() -> None:
                 error_message TEXT,
                 user_id INTEGER DEFAULT 1,
                 started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                finished_at TIMESTAMP
+                finished_at TIMESTAMP,
+                site TEXT NOT NULL DEFAULT 'a'
             );
 
             CREATE TABLE IF NOT EXISTS raw_ad_stats (
@@ -594,15 +716,18 @@ def init_db() -> None:
                 raw_json TEXT NOT NULL,
                 user_id INTEGER DEFAULT 1,
                 synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(record_id)
+                site TEXT NOT NULL DEFAULT 'a',
+                UNIQUE(site, record_id)
             );
 
             CREATE TABLE IF NOT EXISTS raw_orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_id TEXT UNIQUE NOT NULL,
+                order_id TEXT NOT NULL,
                 raw_json TEXT NOT NULL,
                 user_id INTEGER DEFAULT 1,
-                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                site TEXT NOT NULL DEFAULT 'a',
+                UNIQUE(site, order_id)
             );
 
             CREATE TABLE IF NOT EXISTS sync_state (
@@ -610,7 +735,8 @@ def init_db() -> None:
                 user_id INTEGER NOT NULL DEFAULT 1,
                 last_sync_date TEXT,
                 last_sync_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (sync_type, user_id)
+                site TEXT NOT NULL DEFAULT 'a',
+                PRIMARY KEY (sync_type, user_id, site)
             );
 
             CREATE TABLE IF NOT EXISTS account_aliases (
@@ -618,12 +744,13 @@ def init_db() -> None:
                 user_id INTEGER NOT NULL DEFAULT 1,
                 alias TEXT NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (account_id, user_id)
+                site TEXT NOT NULL DEFAULT 'a',
+                PRIMARY KEY (account_id, user_id, site)
             );
 
             CREATE TABLE IF NOT EXISTS novel_books (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                novel_id TEXT UNIQUE NOT NULL,
+                novel_id TEXT NOT NULL,
                 novel_name TEXT,
                 author TEXT,
                 cover_url TEXT,
@@ -644,7 +771,9 @@ def init_db() -> None:
                 collect_num INTEGER DEFAULT 0,
                 locale_code TEXT,
                 raw_json TEXT,
-                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                site TEXT NOT NULL DEFAULT 'a',
+                UNIQUE(site, novel_id)
             );
 
             CREATE TABLE IF NOT EXISTS novel_chapters (
@@ -656,7 +785,8 @@ def init_db() -> None:
                 word_count INTEGER DEFAULT 0,
                 raw_json TEXT,
                 synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(novel_id, chapter_no)
+                site TEXT NOT NULL DEFAULT 'a',
+                UNIQUE(site, novel_id, chapter_no)
             );
 
             CREATE TABLE IF NOT EXISTS novel_spend_snapshots (
@@ -665,7 +795,8 @@ def init_db() -> None:
                 snap_date DATE NOT NULL,
                 book_ad_spend REAL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(novel_id, snap_date)
+                site TEXT NOT NULL DEFAULT 'a',
+                UNIQUE(site, novel_id, snap_date)
             );
 
             CREATE TABLE IF NOT EXISTS meta_accounts (
