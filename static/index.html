@@ -1645,9 +1645,10 @@
     }
     window.isAggregate = function () { return !window.currentSite; };
 
-    // 合计模式下只读的写操作按钮（真实 id，已逐个核对）
+    // 合计模式下只读的写操作按钮（真实 id，已逐个核对；含弹窗内的）
     var _siteRoButtons = ['btnSyncData', 'btnFullSync', 'btnEditAlias', 'aliasModalSave',
-                          'aliasBatchDelete', 'novelMgrSyncFullBtn', 'novelMgrSyncAllBtn'];
+                          'aliasBatchDelete', 'novelMgrSyncFullBtn', 'novelMgrSyncAllBtn',
+                          'chapterModalSyncBtn'];
     function applyAggregateReadOnly() {
       var ro = window.isAggregate();
       var msg = '合计模式下只读，请先切换到具体站点';
@@ -1655,6 +1656,18 @@
         var el = document.getElementById(id);
         if (!el) return;
         if (el.dataset.siteRoTitle === undefined) el.dataset.siteRoTitle = el.title || '';
+        if (!el.__siteRoLocked) {
+          // 收口：这些按钮的各种完成/失败回调会无脑 `el.disabled = false`，
+          // 若期间用户切回「合计」，按钮就会复活。这里锁定元素自身的 disabled 写入，
+          // 合计模式下任何路径的 `= false` 都被吞掉 → 不可能复活（无需逐个回调打补丁）。
+          el.__siteRoLocked = true;
+          var desc = Object.getOwnPropertyDescriptor(HTMLButtonElement.prototype, 'disabled');
+          Object.defineProperty(el, 'disabled', {
+            configurable: true,
+            get: function () { return desc.get.call(this); },
+            set: function (v) { desc.set.call(this, window.isAggregate() ? true : v); }
+          });
+        }
         el.disabled = ro;
         el.title = ro ? msg : (el.dataset.siteRoTitle || '');
         el.style.opacity = ro ? '0.45' : '';
@@ -1667,7 +1680,12 @@
       localStorage.setItem('current_site', this.value);
       applyAggregateReadOnly();
       // 刷新当前 tab 的数据
-      if (currentTab === 'dashboard') { refreshDashboard(); }
+      if (currentTab === 'dashboard') {
+        // 站点变了：账户筛选必须先重置并重新拉取，否则会把 A 站选中的 account= 带到 B 站查询
+        document.getElementById('dashAccountFilter').value = '';
+        loadDashboardAccounts();
+        refreshDashboard();
+      }
       else if (currentTab === 'novel-mgr') { loadNovelBooks(1); }
     });
 
