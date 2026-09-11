@@ -597,6 +597,19 @@ def init_db() -> None:
             )
         """)
 
+        # 确保 user_site_credentials 表存在（幂等，老库启动即建表）
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_site_credentials (
+                user_id INTEGER NOT NULL,
+                site TEXT NOT NULL,
+                username TEXT NOT NULL DEFAULT '',
+                password_encrypted TEXT NOT NULL DEFAULT '',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, site),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+
         # 确保基础表存在（幂等）
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS ad_daily_stats (
@@ -914,6 +927,16 @@ def init_db() -> None:
                 tags TEXT,
                 user_id INTEGER DEFAULT 1,
                 registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS user_site_credentials (
+                user_id INTEGER NOT NULL,
+                site TEXT NOT NULL,
+                username TEXT NOT NULL DEFAULT '',
+                password_encrypted TEXT NOT NULL DEFAULT '',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, site),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
         """)
 
@@ -1250,6 +1273,48 @@ def get_user_pingykj_credentials(user_id: int) -> Optional[Dict[str, str]]:
             "username": row["pingykj_username"],
             "password": decrypt_pingykj_password(row["pingykj_password_encrypted"]),
         }
+
+
+def set_site_credentials(user_id: int, site: str, username: str, password: str) -> None:
+    """为某用户某站点设置专属书城凭据（密码加密存储）。"""
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO user_site_credentials (user_id, site, username, password_encrypted, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id, site) DO UPDATE SET
+                username = excluded.username,
+                password_encrypted = excluded.password_encrypted,
+                updated_at = CURRENT_TIMESTAMP
+        """, (user_id, site, username, encrypt_pingykj_password(password) if password else ""))
+
+
+def get_site_credentials(user_id: int, site: str) -> Optional[Dict[str, str]]:
+    """取某用户某站点的专属凭据（解密后）；未配置返回 None。"""
+    if not site:
+        return None
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT username, password_encrypted FROM user_site_credentials "
+            "WHERE user_id = ? AND site = ?", (user_id, site)
+        ).fetchone()
+    if not row or not row["username"]:
+        return None
+    return {"username": row["username"],
+            "password": decrypt_pingykj_password(row["password_encrypted"])}
+
+
+def delete_site_credentials(user_id: int, site: str) -> None:
+    """删除某用户某站点的专属凭据（之后该站回落到通用凭据）。"""
+    if not site:
+        return
+    with get_conn() as conn:
+        conn.execute("DELETE FROM user_site_credentials WHERE user_id = ? AND site = ?",
+                     (user_id, site))
+
+
+def get_effective_pingykj_credentials(user_id: int, site: str = None) -> Optional[Dict[str, str]]:
+    """该用户在某站点实际使用的书城凭据：站点专属优先，回落到通用（users 表那套）。"""
+    return get_site_credentials(user_id, site or "") or get_user_pingykj_credentials(user_id)
 
 
 # ====== 用户配置（按用户隔离的 API 配置） ======
