@@ -5104,6 +5104,8 @@
     function updatePingykjCredsUI(hasCreds, detail) {
       var label = document.getElementById('pingykjCredsLabel');
       var btn = document.getElementById('btnPingykjCreds');
+      // 管理员不参与书城同步、存凭据一律 400：入口留着是死路，直接藏掉（所有调用点都经此函数）
+      if (btn) btn.hidden = !!(currentUser && currentUser.role === 'admin');
       label.textContent = hasCreds ? '书城凭据 ✓' : '书城凭据';
       label.style.whiteSpace = 'nowrap';
       label.title = '';   // 明细统一挂在按钮上，避免两层悬停提示

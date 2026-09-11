@@ -3785,9 +3785,11 @@ def api_auth_me(user: dict = Depends(get_current_user)):
         "role": user["role"],
         "display_name": user.get("display_name") or user["username"],
         "pingykj_username": user.get("pingykj_username") or "",
-        # 兼容旧字段语义：任一站点配置了凭据即算「已配置」（只配站点凭据的用户此前被误判为未配置）
-        "has_pingykj_creds": bool(user.get("pingykj_username")) or any(
-            v["configured"] for v in sites.values()),
+        # 兼容旧字段语义：任一站点配置了凭据即算「已配置」（只配站点凭据的用户此前被误判为未配置）。
+        # 管理员恒为 False：它不参与书城同步、存凭据一律 400，凭据列的历史残留不算「已配置」，
+        # 否则界面会显示「书城凭据 ✓」而那份凭据永远不会被使用（与上面 configured 一并归零）。
+        "has_pingykj_creds": user.get("role") != "admin" and (
+            bool(user.get("pingykj_username")) or any(v["configured"] for v in sites.values())),
         "sites": sites,
     }
 
@@ -3815,7 +3817,11 @@ def api_update_pingykj_creds(body: PingykjCredsBody, user: dict = Depends(get_cu
     others = database.find_users_using_pingykj_account(body.pingykj_username, user["id"])
     warning = ""
     if others:
-        who = "、".join(f"{o['username']}({o['site'] or '通用'})" for o in others)
+        # 一个用户可能既绑通用又绑每站 → 两个用户名按 username 归并，别把同一个人报两遍
+        by_user: Dict[str, List[str]] = {}
+        for o in others:
+            by_user.setdefault(o["username"], []).append(o["site"] or "通用")
+        who = "、".join(f"{name}({'/'.join(sites)})" for name, sites in by_user.items())
         warning = f"该账号已被 {who} 绑定，两个账号同步会重复统计数据"
 
     if site:
@@ -4125,6 +4131,9 @@ def api_scraper_captcha(user: dict = Depends(get_current_user),
 def api_scraper_login(body: ScraperLoginRequest, site: str = Query(default=None),
                        user: dict = Depends(get_current_user)):
     """通过 API 直接登录书城，获取 token（使用当前用户的凭据验证；site 空 = 默认站点）"""
+    # 这里直接用请求里的账密，不经 database.get_effective_pingykj_credentials，故须单独拦：
+    # 否则管理员能用显式账密登录并把 session 缓存到 (admin_id, site)，之后手动同步复用该缓存 → 数据翻倍
+    _reject_admin_sync(user)
     success, message = scraper.login_via_api_for_user(
         user["id"], body.username, body.password,
         site=(_norm_site(site, write=True) or scraper.DEFAULT_SITE),
@@ -4396,9 +4405,22 @@ class SyncNovelContentBody(BaseModel):
     novel_id: str = ""
 
 
+def _reject_admin_sync(user: dict) -> None:
+    """书城同步类接口的护栏：管理员账号不参与同步。
+
+    这些接口按「当前登录用户」的 id 落库（sync_ads 等），而 admin 的凭据即便被指到和普通用户
+    同一个书城账号，也会以 user_id=1 再写一份 → 看板消耗/收入翻倍。取凭据处（
+    database.get_effective_pingykj_credentials）已对 admin 返回 None，这里再明确报错，
+    免得管理员点了按钮没反应或只看到含糊失败。
+    """
+    if user.get("role") == "admin":
+        raise HTTPException(status_code=400, detail="管理员账号不参与书城同步，请用普通用户账号操作")
+
+
 @app.post("/api/novels/sync-books")
 def api_novel_sync_books(site: str = Query(default=None), user: dict = Depends(get_current_user)):
     """手动触发书籍列表同步（增量：仅近期更新的书籍；site 空 = 默认站点，未知站点 400）"""
+    _reject_admin_sync(user)
     count, err = scraper.sync_novel_books(user["id"],
                                           site=(_norm_site(site, write=True) or scraper.DEFAULT_SITE))
     if err:
@@ -4409,6 +4431,7 @@ def api_novel_sync_books(site: str = Query(default=None), user: dict = Depends(g
 @app.post("/api/novels/sync-books-full")
 def api_novel_sync_books_full(site: str = Query(default=None), user: dict = Depends(get_current_user)):
     """全量同步：拉取全部书籍更新消耗数据，同时同步广告+订单数据（site 空 = 默认站点，未知站点 400）"""
+    _reject_admin_sync(user)
     import threading
     uid = user["id"]
     site = _norm_site(site, write=True) or scraper.DEFAULT_SITE

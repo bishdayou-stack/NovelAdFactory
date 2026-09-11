@@ -1294,17 +1294,21 @@ def find_users_using_pingykj_account(username: str, exclude_user_id: int) -> Lis
 
     同时查通用凭据与每站凭据；site 为空表示通用凭据。同一书城账号被两个本地用户绑定时，
     两边同步会把同一份数据按不同 user_id 各存一份，看板合计翻倍——保存时据此给出警告。
+
+    用 COLLATE NOCASE 比较：SQLite 默认 BINARY 是大小写敏感的，而书城后端（jeecgboot 常见部署
+    在 MySQL，默认 `_ci`）判定账号大小写不敏感 —— `Liuguorong` 与 `liuguorong` 是同一个书城账号
+    却能各自登录，漏判就会静默重复统计。宁可误报（只是警告，仍允许保存），不可漏报。
     """
     if not (username or "").strip():
         return []
     with get_conn() as conn:
         rows = conn.execute("""
             SELECT id, username, role, '' AS site FROM users
-              WHERE pingykj_username = ? AND id != ?
+              WHERE pingykj_username = ? COLLATE NOCASE AND id != ?
             UNION
             SELECT u.id, u.username, u.role, c.site FROM user_site_credentials c
               JOIN users u ON u.id = c.user_id
-              WHERE c.username = ? AND c.user_id != ? AND c.password_encrypted != ''
+              WHERE c.username = ? COLLATE NOCASE AND c.user_id != ? AND c.password_encrypted != ''
         """, (username, exclude_user_id, username, exclude_user_id)).fetchall()
     return [dict(r) for r in rows]
 
@@ -1353,7 +1357,16 @@ def delete_site_credentials(user_id: int, site: str) -> None:
 
 
 def get_effective_pingykj_credentials(user_id: int, site: str = None) -> Optional[Dict[str, str]]:
-    """该用户在某站点实际使用的书城凭据：站点专属优先，回落到通用（users 表那套）。"""
+    """该用户在某站点实际使用的书城凭据：站点专属优先，回落到通用（users 表那套）。
+
+    管理员一律视为「无凭据」：管理员看的是全部用户的数据，自己再同步一次会把同一个书城账号
+    按 user_id=1 再写一份（ad_daily_stats 唯一键含 user_id）→ 看板消耗/收入翻倍。
+    这里是取凭据的唯一收口，sync / reconnect / captcha 全路径都经此，故只此一处即可。
+    """
+    with get_conn() as conn:
+        row = conn.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+    if row and row["role"] == "admin":
+        return None
     return get_site_credentials(user_id, site or "") or get_user_pingykj_credentials(user_id)
 
 
