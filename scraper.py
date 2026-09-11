@@ -472,7 +472,7 @@ def _get_or_create_session(user_id: int, site: str = None) -> Tuple[Optional[Scr
         database.set_pingykj_offline(user_id)
         del _user_sessions[key]
 
-    creds = database.get_user_pingykj_credentials(user_id)
+    creds = database.get_effective_pingykj_credentials(user_id, site)
     if not creds or not creds.get("username"):
         return None, "未配置书城凭据，请在数据看板页面设置"
 

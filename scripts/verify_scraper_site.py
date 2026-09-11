@@ -28,6 +28,33 @@ def main():
     assert calls[0].startswith("https://manage.api.relishnovel.com"), calls[0]
     assert calls[1] == "b", calls[1]
 
+    # 自动登录应使用「该站点生效的凭据」而不是通用凭据
+    import database, tempfile, shutil
+    from pathlib import Path as _P
+    tmp = _P(tempfile.mkdtemp(prefix="scraper_creds_")) / "dashboard.db"
+    database.DB_PATH = tmp
+    database.init_db()
+    uid = database.create_user("u1", "p1", "user",
+                               pingykj_username="shared", pingykj_password="shared_pw")
+    database.set_site_credentials(uid, "b", "b_user", "b_pw")
+    assert database.get_effective_pingykj_credentials(uid, "b")["username"] == "b_user"
+    assert database.get_effective_pingykj_credentials(uid, "a")["username"] == "shared"
+
+    # 且 _get_or_create_session 自动登录时确实取的是生效凭据（桩掉网络登录）
+    scraper._user_sessions.clear()
+    orig_login = scraper.ScraperSession.login
+    scraper.ScraperSession.login = lambda self: (True, "")
+    try:
+        sess, err = scraper._get_or_create_session(uid, "b")
+    finally:
+        scraper.ScraperSession.login = orig_login
+    assert sess is not None, err
+    assert sess.pingykj_username == "b_user", sess.pingykj_username
+    scraper._user_sessions.clear()
+
+    shutil.rmtree(tmp.parent, ignore_errors=True)
+    print("OK: 站点凭据解析——B 站专属、A 站回落通用")
+
     print("OK: 会话按 (user, site) 分开，URL 与落库均按站点取")
 
 if __name__ == "__main__":
