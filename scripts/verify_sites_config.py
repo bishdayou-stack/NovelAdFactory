@@ -18,9 +18,6 @@ def main():
     # 未知站点回落到默认站点，不抛异常
     assert scraper.site_base_url("zzz") == scraper.site_base_url("a")
     assert scraper.site_content_url("") == scraper.site_content_url("a")
-    # 过渡常量（Task 4 删除前必须可用）
-    assert scraper.BASE_URL == scraper.site_base_url("a")
-    assert scraper._CONTENT_API == scraper.site_content_url("a")
     print("OK: 站点配置读取正确")
 
 if __name__ == "__main__":

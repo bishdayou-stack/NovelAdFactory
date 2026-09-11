@@ -30,10 +30,18 @@ def _add_user_filter(where: List[str], params: List, user_id: int, prefix: str =
     # user_id=None 表示管理员看全部，不加过滤
 
 
+def _add_site_filter(where: List[str], params: List, site: str, prefix: str = ""):
+    """添加站点过滤；site 为空表示合计（不过滤）"""
+    if site:
+        col = f"{prefix}site" if prefix else "site"
+        where.append(f"{col} = ?")
+        params.append(site)
+
+
 # ====== KPI 汇总 ======
 
 def get_summary(start_date: str = None, end_date: str = None, account: str = None,
-                keyword: str = None, user_id: int = None) -> Dict[str, Any]:
+                keyword: str = None, user_id: int = None, site: str = None) -> Dict[str, Any]:
     with database.get_conn() as conn:
         where = ["(source IS NULL OR source != 'meta')"]
         params = []
@@ -48,6 +56,7 @@ def get_summary(start_date: str = None, end_date: str = None, account: str = Non
             params.append(account)
         _add_keyword(where, params, keyword)
         _add_user_filter(where, params, user_id)
+        _add_site_filter(where, params, site)
 
         sql = f"""
             SELECT
@@ -79,6 +88,7 @@ def get_summary(start_date: str = None, end_date: str = None, account: str = Non
             )""")
             order_params.extend([keyword, keyword])
         _add_user_filter(order_where, order_params, user_id)
+        _add_site_filter(order_where, order_params, site)
 
         order_row = conn.execute(
             f"SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS total_amount, "
@@ -120,7 +130,8 @@ def get_summary(start_date: str = None, end_date: str = None, account: str = Non
 
 def get_daily_stats(start_date: str = None, end_date: str = None, account: str = None,
                     keyword: str = None, order_by: str = "date",
-                    page: int = 1, page_size: int = 20, user_id: int = None) -> dict:
+                    page: int = 1, page_size: int = 20, user_id: int = None,
+                    site: str = None) -> dict:
     """返回 {"data": [...], "total": N, "page": 1, "page_size": 20}"""
     with database.get_conn() as conn:
         where = ["(source IS NULL OR source != 'meta')"]
@@ -136,6 +147,7 @@ def get_daily_stats(start_date: str = None, end_date: str = None, account: str =
             params.append(account)
         _add_keyword(where, params, keyword)
         _add_user_filter(where, params, user_id)
+        _add_site_filter(where, params, site)
 
         allowed_order = {"date", "ad_account", "total_spend", "total_revenue"}
         if order_by not in allowed_order:
@@ -175,7 +187,7 @@ def get_daily_stats(start_date: str = None, end_date: str = None, account: str =
 # ====== 趋势数据 ======
 
 def get_trend(days: int = 30, account: str = None, keyword: str = None,
-              user_id: int = None) -> List[Dict[str, Any]]:
+              user_id: int = None, site: str = None) -> List[Dict[str, Any]]:
     with database.get_conn() as conn:
         where = ["(source IS NULL OR source != 'meta')", "date >= date('now', ?)"]
         params = [f"-{days} days"]
@@ -184,6 +196,7 @@ def get_trend(days: int = 30, account: str = None, keyword: str = None,
             params.append(account)
         _add_keyword(where, params, keyword)
         _add_user_filter(where, params, user_id)
+        _add_site_filter(where, params, site)
 
         sql = f"""
             SELECT date, SUM(total_spend) AS spend, SUM(total_revenue) AS revenue,
@@ -206,9 +219,9 @@ def get_trend(days: int = 30, account: str = None, keyword: str = None,
 
 # ====== 账户列表 ======
 
-def get_accounts(user_id: int = None) -> list:
+def get_accounts(user_id: int = None, site: str = None) -> list:
     """返回账户列表，含别名"""
-    return database.get_account_display_list(user_id)
+    return database.get_account_display_list(user_id, site=site)
 
 
 def _account_display(account_id: str, user_id: int = None) -> str:
@@ -223,7 +236,7 @@ def _account_display(account_id: str, user_id: int = None) -> str:
 
 def get_account_ranking(start_date: str = None, end_date: str = None,
                          keyword: str = None, page: int = 1, page_size: int = 20,
-                         user_id: int = None) -> dict:
+                         user_id: int = None, site: str = None) -> dict:
     with database.get_conn() as conn:
         where = ["(source IS NULL OR source != 'meta')"]
         params = []
@@ -235,6 +248,7 @@ def get_account_ranking(start_date: str = None, end_date: str = None,
             params.append(end_date)
         _add_keyword(where, params, keyword)
         _add_user_filter(where, params, user_id)
+        _add_site_filter(where, params, site)
         where_clause = ' AND '.join(where)
 
         total = conn.execute(
@@ -268,11 +282,12 @@ def get_account_ranking(start_date: str = None, end_date: str = None,
 # ====== 异常检测 ======
 
 def detect_anomalies(days: int = 30, threshold_sigma: float = 2.0,
-                     user_id: int = None) -> List[Dict[str, Any]]:
+                     user_id: int = None, site: str = None) -> List[Dict[str, Any]]:
     with database.get_conn() as conn:
         where = ["(source IS NULL OR source != 'meta')", "date >= date('now', ?)"]
         params = [f"-{days} days"]
         _add_user_filter(where, params, user_id)
+        _add_site_filter(where, params, site)
         rows = conn.execute(f"""
             SELECT date, SUM(total_spend) AS spend
             FROM ad_daily_stats
@@ -305,7 +320,8 @@ def detect_anomalies(days: int = 30, threshold_sigma: float = 2.0,
 # ====== 订单查询 ======
 
 def get_orders(start_date: str = None, end_date: str = None, keyword: str = None,
-               page: int = 1, page_size: int = 15, user_id: int = None) -> dict:
+               page: int = 1, page_size: int = 15, user_id: int = None,
+               site: str = None) -> dict:
     with database.get_conn() as conn:
         where = ["status = '成功'"]
         params = []
@@ -322,6 +338,7 @@ def get_orders(start_date: str = None, end_date: str = None, keyword: str = None
             )""")
             params.extend([keyword, keyword])
         _add_user_filter(where, params, user_id)
+        _add_site_filter(where, params, site)
 
         where_clause = ' AND '.join(where)
         total = conn.execute(
@@ -352,7 +369,8 @@ def get_orders(start_date: str = None, end_date: str = None, keyword: str = None
 def get_novel_stats(start_date: str = None, end_date: str = None,
                     keyword: str = None, user_id: int = None,
                     sort_by: str = "order_count",
-                    page: int = 1, page_size: int = 20) -> dict:
+                    page: int = 1, page_size: int = 20,
+                    site: str = None) -> dict:
     """按小说汇总订单，默认按订单量降序，支持翻页"""
     import json as _json
     with database.get_conn() as conn:
@@ -365,6 +383,7 @@ def get_novel_stats(start_date: str = None, end_date: str = None,
             where.append("date(order_date) <= ?")
             params.append(end_date)
         _add_user_filter(where, params, user_id)
+        _add_site_filter(where, params, site)
 
         sql = f"""
             SELECT customer_info, amount
@@ -410,9 +429,12 @@ def get_novel_stats(start_date: str = None, end_date: str = None,
         novel_ids = [r["novel_id"] for r in result if r["novel_id"]]
         if novel_ids:
             placeholders = ",".join("?" for _ in novel_ids)
+            site_clause = " AND site = ?" if site else ""
+            spend_params = novel_ids + ([site] if site else [])
             spend_rows = conn.execute(
-                f"SELECT novel_id, book_ad_spend FROM novel_books WHERE novel_id IN ({placeholders})",
-                novel_ids
+                f"SELECT novel_id, SUM(book_ad_spend) AS book_ad_spend FROM novel_books "
+                f"WHERE novel_id IN ({placeholders}){site_clause} GROUP BY novel_id",
+                spend_params
             ).fetchall()
             spend_map = {r["novel_id"]: (r["book_ad_spend"] or 0) for r in spend_rows}
 
@@ -423,6 +445,7 @@ def get_novel_stats(start_date: str = None, end_date: str = None,
             if _uid_filter:
                 total_where.append("user_id = ?")
                 total_params.append(_uid_filter)
+            _add_site_filter(total_where, total_params, site)
             total_rows = conn.execute(
                 f"""SELECT json_extract(customer_info, '$.novelId') AS nid, COUNT(*) AS total_cnt
                     FROM orders WHERE {' AND '.join(total_where)}
@@ -443,7 +466,7 @@ def get_novel_stats(start_date: str = None, end_date: str = None,
                     # 取 start_date 前一天或更早的快照值
                     from datetime import datetime as _dt, timedelta as _td
                     snap_before = (_dt.strptime(start_date, "%Y-%m-%d") - _td(days=1)).strftime("%Y-%m-%d")
-                    prev_spend = database.get_novel_spend_snapshot(nid, snap_before)
+                    prev_spend = database.get_novel_spend_snapshot(nid, snap_before, site=site)
                     if prev_spend is not None and prev_spend > 0:
                         recent_spend = max(0, book_ad_spend - prev_spend)
                         r["recent_spend"] = round(recent_spend, 2)
@@ -619,7 +642,8 @@ def meta_account_ranking(start_date=None, end_date=None, page=1, page_size=20,
 
 # ====== 用户汇总排名 ======
 
-def get_user_ranking(start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
+def get_user_ranking(start_date: str = None, end_date: str = None,
+                     site: str = None) -> List[Dict[str, Any]]:
     """按用户汇总消耗/收入/ROI/订单/CPA，用于管理员数据看板
     消耗来源：书城 ad_daily_stats（source='pingykj'）
     收入/订单来源：书城 orders 表（status='成功'）的实际支付金额
@@ -639,6 +663,8 @@ def get_user_ranking(start_date: str = None, end_date: str = None) -> List[Dict[
             params_ads.append(end_date)
             where_orders.append("date(o.order_date) <= ?")
             params_orders.append(end_date)
+        _add_site_filter(where_ads, params_ads, site, prefix="a.")
+        _add_site_filter(where_orders, params_orders, site, prefix="o.")
 
         # 按用户汇总广告消耗（来自 ad_daily_stats pingykj）
         ads_sql = f"""
