@@ -3803,18 +3803,31 @@ def api_update_pingykj_creds(body: PingykjCredsBody, user: dict = Depends(get_cu
 
     这是写操作，site 必须走 write 语义：站点名打错若被静默归一成空串，会覆盖掉通用凭据，
     而用户以为只改了某一站。
+
+    管理员不参与书城同步（它看的是全部用户的数据），因此不允许保存书城凭据：admin 再绑一套
+    只会把同一书城账号按两个 user_id 各存一份，看板合计翻倍。
     """
+    if user.get("role") == "admin":
+        raise HTTPException(status_code=400, detail="管理员账号无需书城凭据（管理员看全部用户数据）")
     site = _norm_site(body.site, write=True) or ""
+
+    # 同一书城账号被其他本地用户绑定时警告（会导致统计重复），但仍允许保存
+    others = database.find_users_using_pingykj_account(body.pingykj_username, user["id"])
+    warning = ""
+    if others:
+        who = "、".join(f"{o['username']}({o['site'] or '通用'})" for o in others)
+        warning = f"该账号已被 {who} 绑定，两个账号同步会重复统计数据"
+
     if site:
         # 空密码的站点凭据会遮蔽通用凭据又登不上去，直接拒绝，别造坏行
         if not body.pingykj_username or not body.pingykj_password:
             raise HTTPException(status_code=400, detail="站点专属凭据必须同时提供用户名和密码")
         database.set_site_credentials(user["id"], site, body.pingykj_username, body.pingykj_password)
-        return {"status": "ok", "message": f"已保存 {site} 站凭据", "site": site}
+        return {"status": "ok", "message": f"已保存 {site} 站凭据", "site": site, "warning": warning}
     database.update_user(user["id"],
                          pingykj_username=body.pingykj_username,
                          pingykj_password=body.pingykj_password)
-    return {"status": "ok", "message": "通用书城凭据已保存", "site": ""}
+    return {"status": "ok", "message": "通用书城凭据已保存", "site": "", "warning": warning}
 
 
 # ====== 用户管理 API（管理员） ======

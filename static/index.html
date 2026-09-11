@@ -5239,8 +5239,9 @@
           body: JSON.stringify({ pingykj_username: username, pingykj_password: password,
                                  site: scope })
         }).then(function (r) {
-          if (r.ok) return { anyOk: true, results: results };
           return r.json().catch(function () { return {}; }).then(function (d) {
+            // warning：同一书城账号已被别的本地用户绑定（同步会重复统计），仍算保存成功
+            if (r.ok) return { anyOk: true, results: results, warning: (d && d.warning) || '' };
             return { anyOk: true, results: results,
                      saveError: (d && d.detail) || ('HTTP ' + r.status) };
           });
@@ -5337,6 +5338,14 @@
         if (res.anyOk) {
           var okNames = results.filter(function(r) { return r.ok; })
                                .map(function(r) { return r.name; }).join('、');
+          if (res.warning) {
+            // 凭据已保存，但同一书城账号被别的本地用户绑着（同步会重复统计）——留下让用户看清，不自动关窗
+            msg.textContent = '登录验证成功，凭据已保存。' +
+              (okNames ? '（' + okNames + '）' : '') + ' 注意：' + res.warning;
+            msg.className = 'text-xs rounded-lg px-3 py-2 bg-amber-50 text-amber-700';
+            msg.classList.remove('hidden');
+            return;
+          }
           msg.textContent = res.saveError
             ? ('登录验证成功（' + okNames + '），但凭据未保存：' + res.saveError)
             : ('登录验证成功！凭据已保存。' + (okNames ? '（' + okNames + '）' : ''));

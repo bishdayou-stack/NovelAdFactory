@@ -1218,11 +1218,14 @@ def list_active_users_with_credentials() -> List[Dict[str, Any]]:
     判定必须含「任一站点专属凭据」：只配了站点凭据（通用为空）的用户同样要被自动/批量
     同步枚举到，否则他在管理页显示「已配置」、手动同步也正常，但定时同步永远漏掉他。
     站点凭据的有效性口径与 get_site_credentials 一致：用户名与密码都非空。
+
+    排除管理员：管理员看的是全部用户的数据，自己再绑一套书城凭据只会把同一个书城账号
+    按两个本地 user_id 各存一份（ad_daily_stats 唯一键含 user_id），看板消耗/收入直接翻倍。
     """
     with get_conn() as conn:
         rows = conn.execute("""
             SELECT * FROM users
-            WHERE is_active = 1 AND (
+            WHERE is_active = 1 AND role != 'admin' AND (
                 pingykj_username != ''
                 OR EXISTS (SELECT 1 FROM user_site_credentials c
                            WHERE c.user_id = users.id
@@ -1284,6 +1287,26 @@ def get_user_pingykj_credentials(user_id: int) -> Optional[Dict[str, str]]:
             "username": row["pingykj_username"],
             "password": decrypt_pingykj_password(row["pingykj_password_encrypted"]),
         }
+
+
+def find_users_using_pingykj_account(username: str, exclude_user_id: int) -> List[Dict[str, Any]]:
+    """找出除 exclude_user_id 外，还绑定了该 pingykj 账号的用户（含站点）。
+
+    同时查通用凭据与每站凭据；site 为空表示通用凭据。同一书城账号被两个本地用户绑定时，
+    两边同步会把同一份数据按不同 user_id 各存一份，看板合计翻倍——保存时据此给出警告。
+    """
+    if not (username or "").strip():
+        return []
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT id, username, role, '' AS site FROM users
+              WHERE pingykj_username = ? AND id != ?
+            UNION
+            SELECT u.id, u.username, u.role, c.site FROM user_site_credentials c
+              JOIN users u ON u.id = c.user_id
+              WHERE c.username = ? AND c.user_id != ? AND c.password_encrypted != ''
+        """, (username, exclude_user_id, username, exclude_user_id)).fetchall()
+    return [dict(r) for r in rows]
 
 
 def set_site_credentials(user_id: int, site: str, username: str, password: str) -> None:
