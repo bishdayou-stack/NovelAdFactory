@@ -246,6 +246,7 @@ def _rebuild_table_with_site(conn, table: str, create_sql: str) -> None:
     tmp = f"{table}__pre_site"
     old_info = conn.execute(f"PRAGMA table_info('{table}')").fetchall()
     cols = [r["name"] for r in old_info]
+    has_site = "site" in cols                           # 半迁移状态：列在、唯一键不含 site
     conn.execute(f"ALTER TABLE {table} RENAME TO {tmp}")
     conn.execute(create_sql)
     new_cols = {r["name"] for r in conn.execute(f"PRAGMA table_info('{table}')").fetchall()}
@@ -258,18 +259,42 @@ def _rebuild_table_with_site(conn, table: str, create_sql: str) -> None:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
         new_cols.add(r["name"])
     collist = ", ".join(f'"{c}"' for c in cols)
-    conn.execute(f"INSERT INTO {table} ({collist}, site) SELECT {collist}, ? FROM {tmp}", (SITE_DEFAULT,))
+    if has_site:
+        conn.execute(f"INSERT INTO {table} ({collist}) SELECT {collist} FROM {tmp}")
+    else:
+        conn.execute(f"INSERT INTO {table} ({collist}, site) SELECT {collist}, ? FROM {tmp}",
+                     (SITE_DEFAULT,))
     conn.execute(f"DROP TABLE {tmp}")
 
 
+def _site_unique_ok(conn, table: str) -> bool:
+    """表的唯一键/主键是否已含 site。只看列会把「列已加、约束没改」的半迁移状态误判为已完成。"""
+    for r in conn.execute(f"PRAGMA index_list('{table}')").fetchall():
+        if not r["unique"]:
+            continue
+        cols = [x[2] for x in conn.execute(f"PRAGMA index_info('{r['name']}')").fetchall()]
+        if "site" in cols:
+            return True
+    return False
+
+
 def _migrate_site_isolation(conn) -> None:
-    """一次性迁移：为 pingykj 来源的表加 site 列（老数据为 'a'），唯一键含 site。幂等。"""
+    """一次性迁移：为 pingykj 来源的表加 site 列（老数据为 'a'），唯一键含 site。幂等。
+
+    必须显式开事务：python sqlite3 的隐式 BEGIN 只覆盖 DML，DDL 在无活动事务时是 autocommit，
+    不显式 BEGIN 的话中途失败会留下「已重建的空表 + 孤儿 *__pre_site」，且重启后不会自愈。
+    """
+    if not conn.in_transaction:
+        conn.execute("BEGIN IMMEDIATE")
+
     for table, ddl in _SITE_REBUILD_DDL.items():
         try:
             cols = {r["name"] for r in conn.execute(f"PRAGMA table_info('{table}')").fetchall()}
         except Exception:
             continue                                   # 表不存在，跳过
-        if not cols or "site" in cols:
+        if not cols:
+            continue
+        if "site" in cols and _site_unique_ok(conn, table):
             continue                                   # 已是新结构
         print(f"[database] 重建 {table}：唯一键加入 site...")
         _rebuild_table_with_site(conn, table, ddl)

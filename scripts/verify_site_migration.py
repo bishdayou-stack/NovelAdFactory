@@ -126,6 +126,83 @@ def main():
     shutil.rmtree(tmpdir, ignore_errors=True)
     print("OK: site 迁移正确（数据不丢、默认 a、跨站共存、幂等）")
 
+    test_failure_injection()
+    test_half_migrated()
+
+
+def test_half_migrated():
+    """半迁移状态：site 列已在、唯一键仍不含 site，必须继续重建（只看列的哨兵会跳过并永久修不好）。"""
+    tmpdir = tempfile.mkdtemp(prefix="site_mig_half_")
+    db_file = Path(tmpdir) / "dashboard.db"
+    conn = sqlite3.connect(str(db_file))
+    conn.executescript(OLD_SCHEMA)
+    conn.executescript(SEED)
+    conn.execute("ALTER TABLE novel_books ADD COLUMN site TEXT NOT NULL DEFAULT 'a'")
+    conn.commit()
+    conn.close()
+
+    import database
+    database.DB_PATH = db_file
+    database.init_db()
+
+    conn = sqlite3.connect(str(db_file))
+    conn.row_factory = sqlite3.Row
+    keys = [[x[2] for x in conn.execute(f"PRAGMA index_info('{r['name']}')")]
+            for r in conn.execute("PRAGMA index_list('novel_books')") if r["unique"]]
+    assert any("site" in k for k in keys), f"半迁移表未被重建，唯一键仍是 {keys}"
+    conn.execute("INSERT INTO novel_books (novel_id, novel_name, site) VALUES ('n1','B站同名书','b')")
+    n = conn.execute("SELECT COUNT(*) c FROM novel_books WHERE novel_id='n1'").fetchone()["c"]
+    assert n == 2, f"半迁移表重建后跨站点同 novel_id 仍不能共存，got {n}"
+    conn.commit()
+    conn.close()
+
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    print("OK: 半迁移表（有 site 列、唯一键无 site）会被继续重建")
+
+
+def test_failure_injection():
+    """注入一次建表失败：init_db 抛错后必须整体回滚（原表还在、行数不变、无 __pre_site 残留）。
+
+    前提：python sqlite3 的隐式 BEGIN 只覆盖 DML，DDL 默认 autocommit，
+    所以迁移必须自己显式 BEGIN，否则中途失败会留下已重建的空表 + 孤儿 __pre_site。
+    """
+    tmpdir = tempfile.mkdtemp(prefix="site_mig_fail_")
+    db_file = Path(tmpdir) / "dashboard.db"
+    conn = sqlite3.connect(str(db_file))
+    conn.executescript(OLD_SCHEMA)
+    conn.executescript(SEED)
+    conn.commit()
+    conn.close()
+
+    import database
+    database.DB_PATH = db_file
+    good_ddl = database._SITE_REBUILD_DDL
+    bad_ddl = dict(good_ddl)
+    bad_ddl["orders"] = "CREATE TABLE orders (这不是合法的 DDL"   # 第 2 张表炸，第 1 张也要跟着回滚
+    database._SITE_REBUILD_DDL = bad_ddl
+    try:
+        database.init_db()
+        raise AssertionError("注入建表失败后 init_db 竟然没抛错")
+    except sqlite3.OperationalError:
+        pass
+    finally:
+        database._SITE_REBUILD_DDL = good_ddl
+
+    conn = sqlite3.connect(str(db_file))
+    conn.row_factory = sqlite3.Row
+    left = [r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE name LIKE '%__pre_site'")]
+    assert not left, f"回滚不干净，残留临时表 {left}"
+    for table, expect in (("ad_daily_stats", 1), ("orders", 1)):
+        n = conn.execute(f"SELECT COUNT(*) c FROM {table}").fetchone()["c"]
+        assert n == expect, f"{table} 行数 {n} != {expect}（迁移中途失败丢数据）"
+        cols = {r["name"] for r in conn.execute(f"PRAGMA table_info('{table}')")}
+        assert "site" not in cols, f"{table} 未回滚（site 列已落库，重启后不会再迁移）"
+    conn.close()
+
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    print("OK: 迁移中途失败会整体回滚（行数不变、无空表、无 __pre_site 残留）")
+
 
 if __name__ == "__main__":
     main()
