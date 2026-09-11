@@ -5025,7 +5025,7 @@
     }
 
 
-    function setDashSessionStatus(status, text) {
+    function setDashSessionStatus(status, text, detail) {
       var dot = document.getElementById('dashSessionDot');
       var txt = document.getElementById('dashSessionText');
       var colors = {
@@ -5037,7 +5037,8 @@
       var c = colors[status] || colors.checking;
       dot.className = 'w-2.5 h-2.5 rounded-full ' + c.dot;
       txt.textContent = text;
-      txt.className = 'text-xs ' + c.txt;
+      txt.className = 'text-xs whitespace-nowrap ' + c.txt;
+      txt.title = detail || text;   // 明细放悬停提示，可见文字保持短（顶栏不换行）
     }
 
     function checkDashboardSession() {
@@ -5052,22 +5053,22 @@
         // 每站判定：任一站点 configured 即算「已配置」（只配站点专属凭据的用户此前被显示成未配置）
         var sites = u.sites || {};
         var cfgKeys = Object.keys(sites).filter(function(k) { return sites[k].configured; });
-        var cfgLabel = cfgKeys.map(function(k) { return sites[k].name || siteDisplayName(k); }).join('/');
-        var who = cfgLabel || u.pingykj_username;
+        var cfgNames = cfgKeys.map(function(k) { return sites[k].name || siteDisplayName(k); }).join('、');
+        var detail = '已配置站点：' + (cfgNames || u.pingykj_username || '（未知）');
         if (cfgKeys.length || u.pingykj_username) {
           // 有凭据，再检查 scraper session 是否有效
           fetch('/api/scraper/session-status').then(function(r) { return r.json(); }).then(function(s) {
             if (s.valid) {
-              setDashSessionStatus('online', '书城在线（' + (who || '已配置') + '）');
+              setDashSessionStatus('online', '书城在线', detail + '；默认站点会话有效');
             } else {
-              setDashSessionStatus('offline', '书城掉线 — 点击"书城凭据"重新登录');
+              setDashSessionStatus('offline', '书城掉线', '点击「书城凭据」重新登录；' + detail);
             }
           }).catch(function() {
-            setDashSessionStatus('online', '书城凭据：' + (who || '已配置') + ' 已配置');
+            setDashSessionStatus('online', '书城已配置', detail);
           });
-          updatePingykjCredsUI(true, who);
+          updatePingykjCredsUI(true, cfgNames || u.pingykj_username || '');
         } else {
-          setDashSessionStatus('noconfig', '未配置书城凭据');
+          setDashSessionStatus('noconfig', '未配置书城凭据', '点击「书城凭据」设置登录账号');
           updatePingykjCredsUI(false);
         }
       }).catch(function() {
@@ -5076,7 +5077,7 @@
     }
 
     function markScraperOffline() {
-      setDashSessionStatus('offline', '书城掉线 — 点击"书城凭据"重新登录');
+      setDashSessionStatus('offline', '书城掉线', '点击「书城凭据」重新登录');
       updatePingykjCredsUI(false);
     }
 
@@ -5095,12 +5096,16 @@
       el.value = cur;
     }
 
-    function updatePingykjCredsUI(hasCreds, username) {
+    function updatePingykjCredsUI(hasCreds, detail) {
       var label = document.getElementById('pingykjCredsLabel');
-      if (hasCreds) {
-        label.textContent = '书城: ' + (username || '已配置');
-      } else {
-        label.textContent = '书城凭据';
+      var btn = document.getElementById('btnPingykjCreds');
+      label.textContent = hasCreds ? '书城凭据 ✓' : '书城凭据';
+      label.style.whiteSpace = 'nowrap';
+      label.title = '';   // 明细统一挂在按钮上，避免两层悬停提示
+      if (btn) {
+        btn.title = hasCreds
+          ? ('已配置站点：' + (detail || '（未知）') + '　点击可修改')
+          : '设置书城登录凭据';
       }
     }
 
