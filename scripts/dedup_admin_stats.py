@@ -1,14 +1,20 @@
 # -*- coding: utf-8 -*-
-"""清理因「同一书城账号被 admin 与其他用户同时同步」产生的重复行。
+"""清理管理员账号误同步的书城数据：删掉重复的，余下的改挂到真正的用户名下。
 
-规则：删除 user_id=1 名下、source!='meta'、且**其他用户也有同 (date, ad_account, site)** 的行
-      （口径与唯一键一致）。admin 独有的行保留。另清空 admin 行的通用凭据列（见 P1）。
-      **先校验 user_id=1 确实是管理员**，否则中止 —— 免得在生产库删错用户的数据。
-      默认 dry-run，加 --apply 才真删。
+背景：管理员不该持有书城凭据（登录/同步均已加护栏），但历史上误绑过。用别人的书城账号
+同步会出现两种行：
+  ① 其他用户也有同 (date, ad_account, site) 的行 —— 数据重复，删掉；
+  ② 只有管理员有的行 —— 其实是被借用凭据那个用户的数据，`--to-user` 转给他。
+另：orders / raw_orders / raw_ad_stats 的唯一键**不含 user_id**（(site, order_id) /
+(site, record_id)），先同步的人永久占坑 —— 管理员先跑就"抢"走了别人的订单，也一并转。
+
+**先校验 user_id=1 确实是管理员**，否则中止 —— 免得在生产库删错用户的数据。
+默认 dry-run，加 --apply 才真动。
 
 用法：
-    python scripts/dedup_admin_stats.py            # 只看将删多少
-    python scripts/dedup_admin_stats.py --apply    # 真删（拒绝 apply 前未 dry-run 的规则不需要，直接执行）
+    python scripts/dedup_admin_stats.py                          # 只看将删/将转多少
+    python scripts/dedup_admin_stats.py --apply                  # 只删重复（旧行为）
+    python scripts/dedup_admin_stats.py --to-user 刘国荣 --apply  # 删重复 + 余下的转给他
 """
 import argparse
 import sqlite3
@@ -36,7 +42,9 @@ DUP_WHERE = """
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--apply", action="store_true", help="真正执行删除（默认只预览）")
+    ap.add_argument("--apply", action="store_true", help="真正执行（默认只预览）")
+    ap.add_argument("--to-user", default="", metavar="用户名",
+                    help="把删重复后剩下的行转给这个用户（按 username 精确匹配，须是普通用户）")
     args = ap.parse_args()
 
     import database
@@ -53,16 +61,30 @@ def main():
         if target["role"] != "admin":
             sys.exit(f"[中止] user_id={ADMIN_UID}({target['username']}) 不是管理员，"
                      f"当前角色为 {target['role']!r}，请先确认目标用户")
-        print(f"目标用户: id={target['id']} username={target['username']} role={target['role']}")
+        print(f"来源用户: id={target['id']} username={target['username']} role={target['role']}")
+
+        # 转入方：不接受另一个 admin —— 那只是把同一个问题挪个位置
+        to_uid = None
+        if args.to_user:
+            row = conn.execute("SELECT id, username, role FROM users WHERE username = ?",
+                               (args.to_user,)).fetchone()
+            if row is None:
+                sys.exit(f"[中止] 找不到用户 {args.to_user!r}")
+            if row["role"] == "admin":
+                sys.exit(f"[中止] {args.to_user!r} 是管理员，不能把书城数据转给管理员")
+            to_uid = row["id"]
+            print(f"转入用户: id={to_uid} username={row['username']} role={row['role']}")
+        else:
+            print("未指定 --to-user：本次只删重复，剩余行仍挂在管理员名下")
 
         # 生产库可能不止一个管理员。清理只作用于 ADMIN_UID，把其余管理员的行数也列出来，
         # 操作者才能判断是否还需要对别的 admin 再跑一次。
-        print("全部管理员及其 pingykj 行数（本次只处理上述目标用户）:")
+        print("全部管理员及其书城行数（本次只处理上述来源用户）:")
         for a in conn.execute("SELECT id, username FROM users WHERE role = 'admin' ORDER BY id"):
             n = conn.execute(
                 "SELECT COUNT(*) FROM ad_daily_stats WHERE user_id = ? AND source != 'meta'",
                 (a["id"],)).fetchone()[0]
-            mark = " ← 目标" if a["id"] == ADMIN_UID else ""
+            mark = " ← 来源" if a["id"] == ADMIN_UID else ""
             print(f"  id={a['id']} {a['username']}: {n} 行{mark}")
 
         total_admin = conn.execute(
@@ -83,23 +105,35 @@ def main():
             "SELECT COUNT(*) FROM users WHERE role = 'admin' "
             "AND (pingykj_username != '' OR pingykj_password_encrypted != '')").fetchone()[0]
 
-        print(f"admin(uid={ADMIN_UID}) pingykj 总行数: {total_admin}")
-        print(f"将删除（其他用户也有同日期+同账户+同站点）: {dup}")
-        print(f"将保留（admin 独有）: {keep}")
+        # 订单/原始档案：唯一键不含 user_id，只能整行改归属
+        side = {t: conn.execute(f"SELECT COUNT(*) FROM {t} WHERE user_id = ?",
+                                (ADMIN_UID,)).fetchone()[0]
+                for t in ("orders", "raw_orders", "raw_ad_stats")}
+
+        print(f"ad_daily_stats: 总 {total_admin} 行 = 删重复 {dup} + 转出 {keep}")
+        print("订单/原始档案（整行改归属）: " +
+              "  ".join(f"{t}={n}" for t, n in side.items()))
         print(f"将清空的 admin 通用凭据列（users.pingykj_username/password_encrypted）: {admin_creds} 行")
-        print("样例:")
+        print("待删样例:")
         for r in sample:
             print("  ", dict(r))
 
+        if to_uid:
+            # 先把转入方当前的合计记下来，apply 后好核对增量
+            before = conn.execute(
+                "SELECT COUNT(*), ROUND(COALESCE(SUM(total_spend),0),2) FROM ad_daily_stats "
+                "WHERE user_id = ? AND source != 'meta'", (to_uid,)).fetchone()
+            print(f"转入方当前: {before[0]} 行 / 消耗 {before[1]}")
+
         if not args.apply:
-            print("\n（dry-run，未做任何修改。加 --apply 才真删）")
+            print("\n（dry-run，未做任何修改。加 --apply 才真执行）")
             return
 
         # 备份用 sqlite3 在线备份 API 取一致快照：与并发写者共存也行，且不像
         # `PRAGMA wal_checkpoint(TRUNCATE)` + 多次 shutil.copy 那样会静默失败 ——
         # 有并发读者时 checkpoint 返回 (1,1,1) 却不抛异常（原 except 是死代码），
-        # 主库缺帧 + 「旧 .db 配空 -wal」两次拷贝非原子，恰好会丢掉本次要删的近期行。
-        bak = db_path.with_name(db_path.name + f".bak-dedup-{datetime.now():%Y%m%d%H%M%S%f}")
+        # 主库缺帧 + 「旧 .db 配空 -wal」两次拷贝非原子，恰好会丢掉本次要动的近期行。
+        bak = db_path.with_name(db_path.name + f".bak-adminfix-{datetime.now():%Y%m%d%H%M%S%f}")
         src = sqlite3.connect(str(db_path))
         dst = sqlite3.connect(str(bak))
         try:
@@ -110,7 +144,18 @@ def main():
         print(f"\n已备份到: {bak}")
 
         cur = conn.execute(f"DELETE FROM ad_daily_stats WHERE {DUP_WHERE}", (ADMIN_UID, ADMIN_UID))
-        print(f"已删除 {cur.rowcount} 行")
+        print(f"已删除重复行 {cur.rowcount} 行")
+
+        if to_uid:
+            # 先删后转，所以此刻不可能撞唯一键：凡转入方已有同键的行，上面已按重复删掉了。
+            cur = conn.execute(
+                "UPDATE ad_daily_stats SET user_id = ? WHERE user_id = ? AND source != 'meta'",
+                (to_uid, ADMIN_UID))
+            print(f"已转出 ad_daily_stats {cur.rowcount} 行 → {args.to_user}")
+            for t in ("orders", "raw_orders", "raw_ad_stats"):
+                cur = conn.execute(f"UPDATE {t} SET user_id = ? WHERE user_id = ?",
+                                   (to_uid, ADMIN_UID))
+                print(f"已转出 {t} {cur.rowcount} 行 → {args.to_user}")
 
         # 显式、独立的一条：清空 admin 的通用凭据列（干跑时已报将影响行数）
         cur_creds = conn.execute(
@@ -126,9 +171,23 @@ def main():
         dup_left = conn.execute(
             f"SELECT COUNT(*) FROM ad_daily_stats WHERE {DUP_WHERE}",
             (ADMIN_UID, ADMIN_UID)).fetchone()[0]
-    print(f"删后 admin 行数: {left}（应等于保留数 {keep}）")
-    print(f"删后残留重复: {dup_left}（应为 0）")
-    assert left == keep and dup_left == 0, "清理结果不符合预期，请用备份恢复后排查"
+    expect = 0 if to_uid else keep
+    print(f"处理后 admin 行数: {left}（应为 {expect}）")
+    print(f"处理后残留重复: {dup_left}（应为 0）")
+    assert left == expect and dup_left == 0, "清理结果不符合预期，请用备份恢复后排查"
+
+    if to_uid:
+        with database.get_conn() as conn:
+            after = conn.execute(
+                "SELECT COUNT(*), ROUND(COALESCE(SUM(total_spend),0),2) FROM ad_daily_stats "
+                "WHERE user_id = ? AND source != 'meta'", (to_uid,)).fetchone()
+            admin_side = {t: conn.execute(f"SELECT COUNT(*) FROM {t} WHERE user_id = ?",
+                                          (ADMIN_UID,)).fetchone()[0]
+                          for t in ("orders", "raw_orders", "raw_ad_stats")}
+        print(f"转入方现在: {after[0]} 行 / 消耗 {after[1]}"
+              f"（较处理前 +{after[0] - before[0]} 行）")
+        print("管理员名下残留订单/档案: " +
+              "  ".join(f"{t}={n}" for t, n in admin_side.items()) + "（均应为 0）")
 
 
 if __name__ == "__main__":
