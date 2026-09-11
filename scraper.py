@@ -11,7 +11,68 @@ import database
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 BASE_PATH = Path(__file__).parent.resolve()
-BASE_URL = "https://hw.manage.pingykj.com"
+
+# ====== 站点（书城）配置 ======
+# 站点定义优先取 config.json 的 meta.pingykj_sites（update.sh 保留 meta 块，服务器改域名不被覆盖），
+# 未配置时回落到下面默认值。
+DEFAULT_SITE = "a"
+DEFAULT_SITES = [
+    {"key": "a", "name": "A站(pingykj)",
+     "base_url": "https://hw.manage.pingykj.com",
+     "content_url": "https://hw.manage.api.pingykj.com"},
+    {"key": "b", "name": "B站(relishnovel)",
+     "base_url": "https://manage.relishnovel.com",
+     "content_url": "https://manage.api.relishnovel.com"},
+]
+
+
+def get_sites() -> List[Dict[str, str]]:
+    """返回站点列表；config.json 的 meta.pingykj_sites 优先，未配置时用默认值。"""
+    sites = []
+    try:
+        config = json.loads((BASE_PATH / "config.json").read_text(encoding="utf-8"))
+        sites = config.get("meta", {}).get("pingykj_sites") or []
+    except Exception:
+        sites = []
+    out = []
+    for s in sites:
+        if not isinstance(s, dict) or not s.get("key"):
+            continue
+        out.append({
+            "key": str(s["key"]),
+            "name": str(s.get("name") or s["key"]),
+            "base_url": str(s.get("base_url") or "").rstrip("/"),
+            "content_url": str(s.get("content_url") or "").rstrip("/"),
+        })
+    return out or [dict(d) for d in DEFAULT_SITES]
+
+
+def _site_conf(site: str) -> Dict[str, str]:
+    sites = get_sites()
+    key = (site or DEFAULT_SITE).strip() or DEFAULT_SITE
+    for s in sites:
+        if s["key"] == key:
+            return s
+    # 未知站点：优先回落默认站点，默认站点也不在配置里才取第一个
+    for s in sites:
+        if s["key"] == DEFAULT_SITE:
+            return s
+    return sites[0]
+
+
+def site_base_url(site: str) -> str:
+    """站点后台 base（登录/广告/订单/书籍列表）。"""
+    return _site_conf(site)["base_url"]
+
+
+def site_content_url(site: str) -> str:
+    """站点章节内容接口 base。"""
+    return _site_conf(site)["content_url"]
+
+
+# 过渡常量（Task 4 删除，届时所有引用改为按站点取值）
+BASE_URL = site_base_url(DEFAULT_SITE)
+_CONTENT_API = site_content_url(DEFAULT_SITE)
 
 # ====== 代理支持 ======
 
@@ -653,7 +714,6 @@ def sync_orders(user_id: int) -> Tuple[int, str]:
 
 # ====== 小说爬取 ======
 
-_CONTENT_API = "https://hw.manage.api.pingykj.com"
 _CONTENT_PATH = "/novel/novel/getChaptersContent"
 
 

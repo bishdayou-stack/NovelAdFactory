@@ -11,6 +11,20 @@
     "sync_interval_seconds": 1800,
     "rate_limit_per_second": 4,
     "proxy": "http://127.0.0.1:10808",
-    "proxy_enabled": true
+    "proxy_enabled": true,
+    "pingykj_sites": [
+      {
+        "key": "a",
+        "name": "A站(pingykj)",
+        "base_url": "https://hw.manage.pingykj.com",
+        "content_url": "https://hw.manage.api.pingykj.com"
+      },
+      {
+        "key": "b",
+        "name": "B站(relishnovel)",
+        "base_url": "https://manage.relishnovel.com",
+        "content_url": "https://manage.api.relishnovel.com"
+      }
+    ]
   }
 }
