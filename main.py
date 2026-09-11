@@ -3948,6 +3948,29 @@ def api_get_user_pingykj_captcha(user_id: int, user: dict = Depends(get_current_
 
 # ====== 数据看板 API ======
 
+def _norm_site(site: str, write: bool = False) -> Optional[str]:
+    """校验并归一化 site 查询参数：空/未指定 → None。
+
+    读类（write=False）：未知站点归一为 None（= 合计），保持宽容。
+    写/同步类（write=True）：未知站点抛 400 —— 否则 scraper._site_conf 会静默回落到默认站点，
+    用 A 站 URL 登录却把数据按 site='x' 落库，污染合计口径。
+    """
+    site = (site or "").strip()
+    if not site:
+        return None
+    if site in {s["key"] for s in scraper.get_sites()}:
+        return site
+    if write:
+        raise HTTPException(status_code=400, detail=f"未知站点: {site}")
+    return None
+
+
+def _site_keys(site: str) -> List[str]:
+    """同步类操作的站点集合：空 = 遍历所有站点，非空 = 只操作该站点（未知站点 400）。"""
+    st = _norm_site(site, write=True)
+    return [st] if st else [s["key"] for s in scraper.get_sites()]
+
+
 class ScraperLoginRequest(BaseModel):
     username: str
     password: str
@@ -3962,7 +3985,7 @@ def api_scraper_captcha(user: dict = Depends(get_current_user),
                          site: str = Query(default=None)):
     """获取登录验证码（按站点；site 空 = 默认站点）"""
     uid = user["id"]
-    site = site or scraper.DEFAULT_SITE
+    site = _norm_site(site, write=True) or scraper.DEFAULT_SITE
     if username and password:
         data_uri, check_key, err = scraper.fetch_captcha_with_creds(username, password, site=site)
     else:
@@ -3978,7 +4001,7 @@ def api_scraper_login(body: ScraperLoginRequest, site: str = Query(default=None)
     """通过 API 直接登录书城，获取 token（使用当前用户的凭据验证；site 空 = 默认站点）"""
     success, message = scraper.login_via_api_for_user(
         user["id"], body.username, body.password,
-        site=(site or scraper.DEFAULT_SITE),
+        site=(_norm_site(site, write=True) or scraper.DEFAULT_SITE),
         captcha=body.captcha, check_key=body.check_key
     )
     return {"status": "ok" if success else "failed", "message": message}
@@ -3986,11 +4009,6 @@ def api_scraper_login(body: ScraperLoginRequest, site: str = Query(default=None)
 
 # 后台同步任务追踪
 _sync_tasks: Dict[int, Dict] = {}  # user_id → {running, last_result, last_time}
-
-
-def _site_keys(site: str) -> List[str]:
-    """同步类操作的站点集合：空 = 遍历所有站点，非空 = 只操作该站点。"""
-    return [site] if site else [s["key"] for s in scraper.get_sites()]
 
 
 @app.post("/api/scraper/sync")
@@ -4116,7 +4134,7 @@ def api_reset_sync_state(site: str = Query(default=None), user: dict = Depends(g
 def api_session_status(site: str = Query(default=None), user: dict = Depends(get_current_user)):
     """检查书城登录会话是否有效（按站点；site 空 = 默认站点）"""
     uid = user["id"]
-    session, _ = scraper._get_or_create_session(uid, site or scraper.DEFAULT_SITE)
+    session, _ = scraper._get_or_create_session(uid, _norm_site(site, write=True) or scraper.DEFAULT_SITE)
     valid = session is not None and session.check_valid()
     return {"valid": valid, "message": "会话有效" if valid else "会话已过期，请重新登录"}
 
@@ -4125,7 +4143,7 @@ def api_session_status(site: str = Query(default=None), user: dict = Depends(get
 def api_scraper_logout(site: str = Query(default=None), user: dict = Depends(get_current_user)):
     """登出：清除书城 token。指定 site 时只清该站点；site 空 = 清该用户所有站点
     （与 clear_user_session(site=None) 的语义一致，避免留下另一站的旧 token 继续跑）"""
-    scraper.clear_user_session(user["id"], site or None)
+    scraper.clear_user_session(user["id"], _norm_site(site, write=True))
     return {"status": "ok", "message": "已登出"}
 
 
@@ -4158,18 +4176,20 @@ def _format_interval(secs: int) -> str:
 @app.get("/api/dashboard/account-aliases")
 def api_get_account_aliases(site: str = Query(default=None),
                             user: dict = Depends(get_current_user)):
-    """获取账户别名列表（空 = 合计；别名按站点独立存储，写操作落在具体站点）"""
+    """获取账户别名列表。别名按站点独立存储，**空/未知 site 读默认站点（A 站）的别名，非合计**
+    （与同族 /api/dashboard/accounts「空 = 真合计」不同）"""
     uid = _opt_user_id(user)
-    return database.get_account_aliases(uid, site=(site or database.SITE_DEFAULT))
+    return database.get_account_aliases(uid, site=(_norm_site(site) or database.SITE_DEFAULT))
 
 
 @app.post("/api/dashboard/account-aliases")
 def api_set_account_alias(account_id: str = Query(...), alias: str = Query(...),
                            site: str = Query(default=None),
                            user: dict = Depends(get_current_user)):
-    """设置账户别名"""
+    """设置账户别名（空 site = 默认站点）"""
     uid = _opt_user_id(user)
-    database.set_account_alias(account_id, alias, uid, site=(site or database.SITE_DEFAULT))
+    database.set_account_alias(account_id, alias, uid,
+                               site=(_norm_site(site, write=True) or database.SITE_DEFAULT))
     return {"status": "ok", "account_id": account_id, "alias": alias}
 
 
@@ -4177,18 +4197,20 @@ def api_set_account_alias(account_id: str = Query(...), alias: str = Query(...),
 def api_delete_account_alias(account_id: str = Query(...),
                               site: str = Query(default=None),
                               user: dict = Depends(get_current_user)):
-    """删除账户别名"""
+    """删除账户别名（空 site = 默认站点）"""
     uid = _opt_user_id(user)
-    database.delete_account_alias(account_id, uid, site=(site or database.SITE_DEFAULT))
+    database.delete_account_alias(account_id, uid,
+                                  site=(_norm_site(site, write=True) or database.SITE_DEFAULT))
     return {"status": "ok", "account_id": account_id}
 
 
 @app.delete("/api/dashboard/accounts/{account_id}")
 def api_delete_account(account_id: str, site: str = Query(default=None),
                         user: dict = Depends(get_current_user)):
-    """删除账户（仅移出列表，广告数据保留）"""
+    """删除账户（仅移出列表，广告数据保留；空 site = 默认站点）"""
     uid = _opt_user_id(user)
-    database.delete_account_alias(account_id, uid, site=(site or database.SITE_DEFAULT))
+    database.delete_account_alias(account_id, uid,
+                                  site=(_norm_site(site, write=True) or database.SITE_DEFAULT))
     return {"status": "ok", "account_id": account_id, "message": f"账户 {account_id} 已移除"}
 
 
@@ -4205,18 +4227,18 @@ def api_novel_books_list(
     site: str = Query(default=None),
     user: dict = Depends(get_current_user),
 ):
-    """分页查询书籍列表（共享数据，所有用户可见），支持排序；site 空 = 合计"""
+    """分页查询书籍列表（共享数据，所有用户可见），支持排序；site 空/未知 = 合计"""
     return database.get_novel_books(
         page=page, page_size=page_size, keyword=keyword,
-        status_filter=status, sort_by=sort_by, sort_order=sort_order, site=(site or None)
+        status_filter=status, sort_by=sort_by, sort_order=sort_order, site=_norm_site(site)
     )
 
 
 @app.get("/api/novels/{novel_id}")
 def api_novel_book_detail(novel_id: str, site: str = Query(default=None),
                           user: dict = Depends(get_current_user)):
-    """查询书籍详情（site 空 = 合计，database 层回落默认站点）"""
-    book = database.get_novel_book(novel_id, site=(site or None))
+    """查询书籍详情（site 空/未知 = 合计；database 层对 None 回落默认站点）"""
+    book = database.get_novel_book(novel_id, site=_norm_site(site))
     if not book:
         raise HTTPException(status_code=404, detail="书籍不存在")
     return book
@@ -4230,8 +4252,9 @@ def api_novel_chapters_list(
     site: str = Query(default=None),
     user: dict = Depends(get_current_user),
 ):
-    """分页查询某书的章节列表"""
-    return database.get_novel_chapters(novel_id, page=page, page_size=page_size, site=(site or None))
+    """分页查询某书的章节列表（site 空/未知 = 合计）"""
+    return database.get_novel_chapters(novel_id, page=page, page_size=page_size,
+                                       site=_norm_site(site))
 
 
 @app.get("/api/novels/chapters/{chapter_id}")
@@ -4249,8 +4272,9 @@ class SyncNovelContentBody(BaseModel):
 
 @app.post("/api/novels/sync-books")
 def api_novel_sync_books(site: str = Query(default=None), user: dict = Depends(get_current_user)):
-    """手动触发书籍列表同步（增量：仅近期更新的书籍；site 空 = 默认站点）"""
-    count, err = scraper.sync_novel_books(user["id"], site=(site or None))
+    """手动触发书籍列表同步（增量：仅近期更新的书籍；site 空 = 默认站点，未知站点 400）"""
+    count, err = scraper.sync_novel_books(user["id"],
+                                          site=(_norm_site(site, write=True) or scraper.DEFAULT_SITE))
     if err:
         return {"status": "ok", "count": count, "warning": err}
     return {"status": "ok", "count": count, "message": f"已同步 {count} 本书"}
@@ -4258,9 +4282,10 @@ def api_novel_sync_books(site: str = Query(default=None), user: dict = Depends(g
 
 @app.post("/api/novels/sync-books-full")
 def api_novel_sync_books_full(site: str = Query(default=None), user: dict = Depends(get_current_user)):
-    """全量同步：拉取全部书籍更新消耗数据，同时同步广告+订单数据（site 空 = 默认站点）"""
+    """全量同步：拉取全部书籍更新消耗数据，同时同步广告+订单数据（site 空 = 默认站点，未知站点 400）"""
     import threading
     uid = user["id"]
+    site = _norm_site(site, write=True) or scraper.DEFAULT_SITE
 
     # 检查是否已有同步在进行中
     with _novel_sync_lock:
@@ -4280,7 +4305,7 @@ def api_novel_sync_books_full(site: str = Query(default=None), user: dict = Depe
         try:
             # 1. 全量同步书籍（无日期过滤，拉取全部书籍的消耗数据）
             _update("novels", message="正在拉取全部书籍消耗数据...")
-            novel_count, novel_err = scraper.sync_novel_books(uid, full_sync=True, site=(site or None))
+            novel_count, novel_err = scraper.sync_novel_books(uid, full_sync=True, site=site)
             part = f"书籍 {novel_count} 本"
             result_parts.append(part)
             print(f"[全量同步] {part}" + (f", 警告: {novel_err}" if novel_err else ""))
@@ -4289,9 +4314,9 @@ def api_novel_sync_books_full(site: str = Query(default=None), user: dict = Depe
 
             # 2. 同步广告数据
             _update("ads", message="正在同步广告数据...")
-            ads_count, ads_err = scraper.sync_ads(uid, site=(site or None))
+            ads_count, ads_err = scraper.sync_ads(uid, site=site)
             database.log_sync("ads", "success" if not ads_err else "failed", ads_count, ads_err, uid,
-                              site=(site or None))
+                              site=site)
             part = f"广告 {ads_count} 条"
             result_parts.append(part)
             print(f"[全量同步] {part}" + (f", 错误: {ads_err}" if ads_err else ""))
@@ -4300,9 +4325,9 @@ def api_novel_sync_books_full(site: str = Query(default=None), user: dict = Depe
 
             # 3. 同步订单数据
             _update("orders", message="正在同步订单数据...")
-            orders_count, orders_err = scraper.sync_orders(uid, site=(site or None))
+            orders_count, orders_err = scraper.sync_orders(uid, site=site)
             database.log_sync("orders", "success" if not orders_err else "failed", orders_count, orders_err, uid,
-                              site=(site or None))
+                              site=site)
             part = f"订单 {orders_count} 条"
             result_parts.append(part)
             print(f"[全量同步] {part}" + (f", 错误: {orders_err}" if orders_err else ""))
@@ -4311,7 +4336,7 @@ def api_novel_sync_books_full(site: str = Query(default=None), user: dict = Depe
 
             # 4. 补缺章节
             _update("chapters", message="正在补缺章节...")
-            ch_count, ch_err = scraper.sync_missing_chapters(uid, site=(site or None))
+            ch_count, ch_err = scraper.sync_missing_chapters(uid, site=site)
             part = f"章节 {ch_count} 本"
             result_parts.append(part)
             print(f"[全量同步] {part}" + (f", 错误: {ch_err}" if ch_err else ""))
@@ -4352,9 +4377,9 @@ def api_novel_sync_books_full_progress(user: dict = Depends(get_current_user)):
 def api_novel_sync_content(body: SyncNovelContentBody = SyncNovelContentBody(),
                             site: str = Query(default=None),
                             user: dict = Depends(get_current_user)):
-    """手动触发章节内容同步（未指定站点时用默认站点，避免给指定 novel_id 拉错站内容）"""
+    """手动触发章节内容同步（未指定站点时用默认站点，避免给指定 novel_id 拉错站内容；未知站点 400）"""
     result = scraper.sync_all_novel_content(novel_id=body.novel_id or None,
-                                            site=(site or scraper.DEFAULT_SITE))
+                                            site=(_norm_site(site, write=True) or scraper.DEFAULT_SITE))
     return result
 
 
@@ -4450,7 +4475,7 @@ def api_dashboard_summary(
     """KPI 汇总（site 空 = 合计）"""
     uid = _opt_user_id(user)
     return analytics.get_summary(start_date=start, end_date=end, account=account, keyword=keyword,
-                                 user_id=uid, site=(site or None))
+                                 user_id=uid, site=_norm_site(site))
 
 
 @app.get("/api/dashboard/daily-stats")
@@ -4469,7 +4494,7 @@ def api_dashboard_daily_stats(
     uid = _opt_user_id(user)
     return analytics.get_daily_stats(start_date=start, end_date=end, account=account, keyword=keyword,
                                       order_by=order_by, page=page, page_size=page_size, user_id=uid,
-                                      site=(site or None))
+                                      site=_norm_site(site))
 
 
 @app.get("/api/dashboard/accounts")
@@ -4477,7 +4502,7 @@ def api_dashboard_accounts(site: str = Query(default=None),
                             user: dict = Depends(get_current_user)):
     """广告账户列表（site 空 = 合计）"""
     uid = _opt_user_id(user)
-    return analytics.get_accounts(user_id=uid, site=(site or None))
+    return analytics.get_accounts(user_id=uid, site=_norm_site(site))
 
 
 @app.get("/api/dashboard/trend")
@@ -4491,7 +4516,7 @@ def api_dashboard_trend(
     """趋势数据（site 空 = 合计）"""
     uid = _opt_user_id(user)
     return analytics.get_trend(days=days, account=account, keyword=keyword, user_id=uid,
-                               site=(site or None))
+                               site=_norm_site(site))
 
 
 @app.get("/api/dashboard/orders")
@@ -4507,7 +4532,7 @@ def api_dashboard_orders(
     """订单列表（site 空 = 合计）"""
     uid = _opt_user_id(user)
     return analytics.get_orders(start_date=start, end_date=end, keyword=keyword,
-                                 page=page, page_size=page_size, user_id=uid, site=(site or None))
+                                 page=page, page_size=page_size, user_id=uid, site=_norm_site(site))
 
 
 @app.get("/api/dashboard/account-ranking")
@@ -4524,7 +4549,7 @@ def api_dashboard_account_ranking(
     uid = _opt_user_id(user)
     return analytics.get_account_ranking(start_date=start, end_date=end, keyword=keyword,
                                           page=page, page_size=page_size, user_id=uid,
-                                          site=(site or None))
+                                          site=_norm_site(site))
 
 
 @app.get("/api/dashboard/anomalies")
@@ -4533,7 +4558,7 @@ def api_dashboard_anomalies(days: int = Query(default=30),
                              user: dict = Depends(get_current_user)):
     """消耗异常检测（site 空 = 合计）"""
     uid = _opt_user_id(user)
-    return analytics.detect_anomalies(days=days, user_id=uid, site=(site or None))
+    return analytics.detect_anomalies(days=days, user_id=uid, site=_norm_site(site))
 
 
 @app.get("/api/dashboard/user-ranking")
@@ -4544,7 +4569,7 @@ def api_dashboard_user_ranking(
     user: dict = Depends(get_current_user),
 ):
     """用户汇总排名（全员可见，site 空 = 合计）"""
-    return analytics.get_user_ranking(start_date=start, end_date=end, site=(site or None))
+    return analytics.get_user_ranking(start_date=start, end_date=end, site=_norm_site(site))
 
 
 @app.get("/api/dashboard/novel-stats")
@@ -4563,7 +4588,7 @@ def api_dashboard_novel_stats(
     uid = user["id"] if mine_only else None
     return analytics.get_novel_stats(start_date=start, end_date=end, keyword=keyword,
                                       user_id=uid, sort_by=sort_by,
-                                      page=page, page_size=page_size, site=(site or None))
+                                      page=page, page_size=page_size, site=_norm_site(site))
 
 
 @app.get("/api/dashboard/book-stats")
@@ -4851,7 +4876,7 @@ def api_fetch_novel(body: FetchNovelRequest, site: str = Query(default=None)):
     """代理获取小说章节内容（HTML → 纯文本）"""
     if not body.novel_id.strip():
         raise HTTPException(status_code=400, detail="缺少小说ID")
-    result = _fetch_novel_content(body.novel_id.strip(), site=(site or None))
+    result = _fetch_novel_content(body.novel_id.strip(), site=_norm_site(site))
     if result["status"] == "error":
         raise HTTPException(status_code=502, detail=result["error"])
     return result

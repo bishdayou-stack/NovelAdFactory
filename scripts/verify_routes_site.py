@@ -35,6 +35,40 @@ def _check_http_accepts_site(main):
             rr = c.get(path, params={"site": site} if site else {}, headers=h)
             assert rr.status_code == 200, f"{path}?site={site} -> {rr.status_code} {rr.text[:200]}"
     print("OK: 看板与小说路由均接受 site 参数")
+    return c, h
+
+
+def _check_invalid_site(main, c, h):
+    """非法 site（如 x）必须被拦下：写类 400，读类归一为合计（不报错）。"""
+    write_paths = ["/api/scraper/sync", "/api/scraper/reset-sync", "/api/scraper/logout",
+                   "/api/novels/sync-books", "/api/novels/sync-content"]
+    for path in write_paths:
+        rr = c.post(path, params={"site": "x"}, json={}, headers=h)
+        assert rr.status_code == 400, f"POST {path}?site=x -> {rr.status_code} {rr.text[:200]}"
+    # 登录体必填，先把体给全，确保打到的是站点校验而不是 422
+    rr = c.post("/api/scraper/login", params={"site": "x"},
+                json={"username": "u", "password": "p"}, headers=h)
+    assert rr.status_code == 400, f"POST /api/scraper/login?site=x -> {rr.status_code} {rr.text[:200]}"
+    for path in ["/api/scraper/captcha", "/api/scraper/session-status"]:
+        rr = c.get(path, params={"site": "x"}, headers=h)
+        assert rr.status_code == 400, f"GET {path}?site=x -> {rr.status_code} {rr.text[:200]}"
+    rr = c.post("/api/dashboard/account-aliases",
+                params={"site": "x", "account_id": "a1", "alias": "n"}, headers=h)
+    assert rr.status_code == 400, f"写别名 site=x -> {rr.status_code} {rr.text[:200]}"
+    rr = c.delete("/api/dashboard/accounts/a1", params={"site": "x"}, headers=h)
+    assert rr.status_code == 400, f"删账户 site=x -> {rr.status_code} {rr.text[:200]}"
+
+    read_paths = ["/api/dashboard/summary", "/api/dashboard/daily-stats", "/api/dashboard/trend",
+                  "/api/dashboard/accounts", "/api/dashboard/orders",
+                  "/api/dashboard/account-ranking", "/api/dashboard/anomalies",
+                  "/api/dashboard/user-ranking", "/api/dashboard/novel-stats",
+                  "/api/dashboard/account-aliases", "/api/novels/list",
+                  "/api/novels/NOPE", "/api/novels/NOPE/chapters"]
+    for path in read_paths:
+        rr = c.get(path, params={"site": "x"}, headers=h)
+        assert rr.status_code < 400 or rr.status_code == 404, \
+            f"GET {path}?site=x -> {rr.status_code} {rr.text[:200]}  （读类非法站点应归一为合计而非报错）"
+    print("OK: 非法 site —— 写类 400 / 读类归一为合计")
 
 
 def _check_site_passthrough(main):
@@ -49,10 +83,9 @@ def _check_site_passthrough(main):
         return fn
 
     # 1) 看板路由：site='b' 原样透传；site='' 归一为 None（合计）
-    for fname, router in [("get_summary", main.api_dashboard_summary),
-                          ("get_orders", main.api_dashboard_orders),
-                          ("get_novel_stats", main.api_dashboard_novel_stats),
-                          ("detect_anomalies", main.api_dashboard_anomalies)]:
+    stubbed = ["get_summary", "get_orders", "get_novel_stats", "detect_anomalies"]
+    orig_analytics = {n: getattr(analytics, n) for n in stubbed}
+    for fname in stubbed:
         setattr(analytics, fname, _rec(fname))
     user = {"id": 1, "role": "admin"}
     seen.clear()
@@ -65,6 +98,9 @@ def _check_site_passthrough(main):
     assert ("get_summary", None) in seen, seen          # 空串 → 合计
     assert ("get_orders", "b") in seen and ("get_novel_stats", "b") in seen, seen
     assert ("detect_anomalies", "b") in seen, seen
+    seen.clear()
+    main.api_dashboard_summary(site="x", user=user)     # 非法站点 → 读类归一为合计，不是 400
+    assert seen == [("get_summary", None)], seen
 
     # 2) 小说列表：site 透传；空 → None
     orig_books = database.get_novel_books
@@ -162,13 +198,16 @@ def _check_site_passthrough(main):
     assert ("clear_user_session", None) in seen, seen
     assert ("clear_user_session", scraper.DEFAULT_SITE) not in seen, seen
 
+    for n, fn in orig_analytics.items():                 # 还原打桩，避免影响后续 HTTP 检查
+        setattr(analytics, n, fn)
     print("OK: site 透传（合计=None / 指定站点 / 空=遍历所有站点）均成立")
 
 
 def main():
     import main
-    _check_http_accepts_site(main)
+    c, h = _check_http_accepts_site(main)
     _check_site_passthrough(main)
+    _check_invalid_site(main, c, h)
 
 
 if __name__ == "__main__":
