@@ -1823,14 +1823,14 @@ def get_novel_books(page: int = 1, page_size: int = 20, keyword: str = None,
             f"SELECT COUNT(DISTINCT nb.novel_id) AS cnt FROM novel_books nb{where_clause}", params
         ).fetchone()["cnt"]
 
-        # 排序字段映射（白名单防注入）
+        # 排序字段映射（白名单防注入）。聚合查询里裸列取组内任意行、排序非确定，一律用 MAX() 包一层。
         sort_map = {
-            "create_time": "nb.create_time", "book_ad_spend": "book_ad_spend",
+            "create_time": "MAX(nb.create_time)", "book_ad_spend": "book_ad_spend",
             "order_count": "order_count", "conversion_cost": "conversion_cost",
-            "promotion_link_count": "nb.promotion_link_count", "word_count": "nb.word_count",
-            "total_chapters": "nb.total_chapters", "novel_name": "novel_name",
+            "promotion_link_count": "MAX(nb.promotion_link_count)", "word_count": "MAX(nb.word_count)",
+            "total_chapters": "MAX(nb.total_chapters)", "novel_name": "novel_name",
         }
-        sort_col = sort_map.get(sort_by, "nb.create_time")
+        sort_col = sort_map.get(sort_by, "MAX(nb.create_time)")
         sort_dir = "DESC" if sort_order.upper() == "DESC" else "ASC"
 
         offset = (page - 1) * page_size
@@ -1863,11 +1863,11 @@ def get_novel_books(page: int = 1, page_size: int = 20, keyword: str = None,
                      ELSE NULL END AS conversion_cost
                 FROM novel_books nb
                 LEFT JOIN (
-                    SELECT json_extract(customer_info, '$.novelId') AS nid,
+                    SELECT json_extract(customer_info, '$.novelId') AS nid, site,
                            COUNT(*) AS order_count
                     FROM orders WHERE status = '成功'
-                    GROUP BY json_extract(customer_info, '$.novelId')
-                ) oo ON nb.novel_id = oo.nid
+                    GROUP BY json_extract(customer_info, '$.novelId'), site
+                ) oo ON nb.novel_id = oo.nid AND nb.site = oo.site
                 {where_clause} GROUP BY nb.novel_id
                 ORDER BY {sort_col} {sort_dir} LIMIT ? OFFSET ?""",
             params + [page_size, offset]
@@ -2684,12 +2684,16 @@ def _extract_cost_per_action(cost_per_action: list, action_type: str) -> float:
     return 0.0
 
 def upsert_meta_insights(act_id: str, insights_rows: List[Dict[str, Any]],
-                         user_id: int = None, site: str = None) -> int:
-    """批量写入 Meta Insights 数据到 ad_daily_stats，返回写入行数"""
+                         user_id: int = None) -> int:
+    """批量写入 Meta Insights 数据到 ad_daily_stats，返回写入行数。
+
+    Meta 数据与书城站点无关，恒落 SITE_DEFAULT；不暴露 site 形参，避免被调用方
+    按站点各写一份而在唯一键含 site 的情况下静默产生重复行。
+    """
     if not insights_rows:
         return 0
     uid = user_id or 1
-    site = site or SITE_DEFAULT
+    site = SITE_DEFAULT
     with get_conn() as conn:
         count = 0
         for r in insights_rows:
@@ -3032,10 +3036,10 @@ def get_meta_ad_ids_with_stats(act_id: str, user_id: int = None,
         rows = conn.execute(sql, params).fetchall()
         return [r["ad_id"] for r in rows]
 
-def get_meta_sync_state(act_id: str, user_id: int = None, site: str = None) -> Optional[str]:
-    """获取 Meta 账户上次同步日期"""
+def get_meta_sync_state(act_id: str, user_id: int = None) -> Optional[str]:
+    """获取 Meta 账户上次同步日期（Meta 游标恒落 SITE_DEFAULT）"""
     uid = user_id or 1
-    site = site or SITE_DEFAULT
+    site = SITE_DEFAULT
     with get_conn() as conn:
         row = conn.execute(
             "SELECT last_sync_date FROM sync_state WHERE sync_type = ? AND user_id = ? AND site = ?",
@@ -3043,9 +3047,10 @@ def get_meta_sync_state(act_id: str, user_id: int = None, site: str = None) -> O
         ).fetchone()
         return row["last_sync_date"] if row else None
 
-def set_meta_sync_state(act_id: str, date_str: str, user_id: int = None, site: str = None) -> None:
+def set_meta_sync_state(act_id: str, date_str: str, user_id: int = None) -> None:
+    """Meta 游标与书城站点无关，恒落 SITE_DEFAULT（不暴露 site 形参）"""
     uid = user_id or 1
-    site = site or SITE_DEFAULT
+    site = SITE_DEFAULT
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO sync_state (sync_type, user_id, last_sync_date, last_sync_at, site)

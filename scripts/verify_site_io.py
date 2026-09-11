@@ -28,6 +28,27 @@ def main():
     assert len(books_all) == 1, f"合计应去重为 1 条，实际 {len(books_all)}"
     assert books_all[0]["book_ad_spend"] == 140.0, f"合计消耗应相加为 140，实际 {books_all[0]['book_ad_spend']}"
 
+    # 订单也必须按站点隔离：A 站 2 单、B 站 3 单，不可跨站串单、不可被 JOIN 放大
+    database.upsert_orders([
+        {"order_id": "A1", "customer_info": {"novelId": "n1"}, "status": "成功"},
+        {"order_id": "A2", "customer_info": {"novelId": "n1"}, "status": "成功"},
+    ], user_id=1, site="a")
+    database.upsert_orders([
+        {"order_id": "B1", "customer_info": {"novelId": "n1"}, "status": "成功"},
+        {"order_id": "B2", "customer_info": {"novelId": "n1"}, "status": "成功"},
+        {"order_id": "B3", "customer_info": {"novelId": "n1"}, "status": "成功"},
+    ], user_id=1, site="b")
+
+    ba = database.get_novel_books(site="a")["data"][0]
+    assert ba["order_count"] == 2, f"A 站订单数应只含 A 站 2 单，实际 {ba['order_count']}"
+    assert ba["conversion_cost"] == 50.0, f"A 站转化成本应为 100/2=50.0，实际 {ba['conversion_cost']}"
+    bb = database.get_novel_books(site="b")["data"][0]
+    assert bb["order_count"] == 3, f"B 站订单数应只含 B 站 3 单，实际 {bb['order_count']}"
+    assert bb["conversion_cost"] == round(40 / 3, 2), f"B 站转化成本应为 40/3，实际 {bb['conversion_cost']}"
+    ball = database.get_novel_books(site=None)["data"][0]
+    assert ball["order_count"] == 5, f"合计订单数应为 2+3=5（不得被 JOIN 放大），实际 {ball['order_count']}"
+    assert ball["conversion_cost"] == 28.0, f"合计转化成本应为 140/5=28.0，实际 {ball['conversion_cost']}"
+
     # sync_state 按站点独立
     database.set_last_sync_date("ads", "2026-09-01", user_id=1, site="a")
     database.set_last_sync_date("ads", "2026-09-02", user_id=1, site="b")
