@@ -1481,8 +1481,8 @@
             <label class="block text-xs font-medium text-slate-400 mb-1">显示名称</label>
             <input id="umDisplayName" type="text" class="w-full px-3 py-2 border border-slate-600 bg-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" placeholder="可选" />
           </div>
-          <!-- 书城凭据 -->
-          <div class="border-t border-slate-700 pt-4 mt-1">
+          <!-- 书城凭据（role=admin 时隐藏：管理员不参与书城同步，带凭据保存必 400） -->
+          <div id="umCredsSection" class="border-t border-slate-700 pt-4 mt-1">
             <p class="text-xs font-semibold text-slate-400 mb-3">📚 书城凭据（pingykj 平台）</p>
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -1913,8 +1913,16 @@
       document.getElementById('umPingykjPass').value = '';
       document.getElementById('umPingykjPass').placeholder = userData && userData.pingykj_password_masked ? '留空不修改（已设置）' : '留空不修改';
       document.getElementById('umIsActive').checked = userData ? (userData.is_active !== 0) : true;
+      updateUserCredsVisibility();
       document.getElementById('userModal').hidden = false;
     }
+
+    // 角色为 admin 时隐藏书城凭据区：管理员不参与书城同步，留值保存会被后端 400 挡下
+    function updateUserCredsVisibility() {
+      var isAdmin = document.getElementById('umRole').value === 'admin';
+      document.getElementById('umCredsSection').hidden = isAdmin;
+    }
+    document.getElementById('umRole').addEventListener('change', updateUserCredsVisibility);
 
     function hideUserModal() {
       document.getElementById('userModal').hidden = true;
@@ -1951,6 +1959,13 @@
         data = { username: username, password: pwd, role: role, display_name: displayName };
         if (pingykjUser) data.pingykj_username = pingykjUser;
         if (pingykjPass) data.pingykj_password = pingykjPass;
+      }
+
+      // 角色为 admin 时不发送书城凭据：编辑时上面会回填已有的 pingykj_username，
+      // 原样发出会被后端「管理员账号无需书城凭据」400 挡下 —— 改个显示名都存不了。
+      if (role === 'admin') {
+        delete data.pingykj_username;
+        delete data.pingykj_password;
       }
 
       var url = userEditingId ? '/api/users/' + userEditingId : '/api/users';
@@ -5346,6 +5361,7 @@
               (okNames ? '（' + okNames + '）' : '') + ' 注意：' + res.warning;
             msg.className = 'text-xs rounded-lg px-3 py-2 bg-amber-50 text-amber-700';
             msg.classList.remove('hidden');
+            checkDashboardSession();  // 提前 return 也别漏掉顶栏状态刷新
             return;
           }
           msg.textContent = res.saveError

@@ -3917,6 +3917,14 @@ def api_update_user(user_id: int, body: UpdateUserRequest, user: dict = Depends(
 
     # 构建更新字段
     fields = {}
+    # 把普通用户提升为 admin 时，上面只拦「本次写入非空凭据」，拦不住「被提升时身上已带凭据」：
+    # 那些凭据随即变成取不到的死密钥，且用户管理页再保存该 admin 必 400（前端回填 → 非空 → 上拦）。
+    # 只在 user→admin 这一跳剥掉；存量脏数据由 scripts/dedup_admin_stats.py 的 P1 兜底。
+    if effective_role == "admin" and target.get("role") != "admin":
+        for s in scraper.get_sites():
+            database.delete_site_credentials(user_id, s["key"])
+        fields["pingykj_username"] = ""
+        fields["pingykj_password"] = ""
     if body.role is not None:
         if body.role not in ("admin", "user"):
             raise HTTPException(status_code=400, detail="无效角色")
@@ -4158,6 +4166,11 @@ def api_scraper_sync(site: str = Query(default=None), user: dict = Depends(get_c
         task = _sync_tasks.get(0, {})  # 用 user_id=0 追踪管理员的全量同步
         if task.get("running"):
             return {"status": "running", "message": "全用户同步已在后台进行中，请稍后刷新"}
+        # 全新部署若只有默认 admin：枚举为空 → 后台什么都不做，别还回成功文案让人以为在同步
+        if not database.list_active_users_with_credentials():
+            return {"status": "noop",
+                    "message": "没有可同步的用户（管理员账号不参与书城同步，"
+                               "请先创建普通用户并配置其书城凭据）"}
         _sync_tasks[0] = {"running": True, "last_result": None, "last_time": None}
         def _bg_sync_all():
             try:
@@ -4527,6 +4540,7 @@ def api_novel_sync_content(body: SyncNovelContentBody = SyncNovelContentBody(),
                             site: str = Query(default=None),
                             user: dict = Depends(get_current_user)):
     """手动触发章节内容同步（未指定站点时用默认站点，避免给指定 novel_id 拉错站内容；未知站点 400）"""
+    _reject_admin_sync(user)
     result = scraper.sync_all_novel_content(novel_id=body.novel_id or None,
                                             site=(_norm_site(site, write=True) or scraper.DEFAULT_SITE))
     return result

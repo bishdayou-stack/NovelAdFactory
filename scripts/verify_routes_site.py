@@ -125,8 +125,9 @@ def _check_site_passthrough(main):
     orig_sync_content = scraper.sync_all_novel_content
     scraper.sync_all_novel_content = lambda *a, **kw: seen.append(
         ("sync_all_novel_content", kw.get("site"))) or {}
-    main.api_novel_sync_content(site="b", user=user)
-    main.api_novel_sync_content(site="", user=user)
+    # 同步类路由对 admin 一律 400（护栏），这里只验 site 透传，用普通用户
+    main.api_novel_sync_content(site="b", user={"id": 1, "role": "user"})
+    main.api_novel_sync_content(site="", user={"id": 1, "role": "user"})
     scraper.sync_all_novel_content = orig_sync_content
     assert ("sync_all_novel_content", "b") in seen, seen
     assert ("sync_all_novel_content", scraper.DEFAULT_SITE) in seen, seen

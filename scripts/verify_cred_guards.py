@@ -158,7 +158,99 @@ def main():
     assert w.count("u3") == 1, f"同一用户绑了通用+每站，用户名不该重复出现: {w!r}"
     assert w, "重复账号仍要给出警告"
 
+    # 7) 一次性清理脚本 scripts/dedup_admin_stats.py 的护栏（用户很可能还要在生产库再跑一次）
+    import importlib.util
+    _spec = importlib.util.spec_from_file_location(
+        "dedup_admin_stats", ROOT / "scripts" / "dedup_admin_stats.py")
+    dedup = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(dedup)
+
+    _tmpd = Path(tempfile.mkdtemp(prefix="dedup_fix_"))
+    _n = [0]
+
+    def _fresh_db():
+        _n[0] += 1
+        database.DB_PATH = _tmpd / f"db{_n[0]}.db"
+        database.init_db()
+        return database.DB_PATH
+
+    def _run_dedup(*argv):
+        _argv = sys.argv
+        sys.argv = ["dedup_admin_stats", *argv]
+        try:
+            dedup.main()
+        finally:
+            sys.argv = _argv
+
+    # 7a) I1: user_id=1 不是管理员 → 必须中止。否则 --apply 会删掉这个普通用户名下的行
+    #     （违反「不得碰其他用户数据」），而删后自检必然通过（keep 与 dup 同源，永远自洽）。
+    _fresh_db()
+    with database.get_conn() as conn:
+        conn.execute("UPDATE users SET role = 'user' WHERE id = 1")
+    try:
+        _run_dedup()
+        raise AssertionError("user_id=1 非管理员时脚本必须中止，而不是照删")
+    except SystemExit as e:
+        assert "不是管理员" in str(e), f"中止原因要说清是角色不对: {e}"
+
+    # 7b) ledger#6: 重复判定口径收紧到与唯一键一致（含 site）。跨站（同日期同账户不同 site）
+    #     不是重复，不得误删；同站点的才删。
+    _fresh_db()
+    _other = database.create_user("other_user", "p", "user")
+    with database.get_conn() as conn:
+        for site in ("a", "b"):  # admin(id=1) 两条：a 与 b
+            conn.execute("INSERT INTO ad_daily_stats(date, ad_account, source, user_id, site) "
+                         "VALUES ('2026-01-01','ACC','pingykj',1,?)", (site,))
+        conn.execute("INSERT INTO ad_daily_stats(date, ad_account, source, user_id, site) "
+                     "VALUES ('2026-01-01','ACC','pingykj',?,'a')", (_other,))  # 只有 site=a 撞车
+    _run_dedup("--apply")
+    with database.get_conn() as conn:
+        _left = [r["site"] for r in conn.execute(
+            "SELECT site FROM ad_daily_stats WHERE user_id = 1 ORDER BY site").fetchall()]
+    assert _left == ["b"], f"只该删同站点(site=a)那条，跨站的 site=b 必须保留: {_left}"
+
+    # 7c) P1: 显式清空 admin 的**通用**凭据列（此前只清了每站凭据）。
+    #     留着 → 用户管理页保存 admin 任何字段都 400（前端回填非空 → 护栏拦）。
+    _fresh_db()
+    with database.get_conn() as conn:
+        conn.execute("UPDATE users SET pingykj_username = 'legacy_acc', "
+                     "pingykj_password_encrypted = 'legacy_enc' WHERE role = 'admin'")
+    _run_dedup("--apply")
+    _a = database.get_user(1)
+    assert _a["pingykj_username"] == "" and _a["pingykj_password_encrypted"] == "", \
+        f"admin 通用凭据列必须被清空: {_a['pingykj_username']!r}/{_a['pingykj_password_encrypted']!r}"
+
+    # 8) P2: 把普通用户提升为 admin 时，剥掉他身上已带的凭据（通用 + 每站）。
+    #    护栏只拦「本次写入非空凭据」，拦不住「被提升时身上已有」——留下就是取不到的死密钥，
+    #    且用户管理页再保存该 admin 必 400。
+    _uid_x = database.create_user("promote_creds", "p", "user",
+                                  pingykj_username="legacy_x", pingykj_password="pw_x")
+    database.set_site_credentials(_uid_x, "b", "legacy_site_x", "pw_site")
+    assert database.get_effective_pingykj_credentials(_uid_x, "b"), "前置：提升前确有凭据"
+    c.app.dependency_overrides[get_current_admin] = lambda: admin
+    r = c.put(f"/api/users/{_uid_x}", json={"role": "admin"})
+    assert r.status_code == 200, (r.status_code, r.text)
+    _xu = database.get_user(_uid_x)
+    assert _xu["role"] == "admin", _xu["role"]
+    assert _xu["pingykj_username"] == "" and _xu["pingykj_password_encrypted"] == "", \
+        f"提升为管理员后通用凭据应被剥掉: {_xu['pingykj_username']!r}"
+    assert database.get_site_credentials(_uid_x, "b") is None, "提升为管理员后每站凭据也应被剥掉"
+    # 已是 admin 的存量行不受这条影响（别把每次改资料都变成重写凭据列）
+    database.update_user(admin["id"], pingykj_username="keep_me")
+    r = c.put(f"/api/users/{admin['id']}", json={"display_name": "仍可改"})
+    assert r.status_code == 200 and database.get_user(admin["id"])["pingykj_username"] == "keep_me", \
+        "已是 admin 的行不该被顺手清掉凭据列（那是 dedup 脚本 P1 的事）"
+
+    # 9) P3: 单管理员部署（只有默认 admin）下「同步」不能再静默无事发生还回成功文案
+    _fresh_db()
+    c.app.dependency_overrides[get_current_user] = lambda: database.get_user(1)
+    r = c.post("/api/scraper/sync")
+    assert r.status_code == 200, (r.status_code, r.text)
+    _b = r.json()
+    assert _b.get("status") == "noop" and "没有可同步的用户" in _b.get("message", ""), _b
+
     c.app.dependency_overrides.clear()
+    shutil.rmtree(_tmpd, ignore_errors=True)
     shutil.rmtree(tmp.parent, ignore_errors=True)
     print("OK: 管理员护栏与重复账号警告均生效")
 
