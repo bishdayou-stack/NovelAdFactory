@@ -46,6 +46,30 @@ def main():
     assert [x["account_id"] for x in analytics.get_accounts(user_id=1, site="a")] == ["acc1"]
     assert len(analytics.get_accounts(user_id=1, site=None)) == 2
 
+    # Ruling 9：合计时起点快照也必须跨站求和，否则 recent_spend 虚高。
+    # save_novel_spend_snapshots 固定写今天，故取 start_date=明天 使 snap_before=今天。
+    import datetime as _dt
+    tmr = (_dt.date.today() + _dt.timedelta(days=1)).isoformat()
+    database.upsert_novel_books([{"novel_id": "n9", "novel_name": "Book9", "book_ad_spend": 100.0}], site="a")
+    database.upsert_novel_books([{"novel_id": "n9", "novel_name": "Book9", "book_ad_spend": 50.0}], site="b")
+    database.save_novel_spend_snapshots([{"novel_id": "n9", "book_ad_spend": 40.0}], site="a")
+    database.save_novel_spend_snapshots([{"novel_id": "n9", "book_ad_spend": 10.0}], site="b")
+    ci9 = '{"novelId":"n9","novelName":"Book9"}'
+    database.upsert_orders([{"order_id": "o9a", "order_date": tmr, "amount": 5.0, "status": "成功", "customer_info": ci9}], user_id=1, site="a")
+    database.upsert_orders([{"order_id": "o9b", "order_date": tmr, "amount": 5.0, "status": "成功", "customer_info": ci9}], user_id=1, site="b")
+
+    ns = {r["novel_id"]: r for r in analytics.get_novel_stats(start_date=tmr, site=None)["data"]}
+    assert ns["n9"]["book_ad_spend"] == 150.0, ns["n9"]       # 两站当前累计相加
+    assert ns["n9"]["recent_spend"] == 100.0, ns["n9"]        # 150 - (40+10) 起点两站相加
+    ns_a = {r["novel_id"]: r for r in analytics.get_novel_stats(start_date=tmr, site="a")["data"]}
+    assert ns_a["n9"]["recent_spend"] == 60.0, ns_a["n9"]     # 100 - 40，只含 A 站
+
+    # 边界：某站缺快照按 0 计入，不得因缺行整体返回 None；两站皆无才 None
+    database.save_novel_spend_snapshots([{"novel_id": "n_only_a", "book_ad_spend": 7.0}], site="a")
+    assert database.get_novel_spend_snapshot("n_only_a", tmr, site=None) == 7.0
+    assert database.get_novel_spend_snapshot("n_only_a", tmr, site="b") is None
+    assert database.get_novel_spend_snapshot("n_nowhere", tmr, site=None) is None
+
     shutil.rmtree(tmp.parent, ignore_errors=True)
     print("OK: 看板按 site 过滤，合计=两站相加")
 

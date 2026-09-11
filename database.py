@@ -1787,15 +1787,29 @@ def save_novel_spend_snapshots(books: List[Dict[str, Any]], site: str = None) ->
 
 
 def get_novel_spend_snapshot(novel_id: str, target_date: str, site: str = None) -> Optional[float]:
-    """获取小说在指定日期或之前最近的消耗快照值"""
-    site = site or SITE_DEFAULT
+    """获取小说在指定日期或之前最近的消耗快照值
+
+    site=None 时跨站合计：各站分别取自 snap_date <= target_date 的最近一行再求和。
+    某站无该区间内快照按 0 计入；两站都没有时才返回 None（保持 recent_spend 可为 null 的语义）。
+    合计取「各站最近一行之和」而非「snap_date 恰好等于 target_date 的那一行之和」：
+    后者在某站缺当天快照时会整体漏掉该站起点值，使 recent_spend 虚高——正是本函数要避免的。
+    """
     with get_conn() as conn:
+        if site:
+            row = conn.execute("""
+                SELECT book_ad_spend FROM novel_spend_snapshots
+                WHERE novel_id = ? AND snap_date <= ? AND site = ?
+                ORDER BY snap_date DESC LIMIT 1
+            """, (novel_id, target_date, site)).fetchone()
+            return row["book_ad_spend"] if row else None
         row = conn.execute("""
-            SELECT book_ad_spend FROM novel_spend_snapshots
-            WHERE novel_id = ? AND snap_date <= ? AND site = ?
-            ORDER BY snap_date DESC LIMIT 1
-        """, (novel_id, target_date, site)).fetchone()
-        return row["book_ad_spend"] if row else None
+            SELECT SUM(s.book_ad_spend) AS total FROM novel_spend_snapshots s
+            WHERE s.novel_id = ? AND s.snap_date = (
+                SELECT MAX(snap_date) FROM novel_spend_snapshots
+                WHERE novel_id = s.novel_id AND site = s.site AND snap_date <= ?
+            )
+        """, (novel_id, target_date)).fetchone()
+        return row["total"] if row and row["total"] is not None else None
 
 
 def get_novel_books(page: int = 1, page_size: int = 20, keyword: str = None,
