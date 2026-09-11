@@ -666,11 +666,7 @@
                   <label class="block text-xs font-medium text-slate-500 mb-1">书城密码</label>
                   <input id="pingykjPassInput" type="password" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="输入登录密码" />
                 </div>
-                <div id="pingykjCaptchaRow" class="flex items-center gap-2 hidden">
-                  <img id="pingykjCaptchaImg" src="" alt="验证码" title="点击刷新" class="h-10 rounded-lg border border-slate-200 cursor-pointer" style="display:none" />
-                  <input id="pingykjCaptchaInput" type="text" class="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm input-focus" placeholder="验证码" style="display:none" />
-                  <button id="btnPingykjRefreshCaptcha" type="button" class="hidden px-3 py-2 text-xs rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer">刷新</button>
-                </div>
+                <div id="pingykjCaptchaRows" class="space-y-2"></div>
                 <div id="pingykjCredsMsg" class="hidden text-xs rounded-lg px-3 py-2"></div>
               </div>
               <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
@@ -5089,10 +5085,6 @@
       var el = document.getElementById('pingykjCredsSite');
       return el ? el.value : '';
     }
-    function siteQS() {
-      var s = credsSite();
-      return s ? ('&site=' + encodeURIComponent(s)) : '';
-    }
     function fillCredsSiteOptions() {
       var el = document.getElementById('pingykjCredsSite');
       if (!el) return;
@@ -5113,17 +5105,118 @@
     }
 
     // ====== 书城凭据弹窗 ======
-    var _pingykjCheckKey = '';
+    window._pendingCaptchas = {};   // { siteKey: {check_key, image} }
+
+    // 需要展示验证码行的站点：选「通用」= 全部站点；选具体站 = 只有该站
+    function _credsTargetSites() {
+      var one = credsSite();
+      if (one) return [one];
+      return Object.keys(window._siteNames || {});
+    }
+
+    function _captchaRowHtml(it) {
+      var name = (window._siteNames && window._siteNames[it.site]) || it.site;
+      var head = '<div class="text-[11px] font-medium text-slate-600 mb-1">' + escapeHtml(name) + '</div>';
+      var main = it.error
+        ? '<div class="text-[11px] text-amber-700">取码失败：' + escapeHtml(it.error) +
+          '（可直接点「登录验证」试试免验证码登录）</div>' +
+          '<input data-captcha-site="' + it.site + '" type="text" placeholder="验证码（可留空）" ' +
+          'class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs" />'
+        : '<div class="flex items-center gap-2">' +
+          '<img src="' + it.image + '" title="点击刷新" data-captcha-refresh="' + it.site + '" ' +
+          'class="h-9 rounded border border-slate-200 cursor-pointer" />' +
+          '<input data-captcha-site="' + it.site + '" type="text" placeholder="验证码" ' +
+          'class="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs" />' +
+          '<button type="button" data-captcha-refresh="' + it.site + '" ' +
+          'class="px-2 py-1.5 text-[11px] rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer">刷新</button>' +
+          '</div>';
+      return '<div data-captcha-row="' + it.site + '" class="rounded-lg border ' +
+             (it.error ? 'border-amber-200 bg-amber-50/60' : 'border-slate-200') + ' p-2">' + head + main +
+             '<div data-captcha-result="' + it.site + '" class="text-[11px] mt-1"></div></div>';
+    }
+
+    function _renderCaptchaRows(list) {
+      document.getElementById('pingykjCaptchaRows').innerHTML = list.map(_captchaRowHtml).join('');
+    }
+
+    // onlySite 为空 = 按「作用于」取全部目标站点；非空 = 只刷该站那一行
+    function _fetchCaptchas(username, password, onlySite) {
+      if (!onlySite) window._pendingCaptchas = {};
+      var sites = onlySite ? [onlySite] : _credsTargetSites();
+      var box = document.getElementById('pingykjCaptchaRows');
+      if (!onlySite) box.innerHTML = '<div class="text-[11px] text-slate-400">正在获取验证码…</div>';
+      return Promise.all(sites.map(function (s) {
+        var qs = '?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password) +
+                 '&site=' + encodeURIComponent(s);
+        return fetch('/api/scraper/captcha' + qs)
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (r) {
+            if (r.ok && r.d.image) {
+              window._pendingCaptchas[s] = { check_key: r.d.check_key, image: r.d.image };
+              return { site: s, image: r.d.image, check_key: r.d.check_key };
+            }
+            delete window._pendingCaptchas[s];
+            return { site: s, error: (r.d && r.d.detail) || '未知错误' };
+          })
+          .catch(function (e) {
+            delete window._pendingCaptchas[s];
+            return { site: s, error: String(e.message || e) };
+          });
+      })).then(function (list) {
+        if (onlySite) {
+          var row = box.querySelector('[data-captcha-row="' + onlySite + '"]');
+          if (row) row.outerHTML = _captchaRowHtml(list[0]);
+        } else {
+          _renderCaptchaRows(list);
+        }
+        return list;
+      });
+    }
+
+    function _doLogin(username, password) {
+      var sites = _credsTargetSites();
+      var box = document.getElementById('pingykjCaptchaRows');
+      return Promise.all(sites.map(function (s) {
+        var input = box.querySelector('input[data-captcha-site="' + s + '"]');
+        var captcha = input ? input.value.trim() : '';
+        var pend = window._pendingCaptchas[s] || {};
+        var res = box.querySelector('[data-captcha-result="' + s + '"]');
+        if (res) { res.textContent = '登录中…'; res.className = 'text-[11px] mt-1 text-slate-400'; }
+        return fetch('/api/scraper/login?site=' + encodeURIComponent(s), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: username, password: password,
+                                 captcha: captcha, check_key: pend.check_key || '' })
+        }).then(function (r) { return r.json().then(function (d) { return { d: d }; }); })
+          .then(function (r) {
+            var ok = !!(r.d && r.d.status === 'ok');
+            if (res) {
+              res.textContent = ok ? '✅ 登录成功' : ('❌ ' + ((r.d && r.d.message) || '登录失败'));
+              res.className = 'text-[11px] mt-1 ' + (ok ? 'text-emerald-600' : 'text-red-500');
+            }
+            return { site: s, ok: ok };
+          })
+          .catch(function () {
+            if (res) { res.textContent = '❌ 请求失败'; res.className = 'text-[11px] mt-1 text-red-500'; }
+            return { site: s, ok: false };
+          });
+      })).then(function (results) {
+        var anyOk = results.some(function (r) { return r.ok; });
+        if (anyOk) {
+          // 任一站成功即保存凭据（选「通用」时 site 传空 → 存通用凭据）
+          return fetch('/api/auth/pingykj-credentials', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pingykj_username: username, pingykj_password: password,
+                                   site: credsSite() })
+          }).then(function () { return anyOk; });
+        }
+        return anyOk;
+      });
+    }
 
     function resetPingykjCaptchaUI() {
-      document.getElementById('pingykjCaptchaRow').classList.add('hidden');
-      document.getElementById('pingykjCaptchaImg').style.display = 'none';
-      document.getElementById('pingykjCaptchaInput').style.display = 'none';
-      document.getElementById('btnPingykjRefreshCaptcha').classList.add('hidden');
-      document.getElementById('btnPingykjGetCaptcha').classList.remove('hidden');
+      document.getElementById('pingykjCaptchaRows').innerHTML = '';
       document.getElementById('btnPingykjCredsSave').classList.add('hidden');
-      document.getElementById('pingykjCaptchaInput').value = '';
-      _pingykjCheckKey = '';
+      window._pendingCaptchas = {};
     }
 
     document.getElementById('btnPingykjCreds').addEventListener('click', function() {
@@ -5147,7 +5240,7 @@
       resetPingykjCaptchaUI();
     });
 
-    // 获取验证码
+    // 获取验证码（按「作用于」逐站取码并渲染 N 行）
     document.getElementById('btnPingykjGetCaptcha').addEventListener('click', function() {
       var username = document.getElementById('pingykjUserInput').value.trim();
       var password = document.getElementById('pingykjPassInput').value;
@@ -5157,121 +5250,59 @@
       var btn = this;
       btn.disabled = true;
       btn.textContent = '获取中...';
-      var captchaUrl = '/api/scraper/captcha?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password) + siteQS();
-      fetch(captchaUrl).then(function(r) {
-        return r.json().then(function(d) { return {status: r.status, data: d}; });
-      }).then(function(r) {
-        if (r.status === 200 && r.data.image) {
-          _pingykjCheckKey = r.data.check_key;
-          document.getElementById('pingykjCaptchaImg').src = r.data.image;
-          document.getElementById('pingykjCaptchaImg').style.display = '';
-          document.getElementById('pingykjCaptchaInput').style.display = '';
-          document.getElementById('pingykjCaptchaInput').value = '';
-          document.getElementById('btnPingykjRefreshCaptcha').classList.remove('hidden');
-          document.getElementById('pingykjCaptchaRow').classList.remove('hidden');
-          document.getElementById('btnPingykjCredsSave').classList.remove('hidden');
-          btn.classList.add('hidden');
-          btn.textContent = '获取验证码';
-        } else {
-          var errMsg = r.data.detail || r.data.message || '获取验证码失败';
-          var msg = document.getElementById('pingykjCredsMsg');
-          msg.textContent = errMsg;
-          msg.className = 'text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600';
-          msg.classList.remove('hidden');
-          btn.textContent = '获取验证码';
-        }
-      }).catch(function(e) {
-        var msg = document.getElementById('pingykjCredsMsg');
-        msg.textContent = '网络错误: ' + (e.message || e);
-        msg.className = 'text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600';
-        msg.classList.remove('hidden');
-        btn.textContent = '获取验证码';
-      }).finally(function() {
+      document.getElementById('btnPingykjCredsSave').classList.remove('hidden');
+      _fetchCaptchas(username, password).finally(function() {
         btn.disabled = false;
+        btn.textContent = '获取验证码';
       });
     });
 
-    // 刷新验证码
-    document.getElementById('btnPingykjRefreshCaptcha').addEventListener('click', function() {
-      var s = credsSite();
-      fetch('/api/scraper/captcha' + (s ? ('?site=' + encodeURIComponent(s)) : '')).then(function(r) { return r.json(); }).then(function(d) {
-        if (d.image) {
-          _pingykjCheckKey = d.check_key;
-          document.getElementById('pingykjCaptchaImg').src = d.image;
-          document.getElementById('pingykjCaptchaInput').value = '';
-        }
-      }).catch(function() {});
-    });
-    // 点击验证码图片刷新
-    document.getElementById('pingykjCaptchaImg').addEventListener('click', function() {
-      document.getElementById('btnPingykjRefreshCaptcha').click();
+    // 行内「刷新」/点图刷新：只刷该站（事件委托）
+    document.getElementById('pingykjCaptchaRows').addEventListener('click', function(e) {
+      var el = e.target.closest('[data-captcha-refresh]');
+      if (!el) return;
+      _fetchCaptchas(document.getElementById('pingykjUserInput').value.trim(),
+                     document.getElementById('pingykjPassInput').value,
+                     el.getAttribute('data-captcha-refresh'));
     });
 
-    // 登录验证并保存凭据
+    // 登录验证（逐站）并保存凭据
     document.getElementById('btnPingykjCredsSave').addEventListener('click', function() {
       var username = document.getElementById('pingykjUserInput').value.trim();
       var password = document.getElementById('pingykjPassInput').value;
-      var captcha = document.getElementById('pingykjCaptchaInput').value.trim();
-      if (!captcha) { alert('请输入验证码'); return; }
+      if (!username) { alert('请输入书城账号'); return; }
+      if (!password) { alert('请输入书城密码'); return; }
 
       var btn = this;
       btn.disabled = true;
       btn.textContent = '登录中...';
       var msg = document.getElementById('pingykjCredsMsg');
+      var u = username, p = password;
 
-      // 用直接凭据尝试登录（/api/scraper/login 的 site 是 query 参数，不在 applySiteParam 白名单，必须显式带）
-      var site = credsSite();
-      fetch('/api/scraper/login' + (site ? ('?site=' + encodeURIComponent(site)) : ''), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: username,
-          password: password,
-          captcha: captcha,
-          check_key: _pingykjCheckKey
-        })
-      }).then(function(r) { return r.json(); })
-        .then(function(d) {
-          if (d.status === 'ok') {
-            // 登录成功，保存凭据
-            return fetch('/api/auth/pingykj-credentials', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ pingykj_username: username, pingykj_password: password, site: site })
-            }).then(function(r) { return r.json().then(function(d2) { return {status: r.status, data: d2, loginOk: true}; }); });
-          } else {
-            return {status: 400, data: d, loginOk: false};
-          }
-        }).then(function(r) {
-          if (r.loginOk && r.status === 200) {
-            msg.textContent = '登录验证成功！凭据已保存。';
-            msg.className = 'text-xs rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700';
-            msg.classList.remove('hidden');
-            setTimeout(function() {
-              document.getElementById('pingykjCredsModal').hidden = true;
-              resetPingykjCaptchaUI();
-              checkDashboardSession();
-            }, 1500);
-          } else if (r.loginOk) {
-            msg.textContent = '凭据已保存，但验证失败: ' + (r.data.detail || r.data.message || '');
-            msg.className = 'text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600';
-            msg.classList.remove('hidden');
-          } else {
-            var errMsg = r.data.message || r.data.detail || '登录失败';
-            msg.textContent = errMsg;
-            msg.className = 'text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600';
-            msg.classList.remove('hidden');
-            // 刷新验证码
-            document.getElementById('btnPingykjRefreshCaptcha').click();
-          }
-        }).catch(function() {
-          msg.textContent = '网络错误';
+      _doLogin(u, p).then(function(anyOk) {
+        if (anyOk) {
+          msg.textContent = '登录验证成功！凭据已保存。';
+          msg.className = 'text-xs rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700';
+          msg.classList.remove('hidden');
+          setTimeout(function() {
+            document.getElementById('pingykjCredsModal').hidden = true;
+            resetPingykjCaptchaUI();
+            checkDashboardSession();
+          }, 1500);
+        } else {
+          msg.textContent = '各站点登录均失败，请检查账号密码或验证码';
           msg.className = 'text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600';
           msg.classList.remove('hidden');
-        }).finally(function() {
-          btn.disabled = false;
-          btn.textContent = '登录验证';
-        });
+          _fetchCaptchas(u, p);   // 刷新验证码，便于重试
+        }
+      }).catch(function() {
+        msg.textContent = '网络错误';
+        msg.className = 'text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600';
+        msg.classList.remove('hidden');
+      }).finally(function() {
+        btn.disabled = false;
+        btn.textContent = '登录验证';
+      });
     });
 
     function loadDashboardAccounts() {
