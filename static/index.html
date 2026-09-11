@@ -207,6 +207,14 @@
         </div>
         <h2 id="pageTitle" class="text-base font-bold text-slate-800 tracking-tight">生产中心</h2>
       </div>
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] text-slate-400">站点</span>
+        <select id="siteSelect" class="rounded-lg border border-slate-200 px-2 py-1 text-[12px] bg-white">
+          <option value="">合计</option>
+          <option value="a">A站</option>
+          <option value="b">B站</option>
+        </select>
+      </div>
     </header>
 
     <!-- Stats 卡片 -->
@@ -1623,6 +1631,50 @@
     var currentUser = null;
     try { currentUser = JSON.parse(localStorage.getItem('current_user') || 'null'); } catch(e) { currentUser = null; }
 
+    // ====== 站点切换（合计 / A / B）======
+    // ponytail: 前端硬编码 a/b 两个站点 key，与后端默认站点配置一致；服务器上改 key 需同步改这里
+    window.currentSite = localStorage.getItem('current_site') || '';   // '' = 合计
+    function siteParam() { return window.currentSite || ''; }
+
+    // 给看板/小说接口的 GET URL 拼上 site 参数（空值=合计，不拼）
+    function applySiteParam(url) {
+      var s = siteParam();
+      if (!s || typeof url !== 'string') return url;
+      if (!/^\/api\/(dashboard|novels)\//.test(url)) return url;
+      return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'site=' + encodeURIComponent(s);
+    }
+    window.isAggregate = function () { return !window.currentSite; };
+
+    // 合计模式下只读的写操作按钮（真实 id，已逐个核对）
+    var _siteRoButtons = ['btnSyncData', 'btnFullSync', 'btnEditAlias', 'aliasModalSave',
+                          'aliasBatchDelete', 'novelMgrSyncFullBtn', 'novelMgrSyncAllBtn'];
+    function applyAggregateReadOnly() {
+      var ro = window.isAggregate();
+      var msg = '合计模式下只读，请先切换到具体站点';
+      _siteRoButtons.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (el.dataset.siteRoTitle === undefined) el.dataset.siteRoTitle = el.title || '';
+        el.disabled = ro;
+        el.title = ro ? msg : (el.dataset.siteRoTitle || '');
+        el.style.opacity = ro ? '0.45' : '';
+        el.style.cursor = ro ? 'not-allowed' : '';
+      });
+    }
+
+    document.getElementById('siteSelect').addEventListener('change', function () {
+      window.currentSite = this.value;
+      localStorage.setItem('current_site', this.value);
+      applyAggregateReadOnly();
+      // 刷新当前 tab 的数据
+      if (currentTab === 'dashboard') { refreshDashboard(); }
+      else if (currentTab === 'novel-mgr') { loadNovelBooks(1); }
+    });
+
+    // 初始化：回填下拉 + 套用只读状态
+    document.getElementById('siteSelect').value = window.currentSite;
+    applyAggregateReadOnly();
+
     // 全局 fetch 拦截器 - 自动注入 auth header
     var _justLoggedIn = false;
     var _justLoggedInTimer = null;
@@ -1638,6 +1690,10 @@
           } else if (options.headers instanceof Headers) {
             options.headers.set('Authorization', 'Bearer ' + token);
           }
+        }
+        // 只给 GET 拼 site（写操作在合计模式下由 applyAggregateReadOnly 禁用）
+        if (typeof applySiteParam === 'function' && (!options.method || String(options.method).toUpperCase() === 'GET')) {
+          url = applySiteParam(url);
         }
         return origFetch.call(window, url, options).then(function(resp) {
           if (resp.status === 401 && !_justLoggedIn && !url.toString().includes('/api/auth/')) {
