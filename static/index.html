@@ -1636,7 +1636,7 @@
     window.currentSite = localStorage.getItem('current_site') || '';   // '' = 合计
     function siteParam() { return window.currentSite || ''; }
 
-    // 给看板/小说接口的 GET URL 拼上 site 参数（空值=合计，不拼）
+    // 给看板/小说接口的 URL 拼上 site 参数（不分方法；空值=合计，原样返回）
     function applySiteParam(url) {
       var s = siteParam();
       if (!s || typeof url !== 'string') return url;
@@ -1691,8 +1691,8 @@
             options.headers.set('Authorization', 'Bearer ' + token);
           }
         }
-        // 只给 GET 拼 site（写操作在合计模式下由 applyAggregateReadOnly 禁用）
-        if (typeof applySiteParam === 'function' && (!options.method || String(options.method).toUpperCase() === 'GET')) {
+        // 白名单路由（dashboard/novels）不分方法一律拼 site；合计模式下 siteParam() 为空 → 原样返回
+        if (typeof applySiteParam === 'function') {
           url = applySiteParam(url);
         }
         return origFetch.call(window, url, options).then(function(resp) {
