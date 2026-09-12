@@ -773,6 +773,43 @@ def _pick_random_music() -> Optional[Path]:
     return MUSIC_PATH / random.choice(files) if files else None
 
 
+def _encode_frames_to_mp4(frame_iter, out_path: Path, size: Tuple[int, int], fps: int) -> None:
+    """把帧**流式**喂给 ffmpeg 编码成 mp4 —— 边生成边写管道，峰值内存只有一帧。
+
+    别再把帧攒进 list 交给 moviepy：1080x1920 一帧就是 6.2MB，15 秒 @30fps 加头尾
+    有 600+ 帧，光那个 list 就 3~4GB —— 4G 内存的服务器会被内核 OOM 连整个服务一起
+    杀掉，网页报 502。这里恒定内存，且顺带省掉 moviepy 的开销。
+    """
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    w, h = size
+    cmd = [
+        ffmpeg, "-y",
+        "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{w}x{h}", "-r", str(fps), "-i", "-",
+        "-an", "-c:v", "libx264", "-preset", "veryfast",
+        # 4 核机器上别让 x264 把核占满：uvicorn 抢不到 CPU 时 nginx 一样报 502
+        "-threads", "2",
+        "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+        str(out_path),
+    ]
+    proc = _subprocess.Popen(cmd, stdin=_subprocess.PIPE,
+                             stdout=_subprocess.DEVNULL, stderr=_subprocess.PIPE)
+    try:
+        for frame in frame_iter:
+            proc.stdin.write(np.ascontiguousarray(frame).tobytes())
+    except (BrokenPipeError, ValueError):
+        pass  # ffmpeg 提前退出（编码出错），返回码统一在下面报
+    finally:
+        try:
+            proc.stdin.close()
+        except Exception:
+            pass
+        err = proc.stderr.read()   # 阻塞到 ffmpeg 退出为止
+        proc.stderr.close()
+        proc.wait()
+    if proc.returncode != 0 or not out_path.exists():
+        raise RuntimeError(f"ffmpeg 编码失败: {err.decode(errors='replace')[-500:]}")
+
+
 def _merge_music_to_video(video_path: Path) -> None:
     """用 ffmpeg 将随机背景音乐合成到视频中（音量 30%，循环匹配视频时长）"""
     music_file = _pick_random_music()
@@ -985,6 +1022,11 @@ def resolve_three_panel_layout(layout: str = None) -> Tuple[str, str]:
 
 # --- 并发控制 / 进度跟踪 ---
 _EXECUTOR = ThreadPoolExecutor(max_workers=4)
+
+# 视频生成单独一个单线程池：同时只跑一个（其余排队）。
+# 一是它最吃 CPU/内存，跟图片生成挤同一个池会把内存翻倍；
+# 二是 ffmpeg 编码期间占满核，pool 里的其它任务也会被拖住。
+_VIDEO_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="video")
 _BATCH_CANCEL_EVENTS: Dict[int, threading.Event] = {}
 _BATCH_CANCEL_LOCK = threading.Lock()
 _BATCH_PROGRESS: Dict[int, dict] = {}
@@ -2519,7 +2561,6 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
                 y_start, y_end = int(ov_h / 2), ov_h - text_h - 30
                 valid_words = len([w for w in body.video_text.split() if w.strip()])
                 duration = max(3.0, (valid_words / wpm) * 60)
-                frames = []
                 scroll_frames = max(1, int(duration * fps))
                 y_offsets = np.linspace(y_start, y_end, scroll_frames)
 
@@ -2531,30 +2572,28 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
                     rgb = out.convert("RGB")
                     return np.asarray(rgb, dtype=np.uint8)
 
-                start_img = make_frame(y_start)
-                for _ in range(fps * 2):
-                    if _is_batch_cancelled(batch_id):
-                        break
-                    frames.append(start_img)
-                for y in y_offsets:
-                    if _is_batch_cancelled(batch_id):
-                        break
-                    frames.append(make_frame(y))
-                end_img = make_frame(y_end)
-                for _ in range(fps * 3):
-                    if _is_batch_cancelled(batch_id):
-                        break
-                    frames.append(end_img)
+                def frame_stream():
+                    """逐帧产出，不在内存里攒整个视频（见 _encode_frames_to_mp4）"""
+                    start_img = make_frame(y_start)
+                    for _ in range(fps * 2):
+                        if _is_batch_cancelled(batch_id):
+                            return
+                        yield start_img
+                    for y in y_offsets:
+                        if _is_batch_cancelled(batch_id):
+                            return
+                        yield make_frame(y)
+                    end_img = make_frame(y_end)
+                    for _ in range(fps * 3):
+                        if _is_batch_cancelled(batch_id):
+                            return
+                        yield end_img
 
-                if not _is_batch_cancelled(batch_id) and frames:
+                if not _is_batch_cancelled(batch_id):
                     suffix = f"-{vid_idx + 1}" if len(video_source_paths) > 1 else ""
                     v_name = f"{batch_id}-scroll-video{suffix}.mp4"
                     v_path = batch_dir / v_name
-                    clip = ImageSequenceClip(frames, fps=fps)
-                    try:
-                        clip.write_videofile(str(v_path), fps=fps, codec="libx264", audio=False)
-                    finally:
-                        clip.close()
+                    _encode_frames_to_mp4(frame_stream(), v_path, (W, H), fps)
                     _merge_music_to_video(v_path)
                     scroll_video_urls.append(f"/static/output/{batch_id}/{v_name}")
             except Exception as e:
@@ -2608,7 +2647,6 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
                     y_start, y_end = int(ov_h / 2), ov_h - text_h - 30
                     valid_words = len([w for w in script_text.split() if w.strip()])
                     duration = max(3.0, (valid_words / wpm) * 60)
-                    frames = []
                     scroll_frames = max(1, int(duration * fps))
                     y_offsets = np.linspace(y_start, y_end, scroll_frames)
 
@@ -2619,30 +2657,28 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
                         out.paste(box, (ov_x, ov_y), box)
                         return np.asarray(out.convert("RGB"), dtype=np.uint8)
 
-                    start_img = make_frame_ai(y_start)
-                    for _ in range(fps * 2):
-                        if _is_batch_cancelled(batch_id):
-                            break
-                        frames.append(start_img)
-                    for y in y_offsets:
-                        if _is_batch_cancelled(batch_id):
-                            break
-                        frames.append(make_frame_ai(y))
-                    end_img = make_frame_ai(y_end)
-                    for _ in range(fps * 3):
-                        if _is_batch_cancelled(batch_id):
-                            break
-                        frames.append(end_img)
+                    def frame_stream_ai():
+                        """逐帧产出，不在内存里攒整个视频（见 _encode_frames_to_mp4）"""
+                        start_img = make_frame_ai(y_start)
+                        for _ in range(fps * 2):
+                            if _is_batch_cancelled(batch_id):
+                                return
+                            yield start_img
+                        for y in y_offsets:
+                            if _is_batch_cancelled(batch_id):
+                                return
+                            yield make_frame_ai(y)
+                        end_img = make_frame_ai(y_end)
+                        for _ in range(fps * 3):
+                            if _is_batch_cancelled(batch_id):
+                                return
+                            yield end_img
 
-                    if not _is_batch_cancelled(batch_id) and frames:
+                    if not _is_batch_cancelled(batch_id):
                         suffix = f"-{vid_idx + 1}" if len(ai_scroll_pngs) > 1 else ""
                         v_name = f"{batch_id}-ai-scroll{suffix}.mp4"
                         v_path = batch_dir / v_name
-                        clip = ImageSequenceClip(frames, fps=fps)
-                        try:
-                            clip.write_videofile(str(v_path), fps=fps, codec="libx264", audio=False)
-                        finally:
-                            clip.close()
+                        _encode_frames_to_mp4(frame_stream_ai(), v_path, (W, H), fps)
                         _merge_music_to_video(v_path)
                         ai_scroll_urls.append(f"/static/output/{batch_id}/{v_name}")
                 except Exception as e:
@@ -3080,7 +3116,7 @@ def api_video_generate(body: VideoGenerateRequest, user: dict = Depends(get_curr
             _finalize_video_meta(batch_id)
             _deregister_batch(batch_id)
 
-    _EXECUTOR.submit(_run)
+    _VIDEO_EXECUTOR.submit(_run)
     return {"status": "submitted", "batch_id": batch_id,
             "message": f"视频生成任务 #{batch_id} 已提交"}
 

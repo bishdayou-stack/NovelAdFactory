@@ -338,20 +338,42 @@ class VideoGeneratorAdapter:
 # ====== 步骤3：ffmpeg 拼接 ======
 
 def assemble_videos(video_paths: List[Path], out_path: Path) -> None:
-    """按顺序拼接多个 mp4（统一重编码，避免编码参数不一致导致 concat 失败）"""
+    """按顺序拼接多个 mp4（统一重编码，避免编码参数不一致导致 concat 失败）。
+
+    优先用 concat 解复用器：一次只读一个输入，内存恒定。原实现用 -filter_complex
+    concat，会把所有镜头**同时**解码进滤镜图，内存随镜头数线性涨 —— 4G 小机器上
+    容易被内核 OOM 连整个服务一起杀掉（网页 502）。镜头编码参数不一致时解复用器
+    会失败，那种情况回落到滤镜图写法。
+    """
     if not video_paths:
         raise ValueError("无视频可拼接")
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    # 4 核机器上别让 x264 把核占满，否则 uvicorn 抢不到 CPU，nginx 照样报 502
+    enc = ["-c:v", "libx264", "-preset", "veryfast", "-threads", "2", "-pix_fmt", "yuv420p"]
+
+    list_file = out_path.with_suffix(".concat.txt")
+    list_file.write_text(
+        "".join("file '{}'\n".format(str(p.resolve()).replace("'", "'\\''")) for p in video_paths),
+        encoding="utf-8")
+    try:
+        r = subprocess.run(
+            [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(list_file), *enc, str(out_path)],
+            capture_output=True, timeout=600)
+    finally:
+        list_file.unlink(missing_ok=True)
+    if r.returncode == 0 and out_path.exists():
+        return
+
+    # 回落：镜头参数不一致时解复用器拼不了，用滤镜图（内存换兼容性）
     args = [ffmpeg, "-y"]
     for p in video_paths:
         args += ["-i", str(p)]
     n = len(video_paths)
     fc = "".join(f"[{i}:v]" for i in range(n)) + f"concat=n={n}:v=1:a=0"
-    args += ["-filter_complex", fc, "-c:v", "libx264", "-preset", "veryfast",
-             "-pix_fmt", "yuv420p", str(out_path)]
-    r = subprocess.run(args, capture_output=True, timeout=600)
-    if r.returncode != 0 or not out_path.exists():
-        raise RuntimeError(f"ffmpeg 拼接失败: {r.stderr.decode(errors='replace')[-500:]}")
+    r2 = subprocess.run(args + ["-filter_complex", fc, *enc, str(out_path)],
+                        capture_output=True, timeout=600)
+    if r2.returncode != 0 or not out_path.exists():
+        raise RuntimeError(f"ffmpeg 拼接失败: {r2.stderr.decode(errors='replace')[-500:]}")
 
 
 # ====== 整体流程编排 ======
