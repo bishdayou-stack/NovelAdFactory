@@ -8275,6 +8275,7 @@
       // 保存元数据
       document.getElementById('hitRegisterModal').dataset.batchId = batchId;
       document.getElementById('hitRegisterModal').dataset.url = url;
+      document.getElementById('hitRegisterModal').dataset.isVideo = isVideo || 'n';
       document.getElementById('hitRegisterModal').dataset.prompt = prompt;
       document.getElementById('hitRegisterModal').dataset.label = label;
       document.getElementById('hitRegisterModal').dataset.novelId = novelId;
@@ -8308,7 +8309,8 @@
       var body = {
         batch_id: modal.dataset.batchId,
         image_url: modal.dataset.url,
-        video_url: '',
+        // 视频素材要留住视频地址，否则爆款素材库里看不出是视频、也播不了
+        video_url: modal.dataset.isVideo === 'y' ? modal.dataset.url : '',
         prompt: modal.dataset.prompt,
         label: modal.dataset.label,
         novel_id: modal.dataset.novelId,
@@ -8356,9 +8358,20 @@
           grid.innerHTML = '<div class="text-center text-slate-300 text-xs col-span-full py-12">暂无爆款素材，去素材浏览中登记吧</div>';
         } else {
           grid.innerHTML = data.map(function(h) {
-            var imgHtml = h.image_url
-              ? '<img src="' + h.image_url + '" class="w-full aspect-square object-cover rounded-t-xl cursor-pointer" loading="lazy" onclick="event.stopPropagation();openImagePreview(this);" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23e2e8f0%22 width=%22100%22 height=%22100%22/></svg>\'">'
-              : '<div class="w-full aspect-square bg-slate-200 rounded-t-xl flex items-center justify-center"><span class="text-slate-400 text-xs">无图</span></div>';
+            var imgHtml;
+            if (h.video_url) {
+              // 视频素材：直接放能播的视频（悬停播放），并明确标出是视频
+              imgHtml = '<div class="relative">' +
+                '<video src="' + h.video_url + '" class="w-full aspect-square object-cover rounded-t-xl cursor-pointer bg-black" muted loop playsinline preload="metadata"' +
+                ' onmouseenter="this.play()" onmouseleave="this.pause()"' +
+                ' onclick="event.stopPropagation();openVideoPreview(this.src)"></video>' +
+                '<span class="absolute top-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] text-white pointer-events-none">🎬 视频</span>' +
+                '</div>';
+            } else if (h.image_url) {
+              imgHtml = '<img src="' + h.image_url + '" class="w-full aspect-square object-cover rounded-t-xl cursor-pointer" loading="lazy" onclick="event.stopPropagation();openImagePreview(this);" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23e2e8f0%22 width=%22100%22 height=%22100%22/></svg>\'">';
+            } else {
+              imgHtml = '<div class="w-full aspect-square bg-slate-200 rounded-t-xl flex items-center justify-center"><span class="text-slate-400 text-xs">无图</span></div>';
+            }
             var stars = '';
             for (var s = 0; s < 5; s++) { stars += s < (h.score || 0) ? '★' : '☆'; }
             var roiColor = roiColorClass(h.roi, false);
