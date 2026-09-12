@@ -1977,7 +1977,12 @@ def pre_render_text(text, target_width, font_path, font_size, text_color, line_s
     return text_canvas
 
 
-def split_text_smartly(full_text: str, max_chars_per_line: int) -> List[str]:
+def split_text_smartly(full_text: str, max_chars_per_line: int, max_lines: int = 10) -> List[str]:
+    """按「每行最多 max_chars_per_line 个字符、最多 max_lines 行」把文案切成多屏。
+
+    max_lines 必须按实际图片高度和字号算（见 popup_line_capacity）—— 写死行数的话，
+    正方形的弹屏底图放不下，多出来的行会被裁掉。
+    """
     raw = " ".join((full_text or "").split())
     if not raw:
         return []
@@ -1988,7 +1993,7 @@ def split_text_smartly(full_text: str, max_chars_per_line: int) -> List[str]:
         test_chunk = (current_chunk + " " + sentence).strip() if current_chunk else sentence
         wrapped = textwrap.wrap(test_chunk, width=max_chars_per_line)
         line_count = len(wrapped)
-        if line_count > 10:
+        if line_count > max_lines:
             if current_chunk:
                 final_segments.append(current_chunk)
                 current_chunk = sentence
@@ -2000,6 +2005,39 @@ def split_text_smartly(full_text: str, max_chars_per_line: int) -> List[str]:
     if current_chunk:
         final_segments.append(current_chunk)
     return final_segments
+
+
+_POPUP_BOX_Y_RATIO = 0.6      # 弹屏文字区从图片高度的 60% 开始（create_popup_frame 里的 box_y）
+_POPUP_BOX_PAD_TOP = 30       # 文字相对文字区顶部的内边距
+
+
+def popup_line_capacity(img_h: int, font_size: int, line_spacing: int) -> int:
+    """这个图片高度/字号/行距下，弹屏文字区最多放得下几行。
+
+    正方形底图（1024x1024）文字区只有约 380px，字号 46 时只放得下 7 行 ——
+    原来切分文案写死 10 行，多出来的行会被图片下边缘裁掉，所以文字经常显示不全。
+    """
+    avail = img_h * (1 - _POPUP_BOX_Y_RATIO) - _POPUP_BOX_PAD_TOP
+    line_h = max(1, font_size + line_spacing)
+    return max(3, int(avail // line_h))
+
+
+def fit_popup_font_size(segments: List[str], img_w: int, img_h: int,
+                        base_size: int, line_spacing: int, char_spacing: int = 0,
+                        floor: int = 24) -> int:
+    """所有分屏都放得下时用的字号。
+
+    分段是按行数切的，但字号大、句子长时仍可能装不下；这时逐档缩字号（有下限，
+    别缩到看不清）。**整段视频用同一个字号**，否则每屏字大小不一样，看着很怪。
+    """
+    size = int(base_size)
+    while size > floor:
+        cap = popup_line_capacity(img_h, size, line_spacing)
+        chars = max(8, int((img_w * 0.85) / max((size * 0.5) + char_spacing, 1e-6)))
+        if all(len(textwrap.wrap(s, width=chars)) <= cap for s in segments):
+            return size
+        size = int(size * 0.9)
+    return floor
 
 
 def create_popup_frame(
@@ -2018,15 +2056,24 @@ def create_popup_frame(
     w, h = img.size
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw_ov = ImageDraw.Draw(overlay)
-    try:
-        font = ImageFont.truetype(font_path, font_size)
-    except Exception:
-        font = ImageFont.load_default()
-    effective_char_w = (font_size * 0.5) + char_spacing
-    max_chars_per_line = max(8, int((w * 0.85) / max(effective_char_w, 1e-6)))
-    wrapped_lines = textwrap.wrap(text, width=max_chars_per_line)
-    if not wrapped_lines:
-        wrapped_lines = [text[: max_chars_per_line * 3]]
+    def _load(size: int):
+        try:
+            return ImageFont.truetype(font_path, size)
+        except Exception:
+            return ImageFont.load_default()
+
+    def _wrap(size: int):
+        chars = max(8, int((w * 0.85) / max((size * 0.5) + char_spacing, 1e-6)))
+        lines = textwrap.wrap(text, width=chars)
+        return (lines or [text[: chars * 3]]), chars
+
+    # 兜底自适应：换行后仍超出文字区就缩字号，宁可小也不能被图片下边缘切掉
+    avail_h = h * (1 - _POPUP_BOX_Y_RATIO) - _POPUP_BOX_PAD_TOP
+    wrapped_lines, max_chars_per_line = _wrap(font_size)
+    while font_size > 24 and len(wrapped_lines) * (font_size + line_spacing) > avail_h:
+        font_size = int(font_size * 0.9)
+        wrapped_lines, max_chars_per_line = _wrap(font_size)
+    font = _load(font_size)
     line_h = font_size + line_spacing
     box_h = len(wrapped_lines) * line_h + 60
     box_y = h * 0.6
@@ -2088,16 +2135,23 @@ def create_popup_video_on_bg(
     effective_char_w = (f_size * 0.5) + char_spacing
     w0, _ = bg.size
     max_chars_per_line = max(8, int((w0 * 0.85) / max(effective_char_w, 1e-6)))
-    segments = split_text_smartly(text, max_chars_per_line)
+    _, h0 = bg.size
+    # 行数按实际图片高度算，别用写死的上限 —— 方形底图放不下那么多行，会被裁掉
+    segments = split_text_smartly(text, max_chars_per_line,
+                                  max_lines=popup_line_capacity(h0, f_size, line_spacing))
     if not segments:
         segments = textwrap.wrap(text, width=max_chars_per_line) or [text]
+    # 整段视频统一字号；分屏仍装不下就缩（见 fit_popup_font_size）
+    fitted_size = fit_popup_font_size(segments, w0, h0, f_size, line_spacing, char_spacing)
+    if fitted_size != f_size:
+        print(f"[弹屏] 文案偏长，字号 {f_size} → {fitted_size} 以适配 {w0}x{h0}")
     frames: List[np.ndarray] = []
     durations: List[float] = []
     for seg in segments:
         words = len(seg.split())
         sec = max(2.5, (words / wpm) * 60)
         frame_img = create_popup_frame(
-            seg, bg, font_path, f_size, t_hex, bar_hex, opacity, line_spacing, char_spacing, bg_type
+            seg, bg, font_path, fitted_size, t_hex, bar_hex, opacity, line_spacing, char_spacing, bg_type
         )
         frames.append(np.array(frame_img))
         durations.append(sec)
