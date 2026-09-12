@@ -278,6 +278,20 @@ def get_entity_statuses(act_id: str, access_token: str,
             "created_time": x.get("created_time", "")} for x in all_data]
     return out, None
 
+def get_story_video_id(ad_id: str, access_token: str) -> Tuple[str, Optional[str]]:
+    """广告创意里的 story 视频 id。返回 (id, err)。
+
+    只有这个 id 能换到可下载的 mp4 —— 创意上的 `video_id` 是页面视频，拿不到 source。
+    """
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{ad_id}"
+    data, err = _http_request("GET", url, params={
+        "access_token": access_token, "fields": "creative{object_story_spec{video_data{video_id}}}"})
+    if err:
+        return "", err
+    spec = ((data or {}).get("creative") or {}).get("object_story_spec") or {}
+    return ((spec.get("video_data") or {}).get("video_id") or ""), None
+
+
 def get_account_video_sources(act_id: str, access_token: str,
                               limit: int = 200) -> Tuple[Optional[Dict[str, str]], Optional[str]]:
     """账户下的视频 id → 可下载的 mp4 直链。返回 ({video_id: source_url}, err)。

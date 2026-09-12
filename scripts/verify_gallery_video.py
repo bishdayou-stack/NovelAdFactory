@@ -111,6 +111,26 @@ def main():
     assert r.status_code == 200 and r.json()["video_local"].endswith("ad_v3.mp4"), r.text
     assert (video_dir / "ad_v3.mp4").exists()
 
+    # 4.5) story_video_id 还没补上（同步没轮到这条）时，按需路径要当场去 Meta 取并回填，
+    #      不能直接报「没取到可下载的视频」让用户干等
+    database.upsert_meta_ad_creative({"ad_id": "ad_v4", "ad_account": ACT,
+                                      "video_id": "page_video_333"}, 1)
+    asked = []
+    meta_api.get_story_video_id = lambda ad_id, tk: (asked.append(ad_id), ("story_video_222", None))[1]
+    ok, msg = scraper.cache_story_video_now("ad_v4", 1)
+    assert ok, (ok, msg)
+    assert asked == ["ad_v4"], f"应就这条广告问一次 Meta: {asked}"
+    with database.get_conn() as conn:
+        r4 = conn.execute("SELECT story_video_id, video_id FROM meta_ad_creatives WHERE ad_id='ad_v4'").fetchone()
+    assert r4["story_video_id"] == "story_video_222", "取到的 id 要回填"
+    # 回填只准动那一列：用整条 upsert 会把 video_id 等字段冲成空
+    assert r4["video_id"] == "page_video_333", f"回填不该动其它字段: {dict(r4)}"
+    # 同步侧的提前返回也要被打破：还有没补的就不该直接 return
+    with database.get_conn() as conn:
+        conn.execute("UPDATE meta_ad_creatives SET story_video_id='' WHERE ad_id='ad_v4'")
+    assert database.count_creatives_missing_story_id(ACT, 1, ["ad_v4"]) == 1
+    assert database.count_creatives_missing_story_id(ACT, 1, ["ad_v1"]) == 0, "已补过的不该再算"
+
     # 5) 画廊返回 video_local
     import analytics
     with database.get_conn() as conn:

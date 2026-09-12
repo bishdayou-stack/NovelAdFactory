@@ -1441,7 +1441,9 @@ def _sync_meta_creatives(act_id: str, access_token: str, from_date: str, user_id
     cache_dir = Path(__file__).parent / "static" / "meta_creatives"
     cache_dir.mkdir(parents=True, exist_ok=True)
     missing = [aid for aid in ad_ids if not (cache_dir / f"{aid}.jpg").exists()]
-    if not missing:
+    # 还要看有没有「视频广告但没补 story_video_id」的：缩略图早就缓存满时只判 missing 会直接
+    # 返回，新加的字段就永远补不上（历史坑，视频下载全靠这个 id）
+    if not missing and not database.count_creatives_missing_story_id(act_id, user_id, list(ad_ids)):
         return len(ad_ids)
     ads, err = meta_api.get_ads_with_creative(act_id, access_token)
     if err or not ads:
@@ -1538,10 +1540,17 @@ def cache_story_video_now(ad_id: str, user_id: int) -> Tuple[bool, str]:
         return False, "找不到这条素材"
     if row["video_local_path"]:
         return True, "已在本地"
+    act_id = row["ad_account"] or ""
     vid = row["story_video_id"] or ""
     if not vid:
-        return False, "这条广告没取到可下载的视频（多半是页面视频，Meta 不开放下载）"
-    act_id = row["ad_account"] or ""
+        # story_video_id 要等同步才补；用户点按钮时当场取一次，别让人干等下一轮同步
+        for tk in _meta_tokens_for_account(act_id, user_id):
+            vid, _err = meta_api.get_story_video_id(ad_id, tk)
+            if vid:
+                database.set_creative_story_video_id(ad_id, row["user_id"], vid)
+                break
+    if not vid:
+        return False, "这条广告在 Meta 侧没有可下载的视频（多半是页面发的视频，Meta 不开放下载）"
     sources = _fetch_video_sources(act_id, user_id)
     src = sources.get(vid)
     if not src:

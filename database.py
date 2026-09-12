@@ -3037,11 +3037,41 @@ def upsert_meta_ad_stats(act_id: str, rows: List[Dict[str, Any]],
             count += 1
         return count
 
+def set_creative_story_video_id(ad_id: str, user_id: int, story_video_id: str) -> None:
+    """只补 story_video_id 这一列。
+
+    别用 upsert_meta_ad_creative 来做单字段回填 —— 那个是整条记录覆盖，
+    只传部分字段会把其它列（video_id / ad_name …）冲成空。
+    """
+    with get_conn() as conn:
+        conn.execute("UPDATE meta_ad_creatives SET story_video_id = ? WHERE ad_id = ? AND user_id = ?",
+                     (story_video_id, ad_id, user_id))
+
+
 def set_creative_video_local(ad_id: str, user_id: int, local_path: str) -> None:
     """记录广告视频的本地缓存路径（相对 static/）"""
     with get_conn() as conn:
         conn.execute("UPDATE meta_ad_creatives SET video_local_path = ? WHERE ad_id = ? AND user_id = ?",
                      (local_path, ad_id, user_id))
+
+
+def count_creatives_missing_story_id(act_id: str, user_id: int, ad_ids: List[str]) -> int:
+    """这批广告里还有多少条没补 story_video_id。
+
+    缩略图全缓存过时同步会提前返回，不查这个的话新字段永远补不上（历史坑）。
+    """
+    if not ad_ids:
+        return 0
+    n = 0
+    with get_conn() as conn:
+        for i in range(0, len(ad_ids), 500):
+            chunk = list(ad_ids)[i:i + 500]
+            ph = ",".join("?" * len(chunk))
+            n += conn.execute(
+                f"SELECT COUNT(*) FROM meta_ad_creatives WHERE ad_account = ? AND user_id = ? "
+                f"AND video_id != '' AND story_video_id = '' AND ad_id IN ({ph})",
+                [act_id, user_id] + chunk).fetchone()[0]
+    return n
 
 
 def get_creatives_pending_video(act_id: str, user_id: int) -> List[Dict[str, Any]]:
