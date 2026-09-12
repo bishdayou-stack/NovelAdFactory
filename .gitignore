@@ -13,6 +13,9 @@ output/
 static/meta_creatives/
 static/meta_videos/
 
+# 背景音乐目录（自己放的曲子可能有版权，别提交进仓库）
+音乐/
+
 # 开发工具
 .claude/
 .playwright-mcp/
