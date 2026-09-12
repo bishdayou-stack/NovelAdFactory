@@ -7898,9 +7898,17 @@
           _galItems[a.ad_id] = a;
           var roiColor = roiColorClass(a.roi, true);
           var media;
-          if (a.video_url) {
-            media = '<video src="' + a.video_url + '" poster="' + (a.thumb || '') + '" class="w-full h-full object-cover" muted loop playsinline preload="metadata" onmouseenter="this.play()" onmouseleave="this.pause()"></video>' +
-                    '<span class="absolute top-1.5 right-1.5 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">🎬 视频</span>';
+          if (a.video_local) {
+            // 已缓存到本地：直接播本地文件，完全不访问 Facebook
+            media = '<video src="' + a.video_local + '" poster="' + (a.thumb || '') + '" class="w-full h-full object-cover bg-black" muted loop playsinline preload="metadata" onmouseenter="this.play()" onmouseleave="this.pause()" onclick="openVideoPreview(this.src)"></video>' +
+                    '<span class="absolute top-1.5 right-1.5 bg-emerald-600/80 text-white text-[9px] px-1.5 py-0.5 rounded">🎬 本地视频</span>';
+          } else if (a.video_id) {
+            // 是视频但还没下到本地：显示缩略图 + 缓存按钮（点了才访问 Facebook 一次）
+            media = (a.thumb
+                      ? '<img src="' + a.thumb + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'<div class=&quot;flex items-center justify-center h-full text-slate-600 text-xs&quot;>无图</div>\'">'
+                      : '<div class="flex items-center justify-center h-full text-slate-600 text-xs">🎬 视频</div>') +
+                    '<span class="absolute top-1.5 right-1.5 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">🎬 视频</span>' +
+                    '<button class="absolute bottom-1.5 right-1.5 rounded bg-indigo-600/90 text-white text-[9px] px-1.5 py-0.5 border-0 cursor-pointer hover:bg-indigo-500 gal-cache-btn" onclick="galleryCacheVideo(this.getAttribute(\'data-ad\'), this)" data-ad="' + a.ad_id + '">⤓ 缓存到本地</button>';
           } else if (a.thumb) {
             media = '<img src="' + a.thumb + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'<div class=&quot;flex items-center justify-center h-full text-slate-600 text-xs&quot;>无图</div>\'">' +
                     (a.video_id ? '<span class="absolute top-1.5 right-1.5 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">🎬 视频</span>' : '');
@@ -7955,6 +7963,28 @@
         }
         document.getElementById('galPager').innerHTML = pager;
       }).catch(function() { grid.innerHTML = '<div class="col-span-full text-red-400 text-center py-10">加载失败</div>'; });
+    }
+
+    // 素材画廊 → 把视频广告下到本地（下过之后画廊播本地文件，不再访问 Facebook）
+    function galleryCacheVideo(adId, btn) {
+      if (!adId || btn.disabled) return;
+      btn.disabled = true;
+      var old = btn.textContent;
+      btn.textContent = '缓存中...';
+      fetch('/api/meta/gallery/cache-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ad_id: adId })
+      }).then(function(r) {
+        return r.json().then(function(d) { return { ok: r.ok, d: d }; });
+      }).then(function(res) {
+        if (!res.ok) throw new Error(res.d.detail || '缓存失败');
+        galleryLoad();   // 重渲染：这张卡片会变成可播放的本地视频
+      }).catch(function(e) {
+        btn.disabled = false;
+        btn.textContent = old;
+        alert('缓存失败: ' + e.message);
+      });
     }
 
     // 素材画廊 → 一键推送/取消（全员共享爆款库）

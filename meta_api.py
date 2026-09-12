@@ -206,7 +206,8 @@ def get_ads_with_creative(act_id: str, access_token: str,
     data, err = _http_request("GET", url, params={
         "access_token": access_token,
         "fields": "id,name,adset_id,campaign_id,"
-                  "creative{id,thumbnail_url.width(600).height(600),image_url,video_id}",
+                  "creative{id,thumbnail_url.width(600).height(600),image_url,video_id,"
+                  "object_story_spec{video_data{video_id}}}",
         "limit": str(limit),
     })
     if err:
@@ -276,6 +277,36 @@ def get_entity_statuses(act_id: str, access_token: str,
             "parent_id": parent_from(x),
             "created_time": x.get("created_time", "")} for x in all_data]
     return out, None
+
+def get_account_video_sources(act_id: str, access_token: str,
+                              limit: int = 200) -> Tuple[Optional[Dict[str, str]], Optional[str]]:
+    """账户下的视频 id → 可下载的 mp4 直链。返回 ({video_id: source_url}, err)。
+
+    **不能用 `/{video_id}?fields=source`** —— 广告视频一律返回 (#10) 无权限。
+    账户的 advideos 边有权限，能列出自有视频的 source；直链不带 token 就能下。
+    """
+    _check_rate(act_id)
+    url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/advideos"
+    data, err = _http_request("GET", url, params={
+        "access_token": access_token, "fields": "id,title,length,source", "limit": str(limit)})
+    if err:
+        return None, err
+    out: Dict[str, str] = {}
+    pages = 0
+    while data and pages < 20:
+        for v in data.get("data", []):
+            if v.get("id") and v.get("source"):
+                out[v["id"]] = v["source"]
+        nxt = (data.get("paging") or {}).get("next")
+        if not nxt:
+            break
+        _check_rate(act_id)
+        data, err = _http_request("GET", nxt)
+        if err:
+            break
+        pages += 1
+    return out, None
+
 
 def download_file(url: str, dest_path: str, timeout: int = 30) -> Tuple[bool, Optional[str]]:
     """用 curl 下载文件到本地（代理感知）。返回 (成功, 错误)。"""

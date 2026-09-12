@@ -635,6 +635,15 @@ def init_db() -> None:
             )
         """)
 
+        # meta_ad_creatives 补列：story 视频 id（唯一能换到可下载 mp4 的 id）与本地视频路径
+        cols_cre = {r[1] for r in conn.execute("PRAGMA table_info(meta_ad_creatives)").fetchall()}
+        for col in ("story_video_id", "video_local_path"):
+            if col not in cols_cre:
+                try:
+                    conn.execute(f"ALTER TABLE meta_ad_creatives ADD COLUMN {col} TEXT DEFAULT ''")
+                except Exception:
+                    pass
+
         # 确保基础表存在（幂等）
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS ad_daily_stats (
@@ -716,6 +725,8 @@ def init_db() -> None:
                 local_path TEXT,
                 user_id INTEGER DEFAULT 1,
                 synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                story_video_id TEXT DEFAULT '',
+                video_local_path TEXT DEFAULT '',
                 UNIQUE(ad_id, user_id)
             );
 
@@ -3026,6 +3037,24 @@ def upsert_meta_ad_stats(act_id: str, rows: List[Dict[str, Any]],
             count += 1
         return count
 
+def set_creative_video_local(ad_id: str, user_id: int, local_path: str) -> None:
+    """记录广告视频的本地缓存路径（相对 static/）"""
+    with get_conn() as conn:
+        conn.execute("UPDATE meta_ad_creatives SET video_local_path = ? WHERE ad_id = ? AND user_id = ?",
+                     (local_path, ad_id, user_id))
+
+
+def get_creatives_pending_video(act_id: str, user_id: int) -> List[Dict[str, Any]]:
+    """某账户下「有 story 视频 id、但还没下到本地」的创意（只取画廊会展示的那些 ad_id）"""
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT c.ad_id, c.story_video_id FROM meta_ad_creatives c
+            WHERE c.ad_account = ? AND c.user_id = ?
+              AND c.story_video_id != '' AND c.video_local_path = ''
+        """, (act_id, user_id)).fetchall()
+    return [dict(r) for r in rows]
+
+
 def upsert_meta_ad_creative(rec: Dict[str, Any], user_id: int = None) -> None:
     """写入/更新单条广告素材记录（按 ad_id 唯一）。local_path 为空时不覆盖已有缓存路径。"""
     uid = user_id or 1
@@ -3035,8 +3064,9 @@ def upsert_meta_ad_creative(rec: Dict[str, Any], user_id: int = None) -> None:
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO meta_ad_creatives (ad_id, ad_account, ad_name, adset_id, campaign_id,
-                thumbnail_url, image_url, video_id, video_url, local_path, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                thumbnail_url, image_url, video_id, video_url, local_path, user_id,
+                story_video_id, video_local_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(ad_id, user_id) DO UPDATE SET
                 ad_account=excluded.ad_account, ad_name=excluded.ad_name,
                 adset_id=excluded.adset_id, campaign_id=excluded.campaign_id,
@@ -3044,6 +3074,8 @@ def upsert_meta_ad_creative(rec: Dict[str, Any], user_id: int = None) -> None:
                 video_id=excluded.video_id,
                 video_url=COALESCE(NULLIF(excluded.video_url, ''), meta_ad_creatives.video_url),
                 local_path=COALESCE(NULLIF(excluded.local_path, ''), meta_ad_creatives.local_path),
+                story_video_id=COALESCE(NULLIF(excluded.story_video_id, ''), meta_ad_creatives.story_video_id),
+                video_local_path=COALESCE(NULLIF(excluded.video_local_path, ''), meta_ad_creatives.video_local_path),
                 synced_at=CURRENT_TIMESTAMP
         """, (
             ad_id, rec.get("ad_account", ""), rec.get("ad_name", ""),
@@ -3051,6 +3083,7 @@ def upsert_meta_ad_creative(rec: Dict[str, Any], user_id: int = None) -> None:
             rec.get("thumbnail_url", ""), rec.get("image_url", ""),
             rec.get("video_id", ""), rec.get("video_url", ""),
             rec.get("local_path", ""), uid,
+            rec.get("story_video_id", ""), rec.get("video_local_path", ""),
         ))
 
 def upsert_meta_entity_statuses(level: str, rows: List[Dict[str, Any]],

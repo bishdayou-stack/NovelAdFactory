@@ -978,6 +978,7 @@ def meta_creative_gallery(account: str = None, start_date: str = None, end_date:
                 COALESCE(SUM(s.purchase_value),0) AS purchase_value,
                 MAX(c.local_path) AS local_path, MAX(c.thumbnail_url) AS thumbnail_url,
                 MAX(c.video_id) AS video_id, MAX(c.video_url) AS video_url,
+                MAX(c.video_local_path) AS video_local_path,
                 MAX(hm.hit_id) AS hit_id, s.user_id AS hit_owner
             {base}
             ORDER BY {sort_col} DESC
@@ -995,6 +996,8 @@ def meta_creative_gallery(account: str = None, start_date: str = None, end_date:
             m["account_id"] = r["ad_account"]
             m["account_name"] = r["account_name"] or r["ad_account"] or ""
             m["thumb"] = ("/static/" + r["local_path"]) if r["local_path"] else (r["thumbnail_url"] or "")
+            # 本地缓存过的视频直接播本地文件，不再访问 Facebook
+            m["video_local"] = ("/static/" + r["video_local_path"]) if r["video_local_path"] else ""
             m["video_id"] = r["video_id"] or ""
             m["video_url"] = r["video_url"] or ""
             m["hit_id"] = r["hit_id"]

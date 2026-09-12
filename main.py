@@ -6874,6 +6874,27 @@ def _meta_gallery(account: str = Query(default=None), start: str = Query(default
                                            sort=sort, page=page, page_size=page_size, user_id=uid)
 
 
+@app.post("/api/meta/gallery/cache-video")
+def api_cache_gallery_video(body: Dict[str, Any], user: dict = Depends(get_current_user)):
+    """按需把某个广告的视频下载到本地。之后画廊播本地文件，不再访问 Facebook。"""
+    ad_id = str(body.get("ad_id") or "").strip()
+    if not ad_id:
+        raise HTTPException(status_code=400, detail="缺少 ad_id")
+    with database.get_conn() as conn:
+        row = conn.execute("SELECT user_id FROM meta_ad_creatives WHERE ad_id = ?",
+                           (ad_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="找不到这条素材")
+    uid = _opt_user_id(user)
+    if uid is not None and row["user_id"] != uid:
+        raise HTTPException(status_code=403, detail="只能缓存自己账号下的素材")
+    ok, msg = scraper.cache_story_video_now(ad_id, row["user_id"])
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg,
+            "video_local": f"/static/meta_videos/{ad_id}.mp4"}
+
+
 @app.get("/api/meta/gallery/retention")
 def api_gallery_retention(user: dict = Depends(get_current_user)):
     """画廊缩略图缓存的保留天数（默认 60，管理员可改）"""

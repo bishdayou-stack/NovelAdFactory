@@ -1310,6 +1310,7 @@ GALLERY_RETENTION_DEFAULT_DAYS = 60
 GALLERY_RETENTION_KEY = "gallery_retention_days"
 _GALLERY_CLEANUP_AT_KEY = "gallery_cleanup_at"
 _CREATIVE_CACHE_DIR = Path(__file__).parent / "static" / "meta_creatives"
+_CREATIVE_VIDEO_DIR = Path(__file__).parent / "static" / "meta_videos"
 _GALLERY_CLEANUP_MIN_INTERVAL = 86400  # 自动清理最多每天一次，别每次同步都扫盘
 
 
@@ -1338,6 +1339,7 @@ def cleanup_meta_creatives(days: int = None, dry_run: bool = True) -> Dict[str, 
     with database.get_conn() as conn:
         rows = conn.execute("""
             SELECT c.ad_id, c.user_id, MAX(c.local_path) AS local_path,
+                   MAX(c.video_local_path) AS video_local_path,
                    MAX(s.date) AS last_stat,
                    MAX(date(c.synced_at, '+8 hours')) AS cached_on
             FROM meta_ad_creatives c
@@ -1347,29 +1349,35 @@ def cleanup_meta_creatives(days: int = None, dry_run: bool = True) -> Dict[str, 
 
     stale = []
     targets: Dict[str, List[Tuple[str, int]]] = {}   # 文件 -> 引用它的记录（一张图可能多个用户共用）
-    cache_root = _CREATIVE_CACHE_DIR.resolve()
+    declared: set = set()   # 记录里明确写了路径的文件；只对这些统计「文件丢失」
+    # 缩略图和本地视频走同一套保留：过期的两种文件一起清，只敢删这两个目录里的
+    roots = {_CREATIVE_CACHE_DIR.resolve(): ".jpg", _CREATIVE_VIDEO_DIR.resolve(): ".mp4"}
     for r in rows:
         # 有统计数据的看最后统计日，没有的看缓存日
         if (r["last_stat"] or r["cached_on"] or "") >= cutoff:
             continue
         stale.append({"ad_id": r["ad_id"], "user_id": r["user_id"],
                       "last_stat": r["last_stat"] or "", "local_path": r["local_path"] or ""})
-        # 缓存文件名就是 <ad_id>.jpg，但优先按记录里的 local_path 定位（防止命名变过）
-        target = (_CREATIVE_CACHE_DIR.parent / r["local_path"]) if r["local_path"] \
-            else (_CREATIVE_CACHE_DIR / f"{r['ad_id']}.jpg")
-        try:
-            target = target.resolve()
-        except Exception:
-            continue
-        if target.parent != cache_root:      # 只敢删缓存目录里的文件
-            continue
-        targets.setdefault(str(target), []).append((r["ad_id"], r["user_id"]))
+        # 文件名就是 <ad_id>.jpg / <ad_id>.mp4，但优先按记录里的路径定位（防止命名变过）
+        for rel, root in ((r["local_path"], _CREATIVE_CACHE_DIR),
+                          (r["video_local_path"], _CREATIVE_VIDEO_DIR)):
+            target = (_CREATIVE_CACHE_DIR.parent / rel) if rel else (root / f"{r['ad_id']}{roots[root.resolve()]}")
+            try:
+                target = target.resolve()
+            except Exception:
+                continue
+            if target.parent not in roots:      # 只敢删缓存目录里的文件
+                continue
+            targets.setdefault(str(target), []).append((r["ad_id"], r["user_id"]))
+            if rel:
+                declared.add(str(target))       # 记录里声称有这个文件
 
     deleted_files, freed, missed = 0, 0.0, 0
     for path, refs in targets.items():
         target = Path(path)
         if not target.exists():
-            missed += 1
+            if path in declared:     # 没缓存过的（比如从没下过视频）不算丢失
+                missed += 1
             continue
         try:
             size = target.stat().st_size
@@ -1386,11 +1394,12 @@ def cleanup_meta_creatives(days: int = None, dry_run: bool = True) -> Dict[str, 
         freed += size / 1024 / 1024
 
     if not dry_run and stale:
-        # 只清 local_path：记录留着，画廊仍能显示这些广告的消耗
+        # 只清本地路径：记录留着，画廊仍能显示这些广告的消耗
         with database.get_conn() as conn:
             for s in stale:
                 conn.execute(
-                    "UPDATE meta_ad_creatives SET local_path = '' WHERE ad_id = ? AND user_id = ?",
+                    "UPDATE meta_ad_creatives SET local_path = '', video_local_path = '' "
+                    "WHERE ad_id = ? AND user_id = ?",
                     (s["ad_id"], s["user_id"]))
 
     return {
@@ -1464,13 +1473,126 @@ def _sync_meta_creatives(act_id: str, access_token: str, from_date: str, user_id
         if video_id and not image_url:
             src, _verr = meta_api.get_video_source(video_id, access_token)
             video_url = src or ""
+        # 真正能换到可下载 mp4 的是创意里的 story 视频 id（creative.video_id 是页面视频，
+        # 不在账户的 advideos 里）—— 详见 _cache_story_videos
+        story_vid = (((creative.get("object_story_spec") or {}).get("video_data") or {})
+                     .get("video_id")) or ""
         database.upsert_meta_ad_creative({
             "ad_id": ad_id, "ad_account": act_id, "ad_name": ad.get("name", ""),
             "adset_id": ad.get("adset_id", ""), "campaign_id": ad.get("campaign_id", ""),
             "thumbnail_url": thumb, "image_url": image_url, "video_id": video_id,
             "video_url": video_url, "local_path": local_rel,
+            "story_video_id": story_vid,
         }, user_id)
+    # 顺带把画廊要展示的视频广告缓存到本地（文件下过就跳过；失败不影响素材同步）
+    try:
+        _cache_story_videos(act_id, access_token, ad_ids, user_id)
+    except Exception as e:
+        print(f"[Meta素材] 缓存视频失败 {act_id}: {e}")
     return cached
+
+
+def _meta_tokens_for_account(act_id: str, user_id: int) -> List[str]:
+    """该账户可用的 token，按「账户自己的 token → 所属 BM 的 system_token → 全局默认」排序。
+
+    实测：读广告创意详情和账户 advideos 时，**账户自己的 token 才有效**，BM 的 system_token
+    会返回 `[100/33] Unsupported get request`。所以这里不带沿用 BM 优先的老顺序。
+    """
+    toks: List[str] = []
+    acct = database.get_meta_account(act_id, user_id) or database.get_meta_account(act_id, None)
+    if acct:
+        if acct.get("access_token"):
+            toks.append(acct["access_token"])
+        if acct.get("bm_id"):
+            bm = database.get_bm_token(acct["bm_id"])
+            if bm:
+                toks.append(bm)
+    default = _load_default_token()
+    if default:
+        toks.append(default)
+    return toks
+
+
+def _fetch_video_sources(act_id: str, user_id: int, first_token: str = "") -> Dict[str, str]:
+    """拿到该账户的视频 id → 可下载 mp4 直链；多个 token 依次试，都失败返回 {}"""
+    tried = []
+    for tk in ([first_token] if first_token else []) + _meta_tokens_for_account(act_id, user_id):
+        if not tk or tk in tried:
+            continue
+        tried.append(tk)
+        sources, _err = meta_api.get_account_video_sources(act_id, tk)
+        if sources:
+            return sources
+    return {}
+
+
+def cache_story_video_now(ad_id: str, user_id: int) -> Tuple[bool, str]:
+    """按需把单个广告的视频缓存到本地。返回 (是否已就绪, 给用户看的消息)。"""
+    with database.get_conn() as conn:
+        row = conn.execute("SELECT * FROM meta_ad_creatives WHERE ad_id = ? AND user_id = ?",
+                           (ad_id, user_id)).fetchone()
+        if row is None:
+            row = conn.execute("SELECT * FROM meta_ad_creatives WHERE ad_id = ?",
+                               (ad_id,)).fetchone()
+    if row is None:
+        return False, "找不到这条素材"
+    if row["video_local_path"]:
+        return True, "已在本地"
+    vid = row["story_video_id"] or ""
+    if not vid:
+        return False, "这条广告没取到可下载的视频（多半是页面视频，Meta 不开放下载）"
+    act_id = row["ad_account"] or ""
+    sources = _fetch_video_sources(act_id, user_id)
+    src = sources.get(vid)
+    if not src:
+        return False, "Meta 没返回该视频的下载地址（可能已删除或不属于该广告账户）"
+    _CREATIVE_VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+    dest = _CREATIVE_VIDEO_DIR / f"{ad_id}.mp4"
+    ok, err = meta_api.download_file(src, str(dest), timeout=120)
+    if not ok or not dest.exists() or dest.stat().st_size < 1024:
+        dest.unlink(missing_ok=True)
+        return False, f"下载失败: {err or '文件为空'}"
+    database.set_creative_video_local(ad_id, row["user_id"], f"meta_videos/{ad_id}.mp4")
+    return True, f"已缓存到本地（{dest.stat().st_size / 1024 / 1024:.1f}MB）"
+
+
+def _cache_story_videos(act_id: str, access_token: str, ad_ids, user_id: int) -> int:
+    """把账户里可下载的广告视频存到本地 static/meta_videos/<ad_id>.mp4，返回本次缓存数。
+
+    视频文件拿不到（`/{video_id}?fields=source` 对广告视频一律 #10 无权限），但账户的
+    advideos 边能列出自有视频的 source 直链，直链不带 token 就能下。直链会过期，所以
+    每次同步重新取一次地址；文件已经下过的就不再下。下载后画廊直接播本地文件，
+    不再访问 Facebook。
+    """
+    # 逐条广告处理：同一个视频常被多个广告复用，别用 video_id 当键去重（会漏掉广告）
+    pending = [r for r in database.get_creatives_pending_video(act_id, user_id)
+               if not ad_ids or r["ad_id"] in ad_ids]
+    if not pending:
+        return 0
+    sources = _fetch_video_sources(act_id, user_id, access_token)
+    if not sources:
+        return 0
+    _CREATIVE_VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+    n = 0
+    for r in pending:
+        ad_id = r["ad_id"]
+        src = sources.get(r["story_video_id"])
+        if not src:
+            continue
+        dest = _CREATIVE_VIDEO_DIR / f"{ad_id}.mp4"
+        try:
+            if not (dest.exists() and dest.stat().st_size > 1024):
+                ok, _e = meta_api.download_file(src, str(dest), timeout=60)
+                if not ok or not dest.exists() or dest.stat().st_size < 1024:
+                    dest.unlink(missing_ok=True)   # 别留下半个文件让前端播
+                    continue
+            database.set_creative_video_local(ad_id, user_id, f"meta_videos/{ad_id}.mp4")
+            n += 1
+        except Exception:
+            continue
+    if n:
+        print(f"[Meta素材] {act_id} 缓存了 {n} 个广告视频到本地")
+    return n
 
 
 def _sync_meta_statuses(act_id: str, access_token: str, user_id: int) -> int:
