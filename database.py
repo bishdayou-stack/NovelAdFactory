@@ -352,6 +352,14 @@ def _migrate_user_isolation(conn) -> None:
         )
     """)
 
+    # 1.2 全局设置（系统级，不分用户；如素材画廊缓存保留天数）
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT DEFAULT ''
+        )
+    """)
+
     # 2. 为隔离表添加 user_id 列
     isolation_tables = [
         "ad_daily_stats", "orders", "raw_ad_stats", "raw_orders",
@@ -603,6 +611,14 @@ def init_db() -> None:
                 value TEXT DEFAULT '',
                 PRIMARY KEY (user_id, key),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+
+        # 确保 app_settings 表存在（幂等，老库启动即建表）
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT DEFAULT ''
             )
         """)
 
@@ -1379,6 +1395,23 @@ def get_effective_pingykj_credentials(user_id: int, site: str = None) -> Optiona
 
 
 # ====== 用户配置（按用户隔离的 API 配置） ======
+
+def get_app_setting(key: str, default: str = "") -> str:
+    """读全局设置（系统级，不分用户）"""
+    with get_conn() as conn:
+        row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def set_app_setting(key: str, value: str) -> None:
+    """写全局设置（自动 UPSERT）"""
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value)
+        )
+
 
 def get_user_config(user_id: int) -> Dict[str, str]:
     """获取某个用户的所有配置项（key-value 字典）"""

@@ -1023,6 +1023,14 @@
           <option value="">全部用户</option>
         </select>
         <span id="galCount" class="text-[11px] text-slate-500 ml-auto"></span>
+        <div id="galRetentionBox" class="flex items-center gap-1.5" hidden>
+          <span class="text-[11px] text-slate-500">缓存保留</span>
+          <input id="galRetentionDays" type="number" min="1" max="3650" value="60" class="w-16 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-[11px] text-white focus:border-indigo-500 focus:outline-none" />
+          <span class="text-[11px] text-slate-500">天</span>
+          <button type="button" id="galRetentionSave" class="rounded-lg border border-slate-700 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-slate-800 transition-all">保存</button>
+          <button type="button" id="galRetentionClean" class="rounded-lg border border-amber-600/60 px-2.5 py-1 text-[11px] text-amber-400 hover:bg-amber-900/30 transition-all">立即清理</button>
+          <span id="galRetentionMsg" class="text-[11px] text-slate-500"></span>
+        </div>
       </div>
       <div class="flex-1 overflow-y-auto px-5 py-4">
         <div id="galGrid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
@@ -7758,6 +7766,65 @@
       return 2;                  // grid-cols-2
     }
 
+    // ====== 素材画廊缓存保留（管理员）======
+    function galRetentionMsg(text, cls) {
+      var el = document.getElementById('galRetentionMsg');
+      el.className = 'text-[11px] ' + (cls || 'text-slate-500');
+      el.textContent = text || '';
+    }
+
+    function initGalRetention() {
+      var box = document.getElementById('galRetentionBox');
+      box.hidden = !(currentUser && currentUser.role === 'admin');
+      if (box.hidden) return;
+      fetch('/api/meta/gallery/retention').then(function(r) { return r.json(); }).then(function(d) {
+        document.getElementById('galRetentionDays').value = d.days;
+        galRetentionMsg('');
+      }).catch(function() {});
+    }
+
+    document.getElementById('galRetentionSave').addEventListener('click', function() {
+      var days = parseInt(document.getElementById('galRetentionDays').value || '0', 10);
+      if (!(days >= 1 && days <= 3650)) { galRetentionMsg('天数需在 1~3650 之间', 'text-red-400'); return; }
+      var btn = this;
+      btn.disabled = true;
+      fetch('/api/meta/gallery/retention', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: days })
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        galRetentionMsg(d.days ? '已设为 ' + d.days + ' 天（下次自动清理生效）' : (d.detail || '保存失败'),
+                        d.days ? 'text-emerald-400' : 'text-red-400');
+      }).catch(function(e) {
+        galRetentionMsg('保存失败: ' + e.message, 'text-red-400');
+      }).then(function() { btn.disabled = false; });
+    });
+
+    document.getElementById('galRetentionClean').addEventListener('click', function() {
+      var days = parseInt(document.getElementById('galRetentionDays').value || '0', 10);
+      if (!(days >= 1)) { galRetentionMsg('先填一个 ≥ 1 的天数', 'text-red-400'); return; }
+      var btn = this;
+      btn.disabled = true;
+      galRetentionMsg('统计中...');
+      fetch('/api/meta/gallery/cleanup/preview?days=' + days).then(function(r) { return r.json(); }).then(function(d) {
+        if (!d.deleted_files) {
+          galRetentionMsg('没有可清理的（' + d.cutoff + ' 之后都还在用）', 'text-slate-400');
+          return;
+        }
+        if (!confirm('将删除 ' + d.deleted_files + ' 张 ' + days + ' 天内没有投放数据的缓存缩略图，释放约 ' +
+                     d.freed_mb + ' MB。\n画廊的消耗/ROI 统计不受影响，只删图片文件。\n\n继续？')) return;
+        return fetch('/api/meta/gallery/cleanup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days: days })
+        }).then(function(r) { return r.json(); }).then(function(res) {
+          galRetentionMsg('已删 ' + res.deleted_files + ' 张，释放 ' + res.freed_mb + ' MB', 'text-emerald-400');
+        });
+      }).catch(function(e) {
+        galRetentionMsg('清理失败: ' + e.message, 'text-red-400');
+      }).then(function() { btn.disabled = false; });
+    });
+
     function loadGalleryPage() {
       fetch('/api/meta/accounts').then(function(r) { return r.json(); }).then(function(data) {
         var accts = data.accounts || data || [];
@@ -7788,6 +7855,7 @@
       } else {
         galUser.hidden = true;
       }
+      initGalRetention();
       _galPage = 1;
       galleryLoad();
     }

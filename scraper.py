@@ -1304,6 +1304,125 @@ def _sync_one_meta_account_breakdown(act_id: str, access_token: str,
     return database.upsert_meta_ad_stats(act_id, [dict(v) for v in ad_agg.values()], user_id)
 
 
+# ====== 素材画廊缩略图缓存的保留策略 ======
+
+GALLERY_RETENTION_DEFAULT_DAYS = 60
+GALLERY_RETENTION_KEY = "gallery_retention_days"
+_GALLERY_CLEANUP_AT_KEY = "gallery_cleanup_at"
+_CREATIVE_CACHE_DIR = Path(__file__).parent / "static" / "meta_creatives"
+_GALLERY_CLEANUP_MIN_INTERVAL = 86400  # 自动清理最多每天一次，别每次同步都扫盘
+
+
+def gallery_retention_days() -> int:
+    """缓存保留天数：管理员设过就用，没设过用默认 60"""
+    raw = database.get_app_setting(GALLERY_RETENTION_KEY, "")
+    try:
+        days = int(raw)
+    except (TypeError, ValueError):
+        return GALLERY_RETENTION_DEFAULT_DAYS
+    return days if days >= 1 else GALLERY_RETENTION_DEFAULT_DAYS
+
+
+def cleanup_meta_creatives(days: int = None, dry_run: bool = True) -> Dict[str, Any]:
+    """删掉「最近 days 天已经没有统计数据」的广告缩略图缓存，腾磁盘。
+
+    **只删文件、只清 local_path，不动数据库记录**：画廊照旧统计这些广告的消耗/ROI，
+    只是缩略图回落到远端 thumbnail_url。判定依据是广告最后一次有统计数据的日期
+    （与画廊口径一致）；从没有过统计数据的，按缓存时间算。
+
+    清理是有效的、不会被同步下回来：_sync_meta_creatives 只补拉「增量窗口内有统计数据」
+    的广告，而这里删的都是窗口之外的。
+    """
+    days = days or gallery_retention_days()
+    cutoff = (database.bj_now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    with database.get_conn() as conn:
+        rows = conn.execute("""
+            SELECT c.ad_id, c.user_id, MAX(c.local_path) AS local_path,
+                   MAX(s.date) AS last_stat,
+                   MAX(date(c.synced_at, '+8 hours')) AS cached_on
+            FROM meta_ad_creatives c
+            LEFT JOIN meta_ad_stats s ON s.ad_id = c.ad_id AND s.user_id = c.user_id
+            GROUP BY c.ad_id, c.user_id
+        """).fetchall()
+
+    stale = []
+    targets: Dict[str, List[Tuple[str, int]]] = {}   # 文件 -> 引用它的记录（一张图可能多个用户共用）
+    cache_root = _CREATIVE_CACHE_DIR.resolve()
+    for r in rows:
+        # 有统计数据的看最后统计日，没有的看缓存日
+        if (r["last_stat"] or r["cached_on"] or "") >= cutoff:
+            continue
+        stale.append({"ad_id": r["ad_id"], "user_id": r["user_id"],
+                      "last_stat": r["last_stat"] or "", "local_path": r["local_path"] or ""})
+        # 缓存文件名就是 <ad_id>.jpg，但优先按记录里的 local_path 定位（防止命名变过）
+        target = (_CREATIVE_CACHE_DIR.parent / r["local_path"]) if r["local_path"] \
+            else (_CREATIVE_CACHE_DIR / f"{r['ad_id']}.jpg")
+        try:
+            target = target.resolve()
+        except Exception:
+            continue
+        if target.parent != cache_root:      # 只敢删缓存目录里的文件
+            continue
+        targets.setdefault(str(target), []).append((r["ad_id"], r["user_id"]))
+
+    deleted_files, freed, missed = 0, 0.0, 0
+    for path, refs in targets.items():
+        target = Path(path)
+        if not target.exists():
+            missed += 1
+            continue
+        try:
+            size = target.stat().st_size
+        except Exception:
+            missed += 1
+            continue
+        if not dry_run:
+            try:
+                target.unlink()
+            except Exception:
+                missed += 1
+                continue
+        deleted_files += 1
+        freed += size / 1024 / 1024
+
+    if not dry_run and stale:
+        # 只清 local_path：记录留着，画廊仍能显示这些广告的消耗
+        with database.get_conn() as conn:
+            for s in stale:
+                conn.execute(
+                    "UPDATE meta_ad_creatives SET local_path = '' WHERE ad_id = ? AND user_id = ?",
+                    (s["ad_id"], s["user_id"]))
+
+    return {
+        "days": days, "cutoff": cutoff, "dry_run": dry_run,
+        "stale_count": len(stale), "deleted_files": deleted_files,
+        "freed_mb": round(freed, 1), "missing_files": missed,
+        "samples": stale[:50],
+    }
+
+
+def _auto_cleanup_gallery_creatives() -> None:
+    """每次都跑，但靠 app_settings 里的时间戳节流到每天最多一次。
+    整段包了 try —— 清理失败绝不能影响 Meta 同步主流程。"""
+    try:
+        last = database.get_app_setting(_GALLERY_CLEANUP_AT_KEY, "")
+        if last:
+            try:
+                if (database.bj_now() - dt.strptime(last, "%Y-%m-%d %H:%M:%S")).total_seconds() \
+                        < _GALLERY_CLEANUP_MIN_INTERVAL:
+                    return
+            except Exception:
+                pass
+        g = cleanup_meta_creatives(dry_run=False)
+        database.set_app_setting(_GALLERY_CLEANUP_AT_KEY,
+                                 database.bj_now().strftime("%Y-%m-%d %H:%M:%S"))
+        if g["deleted_files"]:
+            print(f"[画廊清理] 删除 {g['deleted_files']} 张 {g['days']} 天前的缓存缩略图，"
+                  f"释放 {g['freed_mb']}MB")
+    except Exception as e:
+        print(f"[画廊清理] 跳过: {e}")
+
+
 def _sync_meta_creatives(act_id: str, access_token: str, from_date: str, user_id: int) -> int:
     """拉取账户广告素材：下载缩略图到本地缓存，并拉取视频广告的可播放地址。返回缓存数量。"""
     ad_ids = set(database.get_meta_ad_ids_with_stats(act_id, user_id, since_date=from_date))
@@ -1601,5 +1720,8 @@ def sync_all_meta_insights(user_id: int = None, concurrency: int = 1) -> Dict[st
         result["message"] = f"{succeeded}/{len(active_accounts)} 个账户成功，共 {total_count} 条。失败: {'; '.join(errors)}"
     else:
         result["message"] = f"全部 {len(active_accounts)} 个账户同步完成，共 {total_count} 条"
+
+    # 顺带按保留天数清一次过期的画廊缩略图（内部节流到每天最多一次）
+    _auto_cleanup_gallery_creatives()
 
     return result

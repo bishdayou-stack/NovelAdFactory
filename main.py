@@ -6874,6 +6874,44 @@ def _meta_gallery(account: str = Query(default=None), start: str = Query(default
                                            sort=sort, page=page, page_size=page_size, user_id=uid)
 
 
+@app.get("/api/meta/gallery/retention")
+def api_gallery_retention(user: dict = Depends(get_current_user)):
+    """画廊缩略图缓存的保留天数（默认 60，管理员可改）"""
+    return {"days": scraper.gallery_retention_days(),
+            "default_days": scraper.GALLERY_RETENTION_DEFAULT_DAYS}
+
+
+@app.put("/api/meta/gallery/retention")
+def api_set_gallery_retention(body: Dict[str, Any], user: dict = Depends(get_current_admin)):
+    """设置保留天数；只影响之后的自动清理，不会立刻删东西"""
+    try:
+        days = int(body.get("days"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="days 必须是数字")
+    if not (1 <= days <= 3650):
+        raise HTTPException(status_code=400, detail="保留天数需在 1~3650 之间")
+    database.set_app_setting(scraper.GALLERY_RETENTION_KEY, str(days))
+    return {"status": "ok", "days": days}
+
+
+@app.get("/api/meta/gallery/cleanup/preview")
+def api_gallery_cleanup_preview(days: int = Query(default=None, ge=1, le=3650),
+                                user: dict = Depends(get_current_admin)):
+    """预览会删多少张过期缩略图，不执行删除。days 不传就用当前设置的保留天数"""
+    return scraper.cleanup_meta_creatives(days, dry_run=True)
+
+
+@app.post("/api/meta/gallery/cleanup")
+def api_gallery_cleanup(body: Dict[str, Any], user: dict = Depends(get_current_admin)):
+    """按保留天数清理过期缩略图（只删文件与 local_path，数据库记录保留）"""
+    days = body.get("days")
+    try:
+        days = int(days) if days not in (None, "") else None
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="days 必须是数字")
+    return scraper.cleanup_meta_creatives(days, dry_run=False)
+
+
 @app.get("/api/meta/bm-summary")
 def _meta_bm_summary(start: str = Query(default=None), end: str = Query(default=None),
                       user_id: int = Query(default=None),
