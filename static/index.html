@@ -1191,6 +1191,22 @@
           </div>
           <div id="configSaveMsg" class="text-xs text-emerald-400 hidden text-center">已保存 ✓</div>
         </div>
+
+        <h2 class="text-sm font-bold text-white mb-4 mt-8">背景音乐</h2>
+        <div class="card-dark p-6 space-y-3">
+          <div id="bgmStatus" class="text-xs text-slate-400">加载中...</div>
+          <div class="flex flex-wrap gap-2">
+            <button id="bgmReloadBtn" type="button" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 transition-all cursor-pointer">刷新</button>
+            <button id="bgmGenerateBtn" type="button" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 transition-all cursor-pointer" hidden>重新合成保底音乐</button>
+            <button id="bgmDownloadBtn" type="button" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-all cursor-pointer border-0" hidden>下载免费 CC0 音乐</button>
+          </div>
+          <div id="bgmMsg" class="text-xs text-slate-500"></div>
+          <div id="bgmList" class="text-[11px] text-slate-500 max-h-40 overflow-y-auto space-y-0.5"></div>
+          <p class="text-[11px] text-slate-500 leading-relaxed">
+            合成视频会自动配背景音：<b class="text-slate-400">有真歌时优先用真歌</b>，没有就用本地合成的保底曲（离线、无版权问题）。
+            你把喜欢的 mp3 直接丢进服务器 <code class="text-slate-400">音乐/</code> 目录也会被优先使用；不喜欢的曲子删掉即可。
+          </p>
+        </div>
       </div>
     </div>
 
@@ -2281,6 +2297,57 @@
       });
     }
 
+    // ====== 背景音乐 ======
+    function bgmMsg(text, cls) {
+      var el = document.getElementById('bgmMsg');
+      el.className = 'text-xs ' + (cls || 'text-slate-500');
+      el.textContent = text || '';
+    }
+
+    function loadBgmLibrary() {
+      fetch('/api/bgm/library').then(function(r) { return r.json(); }).then(function(d) {
+        document.getElementById('bgmStatus').innerHTML =
+          '共 <b class="text-slate-200">' + d.total + '</b> 首可用：真歌 <b class="text-emerald-400">' + d.real +
+          '</b> 首 · 合成保底 <b class="text-slate-300">' + d.synthetic + '</b> 首';
+        var box = document.getElementById('bgmList');
+        box.innerHTML = (d.tracks || []).map(function(t) {
+          return '<div class="truncate">' + (t.synthetic ? '🎹 ' : '🎵 ') + escapeHtml(t.name) +
+                 ' <span class="text-slate-600">' + t.size_kb + 'KB</span></div>';
+        }).join('') || '<div class="text-slate-600">音乐目录是空的</div>';
+        var admin = currentUser && currentUser.role === 'admin';
+        document.getElementById('bgmGenerateBtn').hidden = !admin;
+        document.getElementById('bgmDownloadBtn').hidden = !admin;
+      }).catch(function() { document.getElementById('bgmStatus').textContent = '加载失败'; });
+    }
+
+    document.getElementById('bgmReloadBtn').addEventListener('click', loadBgmLibrary);
+
+    document.getElementById('bgmGenerateBtn').addEventListener('click', function() {
+      var btn = this;
+      btn.disabled = true;
+      bgmMsg('合成中，约 30 秒...');
+      fetch('/api/bgm/generate', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+        bgmMsg(d.message || '', d.generated ? 'text-emerald-400' : 'text-red-400');
+        loadBgmLibrary();
+      }).catch(function(e) { bgmMsg('失败: ' + e.message, 'text-red-400'); })
+        .then(function() { btn.disabled = false; });
+    });
+
+    document.getElementById('bgmDownloadBtn').addEventListener('click', function() {
+      var btn = this;
+      btn.disabled = true;
+      bgmMsg('下载中（只收 CC0：可商用、可改编、免署名）...');
+      fetch('/api/bgm/download-cc0', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ want: 12 })
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        var msg = d.message || '';
+        if (d.errors && d.errors.length) msg += '；' + d.errors.length + ' 条失败';
+        bgmMsg(msg, d.downloaded ? 'text-emerald-400' : 'text-amber-400');
+        loadBgmLibrary();
+      }).catch(function(e) { bgmMsg('失败: ' + e.message, 'text-red-400'); })
+        .then(function() { btn.disabled = false; });
+    });
+
     document.getElementById('configSaveBtn').addEventListener('click', function() {
       saveApiConfig();
       var msg = document.getElementById('configSaveMsg');
@@ -2411,6 +2478,7 @@
       if (tab === 'bm-mgmt') { loadBmAppPage(); }
       if (tab === 'meta-campaign') { loadCampPage(); }
       if (tab === 'meta-gallery') { loadGalleryPage(); }
+      if (tab === 'config') { loadBgmLibrary(); }
       if (tab === 'meta-assign') { loadAssignPage(); }
       if (tab === 'delivery-wizard') {
         // 从导航进入：首次需完整初始化（含加载标题库→随机填充标题池），否则刷新后标题不会出现

@@ -135,6 +135,7 @@ except ImportError:
 
 import subprocess
 import imageio_ffmpeg
+import bgm
 
 app = FastAPI()
 
@@ -200,6 +201,15 @@ if _config_path.exists():
                 _meta_cfg.get("app_secret", ""), is_default=1
             )
             print("[迁移] 全局 App 配置已写入 app_config 表")
+
+@app.on_event("startup")
+def _prepare_bgm_library():
+    """启动时后台合成保底背景乐（音乐目录为空才合成）。丢线程池，不阻塞启动。"""
+    try:
+        _EXECUTOR.submit(lambda: bgm.ensure_library(MUSIC_PATH, count=bgm.BGM_TRACK_COUNT))
+    except Exception as e:
+        print(f"[BGM] 启动合成任务提交失败: {e}")
+
 
 @app.on_event("startup")
 def _recover_incomplete_batches():
@@ -766,11 +776,22 @@ def _pick_templates_for_novel(
 
 
 def _pick_random_music() -> Optional[Path]:
-    """从音乐文件夹随机选择一首"""
-    if not MUSIC_PATH.exists():
-        return None
-    files = [f for f in os.listdir(str(MUSIC_PATH)) if f.endswith(".mp4")]
-    return MUSIC_PATH / random.choice(files) if files else None
+    """从音乐文件夹随机选一首。有真歌（自己放的/下载的）就优先真歌，
+    只有合成乐时用合成乐；都没有则触发一次现场合成（下次合成视频就有声了）。"""
+    real = bgm.real_tracks(MUSIC_PATH)
+    if real:
+        return random.choice(real)
+    tracks = bgm.list_tracks(MUSIC_PATH)
+    if tracks:
+        return random.choice(tracks)
+    try:
+        if bgm.ensure_library(MUSIC_PATH, count=bgm.BGM_TRACK_COUNT):
+            tracks = bgm.list_tracks(MUSIC_PATH)
+            if tracks:
+                return random.choice(tracks)
+    except Exception as e:
+        print(f"[BGM] 现场合成失败: {e}")
+    return None
 
 
 def _encode_frames_to_mp4(frame_iter, out_path: Path, size: Tuple[int, int], fps: int) -> None:
@@ -827,7 +848,8 @@ def _merge_music_to_video(video_path: Path) -> None:
         "-map", "0:v:0",
         "-map", "1:a:0",
         "-shortest",
-        "-af", "volume=0.3",
+        # 背景乐压到 0.18：广告里的人声/文案才是主角，音乐只是垫底
+        "-af", "volume=0.18",
         "-y",
         str(tmp_path),
     ]
@@ -3846,6 +3868,56 @@ def api_video_poster(batch: str = Query(default=""), file: str = Query(default="
 
 
 # ====== 配置持久化 API ======
+
+# ====== 背景音乐（合成保底 + 下载 CC0 真录音） ======
+
+@app.get("/api/bgm/library")
+def api_bgm_library(user: dict = Depends(get_current_user)):
+    """当前可用于合成视频的背景乐清单"""
+    tracks = bgm.list_tracks(MUSIC_PATH)
+    synth = [t for t in tracks if t.name.startswith(bgm.SYNTH_PREFIX)]
+    return {
+        "dir": str(MUSIC_PATH),
+        "total": len(tracks),
+        "synthetic": len(synth),
+        "real": len(tracks) - len(synth),
+        "tracks": [{"name": t.name, "size_kb": round(t.stat().st_size / 1024),
+                    "synthetic": t.name.startswith(bgm.SYNTH_PREFIX)} for t in tracks[:80]],
+        "policy": "有真歌时优先用真歌，只有合成乐时才用合成乐",
+    }
+
+
+@app.post("/api/bgm/generate")
+def api_bgm_generate(user: dict = Depends(get_current_admin)):
+    """重新合成保底背景乐（会先删掉旧的合成曲，真歌不动）"""
+    n = bgm.ensure_library(MUSIC_PATH, count=bgm.BGM_TRACK_COUNT, force=True)
+    return {"status": "ok", "generated": n,
+            "message": f"已重新合成 {n} 首背景乐" if n else "合成失败，看服务器日志"}
+
+
+@app.post("/api/bgm/download-cc0")
+def api_bgm_download(body: Dict[str, Any] = None, user: dict = Depends(get_current_admin)):
+    """下载一批 CC0（可商用、可改编、无需署名）曲子到音乐目录。
+
+    只收 CC0 —— by-nc-nd 那类禁止商用/禁止改编，放广告里是踩线，会被过滤掉。
+
+    **注意预期**：开放素材库里 CC0 的完整音乐曲目极少（音乐曲库 jamendo 过滤 CC0 后是 0 条），
+    CC0 那部分基本来自 freesound 的音效/氛围/采风录音。所以这里下到的大多是器乐或氛围，
+    基本拿不到「英文情歌」。要真有唱的英文情歌只有两条路：AI 音乐生成 API，或买授权曲库。
+    """
+    want = 12
+    try:
+        if body and body.get("want"):
+            want = max(1, min(30, int(body["want"])))
+    except (TypeError, ValueError):
+        pass
+    got, items, errors = bgm.download_cc0(MUSIC_PATH, want=want, proxy=meta_api._get_proxy() or "")
+    return {"status": "ok" if got else "failed", "downloaded": got,
+            "items": [{"title": i["title"], "license": i["license"], "file": i.get("file", "")}
+                      for i in items],
+            "errors": errors,
+            "message": f"下载了 {got} 首 CC0 曲子" if got else "没下到（服务器可能连不上 openverse.org）"}
+
 
 @app.get("/api/config")
 def api_get_config(user: dict = Depends(get_current_user)):
