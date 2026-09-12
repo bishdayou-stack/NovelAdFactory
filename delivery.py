@@ -79,7 +79,7 @@ def _deliver_one(queue_item: dict, template: dict, user_id: int = None) -> dict:
     result["creative_hash"] = creative_hash
 
     # 2. 创建 Campaign
-    today = time.strftime("%Y-%m-%d")
+    today = database.bj_now().strftime("%Y-%m-%d")
     campaign_name = f"{batch_id}_{today}_{act_id}"
     campaign_id, err = meta_api.create_campaign(
         act_id, token, campaign_name,

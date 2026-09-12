@@ -10,6 +10,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
+def bj_now() -> datetime:
+    """当前北京时间。书城/Meta 都是东八区，凡是「今天」一律用它算。
+
+    别用 time.strftime("%Y-%m-%d")：那是服务器本地时间，服务器时区是 UTC 时，
+    北京时间 0-8 点算出来是昨天，同步就会漏掉当天、看板默认筛「今天」全 0。"""
+    return datetime.utcnow() + timedelta(hours=8)
+
+
 # ====== 加密工具 ======
 
 _FERNET_KEY: Optional[bytes] = None
@@ -1888,7 +1896,7 @@ def save_novel_spend_snapshots(books: List[Dict[str, Any]], site: str = None) ->
     if not books:
         return 0
     site = site or SITE_DEFAULT
-    today = time.strftime("%Y-%m-%d")
+    today = bj_now().strftime("%Y-%m-%d")
     count = 0
     with get_conn() as conn:
         for b in books:

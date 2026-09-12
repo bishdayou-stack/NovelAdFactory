@@ -585,7 +585,7 @@ def sync_ads(user_id: int, site: str = None) -> Tuple[int, str]:
         return 0, err
 
     try:
-        today = time.strftime("%Y-%m-%d")
+        today = _bj_now().strftime("%Y-%m-%d")
         last_date = database.get_last_sync_date("ads", user_id, site=site)
         date_start = None
         date_end = None
@@ -681,7 +681,7 @@ def sync_orders(user_id: int, site: str = None) -> Tuple[int, str]:
         return 0, err
 
     try:
-        today = time.strftime("%Y-%m-%d")
+        today = _bj_now().strftime("%Y-%m-%d")
         last_date = database.get_last_sync_date("orders", user_id, site=site)
         date_start = None
         date_end = None
@@ -959,7 +959,7 @@ def sync_novel_books(user_id: int = None, full_sync: bool = False,
     if not session:
         return 0, "没有可用的书城登录凭据"
 
-    today = time.strftime("%Y-%m-%d")
+    today = _bj_now().strftime("%Y-%m-%d")
     date_start = None
     date_end = None
     if full_sync:
@@ -1207,9 +1207,10 @@ def _load_default_token() -> Optional[str]:
 
 
 def _bj_now():
-    """当前北京时间（Meta 账户为东八区，同步日期范围统一按北京日历。
-    修复：原用 utcnow()，北京 0-8 点时 UTC 还是昨天，导致账户正在跑的「今天」被切掉、页面显示 0）"""
-    return dt.utcnow() + timedelta(hours=8)
+    """当前北京时间（书城/Meta 都是东八区，同步日期范围统一按北京日历）。
+    实现见 database.bj_now —— 全项目只有那一处，别在这里另写一份。
+    历史：原用 utcnow()，北京 0-8 点时 UTC 还是昨天，账户正在跑的「今天」被切掉、页面显示 0。"""
+    return database.bj_now()
 
 
 def _sync_one_meta_account_breakdown(act_id: str, access_token: str,

@@ -1,5 +1,12 @@
+from datetime import timedelta
 from typing import Optional, List, Dict, Any
 import database
+
+
+def _bj_days_ago(days: int) -> str:
+    """北京日历上 days 天前的日期。别用 SQL 的 date('now')——那是 UTC 时钟，
+    北京 0-8 点算出来还是昨天，区间会少算今天。"""
+    return (database.bj_now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
 
 def _keyword_clause() -> str:
@@ -189,8 +196,8 @@ def get_daily_stats(start_date: str = None, end_date: str = None, account: str =
 def get_trend(days: int = 30, account: str = None, keyword: str = None,
               user_id: int = None, site: str = None) -> List[Dict[str, Any]]:
     with database.get_conn() as conn:
-        where = ["(source IS NULL OR source != 'meta')", "date >= date('now', ?)"]
-        params = [f"-{days} days"]
+        where = ["(source IS NULL OR source != 'meta')", "date >= ?"]
+        params = [_bj_days_ago(days)]
         if account:
             where.append("ad_account = ?")
             params.append(account)
@@ -284,8 +291,8 @@ def get_account_ranking(start_date: str = None, end_date: str = None,
 def detect_anomalies(days: int = 30, threshold_sigma: float = 2.0,
                      user_id: int = None, site: str = None) -> List[Dict[str, Any]]:
     with database.get_conn() as conn:
-        where = ["(source IS NULL OR source != 'meta')", "date >= date('now', ?)"]
-        params = [f"-{days} days"]
+        where = ["(source IS NULL OR source != 'meta')", "date >= ?"]
+        params = [_bj_days_ago(days)]
         _add_user_filter(where, params, user_id)
         _add_site_filter(where, params, site)
         rows = conn.execute(f"""
@@ -587,7 +594,7 @@ def meta_daily_stats(start_date=None, end_date=None, account=None, keyword=None,
 
 def meta_trend(days=30, account=None, user_id=None):
     with database.get_conn() as conn:
-        where, params = ["source='meta'", "date >= date('now', ?)"], [f"-{days} days"]
+        where, params = ["source='meta'", "date >= ?"], [_bj_days_ago(days)]
         if account:
             where.append("ad_account = ?"); params.append(account)
         _add_user_filter(where, params, user_id)
