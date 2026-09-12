@@ -166,6 +166,24 @@ def main():
     assert mine and mine[0]["video_url"] == "/static/meta_videos/ad_v3.mp4", mine
     assert mine[0]["image_url"], "封面（缩略图）也要留着，卡片拿它当 poster"
 
+    # 6.8) 自动缓存：缩略图和 story id 都不缺时不该再拉广告列表，但缺的视频仍要自动补
+    #      （上一轮下载失败的话，这轮得能自己重试，不能永远等用户手点）
+    ads_calls = {"n": 0}   # 别叫 calls —— fake_sources 闭包引用的是同名变量，会被覆盖掉
+    meta_api.get_ads_with_creative = lambda act, tk, limit=200: (
+        ads_calls.__setitem__("n", ads_calls["n"] + 1), ([], None))[1]
+    scraper._CREATIVE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    (scraper._CREATIVE_CACHE_DIR / "ad_v5.jpg").write_bytes(b"x")     # 缩略图已在本地
+    (scraper._CREATIVE_CACHE_DIR / "ad_v3.jpg").write_bytes(b"x")     # 同上，凑齐 ad_ids 里所有缩略图
+    database.upsert_meta_ad_creative({"ad_id": "ad_v5", "ad_account": ACT, "ad_name": "待补视频",
+                                      "video_id": "pv", "story_video_id": "story_video_222",
+                                      "local_path": "meta_creatives/ad_v5.jpg"}, 1)
+    with database.get_conn() as conn:
+        conn.execute("INSERT INTO meta_ad_stats (date, ad_account, ad_id, spend, user_id) "
+                     "VALUES (date('now'), ?, 'ad_v5', 5, 1)", (ACT,))
+    scraper._sync_meta_creatives(ACT, "acct-token", "2026-01-01", 1)
+    assert ads_calls["n"] == 0, f"缩略图和 story id 都不缺，不该再拉广告列表（省一次重接口）: {ads_calls}"
+    assert (video_dir / "ad_v5.mp4").exists(), "缺的视频应该在同步时自动补上"
+
     # 7) token 顺序：账户自己的 token 排第一（BM 的读 advideos 会 100/33）
     toks = scraper._meta_tokens_for_account(ACT, 1)
     assert toks and toks[0] == "acct-token", toks

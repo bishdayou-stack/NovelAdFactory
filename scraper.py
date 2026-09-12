@@ -1438,13 +1438,26 @@ def _sync_meta_creatives(act_id: str, access_token: str, from_date: str, user_id
     if not ad_ids:
         return 0
     # 检查是否已有缓存，有则跳过 API 调用（缩略图缺失 或 视频缺播放地址 时才拉）
-    cache_dir = Path(__file__).parent / "static" / "meta_creatives"
+    cache_dir = _CREATIVE_CACHE_DIR
     cache_dir.mkdir(parents=True, exist_ok=True)
     missing = [aid for aid in ad_ids if not (cache_dir / f"{aid}.jpg").exists()]
     # 还要看有没有「视频广告但没补 story_video_id」的：缩略图早就缓存满时只判 missing 会直接
     # 返回，新加的字段就永远补不上（历史坑，视频下载全靠这个 id）
-    if not missing and not database.count_creatives_missing_story_id(act_id, user_id, list(ad_ids)):
-        return len(ad_ids)
+    cached = 0
+    if missing or database.count_creatives_missing_story_id(act_id, user_id, list(ad_ids)):
+        cached = _fetch_and_store_creatives(act_id, access_token, ad_ids, user_id, cache_dir)
+    # 视频文件不靠上面的广告列表：_cache_story_videos 自己查库 + 账户 advideos。
+    # 每次都调（内部发现没有待下的会立刻返回），这样上次下载失败的这轮能自动重试。
+    try:
+        _cache_story_videos(act_id, access_token, ad_ids, user_id)
+    except Exception as e:
+        print(f"[Meta素材] 缓存视频失败 {act_id}: {e}")
+    return cached
+
+
+def _fetch_and_store_creatives(act_id: str, access_token: str, ad_ids, user_id: int,
+                               cache_dir: Path) -> int:
+    """拉该账户的广告列表，补缩略图缓存与 story 视频 id。返回本次新下载的缩略图数。"""
     ads, err = meta_api.get_ads_with_creative(act_id, access_token)
     if err or not ads:
         return 0
@@ -1486,11 +1499,6 @@ def _sync_meta_creatives(act_id: str, access_token: str, from_date: str, user_id
             "video_url": video_url, "local_path": local_rel,
             "story_video_id": story_vid,
         }, user_id)
-    # 顺带把画廊要展示的视频广告缓存到本地（文件下过就跳过；失败不影响素材同步）
-    try:
-        _cache_story_videos(act_id, access_token, ad_ids, user_id)
-    except Exception as e:
-        print(f"[Meta素材] 缓存视频失败 {act_id}: {e}")
     return cached
 
 
