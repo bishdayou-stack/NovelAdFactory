@@ -955,6 +955,7 @@ def init_db() -> None:
                 spend REAL DEFAULT 0,
                 revenue REAL DEFAULT 0,
                 roi REAL DEFAULT 0,
+                order_count INTEGER DEFAULT 0,
                 impressions INTEGER DEFAULT 0,
                 clicks INTEGER DEFAULT 0,
                 ctr REAL DEFAULT 0,
@@ -962,6 +963,7 @@ def init_db() -> None:
                 notes TEXT,
                 tags TEXT,
                 user_id INTEGER DEFAULT 1,
+                ad_id TEXT DEFAULT '',
                 registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -991,11 +993,17 @@ def init_db() -> None:
         if "meta_status" not in existing_meta:
             conn.execute("ALTER TABLE meta_accounts ADD COLUMN meta_status TEXT")
 
-        # 迁移：hit_materials 增加 ad_id（用于爆款库按广告实时汇总 Meta 数据）
+        # 迁移：hit_materials 补 ad_id（爆款库按广告实时汇总 Meta 数据）与 order_count
+        # （建表语句里漏了这个列，全新库第一次登记爆款会报 no column named order_count）
         existing_hit = {r["name"] for r in conn.execute("PRAGMA table_info('hit_materials')").fetchall()}
         if "ad_id" not in existing_hit:
             try:
                 conn.execute("ALTER TABLE hit_materials ADD COLUMN ad_id TEXT DEFAULT ''")
+            except Exception:
+                pass
+        if "order_count" not in existing_hit:
+            try:
+                conn.execute("ALTER TABLE hit_materials ADD COLUMN order_count INTEGER DEFAULT 0")
             except Exception:
                 pass
 

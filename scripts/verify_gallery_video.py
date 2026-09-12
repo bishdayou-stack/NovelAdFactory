@@ -154,6 +154,18 @@ def main():
         assert conn.execute("SELECT video_local_path FROM meta_ad_creatives WHERE ad_id='ad_v3'"
                             ).fetchone()["video_local_path"] == ""
 
+    # 6.5) 推到爆款素材库要带上本地视频地址，否则那边只有缩略图、播不了
+    r = c.post("/api/hit-materials", json={
+        "image_url": "/static/meta_creatives/ad_v3.jpg",
+        "video_url": "/static/meta_videos/ad_v3.mp4",
+        "ad_id": "ad_v3", "label": "视频广告", "owner_user_id": 1,
+    })
+    assert r.status_code == 200, r.text
+    lst = c.get("/api/hit-materials?page=1&page_size=50").json()
+    mine = [x for x in lst["data"] if x.get("ad_id") == "ad_v3"]
+    assert mine and mine[0]["video_url"] == "/static/meta_videos/ad_v3.mp4", mine
+    assert mine[0]["image_url"], "封面（缩略图）也要留着，卡片拿它当 poster"
+
     # 7) token 顺序：账户自己的 token 排第一（BM 的读 advideos 会 100/33）
     toks = scraper._meta_tokens_for_account(ACT, 1)
     assert toks and toks[0] == "acct-token", toks

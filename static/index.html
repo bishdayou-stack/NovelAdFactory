@@ -8023,6 +8023,11 @@
       }
       // 未推送 → 推送（先防重）
       var imageUrl = a.thumb || '';
+      // 视频广告：得有本地文件才推 —— 推过去的是「能播的视频」，只推缩略图没有意义
+      if (a.video_id && !a.video_local) {
+        alert('这条是视频广告，还没缓存到本地。\n先点卡片上的「⤓ 缓存到本地」，再推送到爆款素材库，否则那边只能看到一张缩略图、播不了。');
+        return;
+      }
       var isAdmin = currentUser && currentUser.role === 'admin';
       btn.disabled = true; btn.textContent = '推送中...';
       fetch('/api/hit-materials/lookup?image_url=' + encodeURIComponent(imageUrl))
@@ -8040,6 +8045,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               image_url: imageUrl,
+              video_url: a.video_local || '',
               ad_id: a.ad_id || '',
               owner_user_id: a.user_id || 0,
               label: a.ad_name || '',
@@ -8392,7 +8398,8 @@
             if (h.video_url) {
               // 视频素材：直接放能播的视频（悬停播放），并明确标出是视频
               imgHtml = '<div class="relative">' +
-                '<video src="' + h.video_url + '" class="w-full aspect-square object-cover rounded-t-xl cursor-pointer bg-black" muted loop playsinline preload="metadata"' +
+                '<video src="' + h.video_url + '"' + (h.image_url ? ' poster="' + h.image_url + '"' : '') +
+                ' class="w-full aspect-square object-cover rounded-t-xl cursor-pointer bg-black" muted loop playsinline preload="metadata"' +
                 ' onmouseenter="this.play()" onmouseleave="this.pause()"' +
                 ' onclick="event.stopPropagation();openVideoPreview(this.src)"></video>' +
                 '<span class="absolute top-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] text-white pointer-events-none">🎬 视频</span>' +
