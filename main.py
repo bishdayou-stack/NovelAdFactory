@@ -13,9 +13,9 @@ import threading
 import asyncio
 import numpy as np
 from pathlib import Path
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timedelta
 import subprocess as _subprocess
 import tempfile as _tempfile
 
@@ -3590,12 +3590,158 @@ def api_history_detail(batch_id: str, user: dict = Depends(get_current_user)):
     }
 
 
+# ====== 旧素材清理（管理员） ======
+
+def _running_batch_ids() -> set:
+    """正在生成中的批次 id（注册过还没注销的）"""
+    with _BATCH_CANCEL_LOCK:
+        return set(_BATCH_CANCEL_EVENTS.keys())
+
+
+def _referenced_batch_ids() -> set:
+    """被投放队列/爆款素材引用到的批次 —— 删了那些页面会出现坏图"""
+    ids = set()
+    with database.get_conn() as conn:
+        for table in ("delivery_queue", "hit_materials"):
+            try:
+                rows = conn.execute(
+                    f"SELECT DISTINCT batch_id FROM {table} "
+                    f"WHERE batch_id IS NOT NULL AND batch_id != ''").fetchall()
+                ids.update(str(r[0]) for r in rows)
+            except Exception:
+                pass  # 老库可能没这张表
+    return ids
+
+
+def _batch_created_at(batch_dir: Path) -> datetime:
+    """批次创建时间：_meta.json 的 created_at 优先，缺失/损坏时回落目录修改时间"""
+    try:
+        raw = json.loads((batch_dir / "_meta.json").read_text(encoding="utf-8")).get("created_at")
+        if raw:
+            return datetime.fromisoformat(raw)
+    except Exception:
+        pass
+    return datetime.fromtimestamp(batch_dir.stat().st_mtime)
+
+
+def _scan_old_batches(days: int) -> Dict[str, Any]:
+    """扫出「早于 days 天」的批次，分成可删与跳过两类。只看不删。"""
+    cutoff = datetime.now() - timedelta(days=days)
+    running = _running_batch_ids()
+    referenced = _referenced_batch_ids()
+    removable: List[Dict[str, Any]] = []
+    skipped: List[Dict[str, Any]] = []
+    if not OUTPUT_ROOT.exists():
+        return {"cutoff": cutoff.isoformat(timespec="seconds"), "removable": removable, "skipped": skipped}
+
+    for d in OUTPUT_ROOT.iterdir():
+        if not d.is_dir():
+            continue
+        try:
+            created = _batch_created_at(d)
+            files = [f for f in d.rglob("*") if f.is_file()]
+        except Exception:
+            continue          # 权限/IO 问题就当没看见，别让整个预览挂掉
+        if created >= cutoff:
+            continue
+        item = {
+            "batch_id": d.name,
+            "created_at": created.isoformat(timespec="seconds"),
+            "files": len(files),
+            "size_mb": round(sum(f.stat().st_size for f in files) / 1024 / 1024, 1),
+        }
+        try:
+            bid = int(d.name)
+        except ValueError:
+            item["reason"] = "不是批次目录"
+            skipped.append(item)
+            continue
+        if bid in running:
+            item["reason"] = "正在生成中"
+            skipped.append(item)
+        elif d.name in referenced:
+            item["reason"] = "被投放队列或爆款素材引用"
+            skipped.append(item)
+        else:
+            removable.append(item)
+
+    removable.sort(key=lambda x: x["created_at"])
+    skipped.sort(key=lambda x: x["created_at"])
+    return {"cutoff": cutoff.isoformat(timespec="seconds"), "removable": removable, "skipped": skipped}
+
+
+@app.get("/api/history/cleanup/preview")
+def api_cleanup_preview(days: int = Query(30, ge=1, le=3650),
+                        user: dict = Depends(get_current_admin)):
+    """预览「删除 N 天前的素材」会删掉什么，不执行任何删除"""
+    scan = _scan_old_batches(days)
+    return {
+        "days": days,
+        "cutoff": scan["cutoff"],
+        "batch_count": len(scan["removable"]),
+        "file_count": sum(b["files"] for b in scan["removable"]),
+        "size_mb": round(sum(b["size_mb"] for b in scan["removable"]), 1),
+        "batches": scan["removable"][:200],      # 只回前 200 条，够看趋势了
+        "skipped": scan["skipped"][:200],
+        "skipped_count": len(scan["skipped"]),
+    }
+
+
+@app.post("/api/history/cleanup")
+def api_cleanup_old(body: Dict[str, Any], user: dict = Depends(get_current_admin)):
+    """删除 N 天前的批次目录（含图片/视频/元数据）。不可恢复。"""
+    try:
+        days = int(body.get("days") or 0)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="days 必须是数字")
+    if days < 1:
+        raise HTTPException(status_code=400, detail="days 必须 ≥ 1")
+
+    scan = _scan_old_batches(days)
+    deleted, failed = [], []
+    freed = 0.0
+    for item in scan["removable"]:
+        batch_dir = OUTPUT_ROOT / item["batch_id"]
+        try:
+            shutil.rmtree(batch_dir, ignore_errors=False)
+        except Exception as e:
+            failed.append({"batch_id": item["batch_id"], "reason": str(e)})
+            continue
+        try:
+            _deregister_batch(int(item["batch_id"]))
+        except Exception:
+            pass
+        freed += item["size_mb"]
+        deleted.append(item["batch_id"])
+
+    return {
+        "status": "ok", "days": days,
+        "deleted_count": len(deleted), "freed_mb": round(freed, 1),
+        "deleted": deleted[:200], "failed": failed,
+        "skipped_count": len(scan["skipped"]),
+    }
+
+
+def _ensure_can_delete_batch(batch_id: str, user: dict) -> None:
+    """非管理员只能删自己的批次（与 /api/history 的可见范围一致）"""
+    uid = _opt_user_id(user)
+    if uid is None:
+        return
+    try:
+        meta = json.loads((OUTPUT_ROOT / batch_id / "_meta.json").read_text(encoding="utf-8"))
+    except Exception:
+        meta = {}
+    if meta.get("user_id", 1) != uid:
+        raise HTTPException(status_code=403, detail="只能删除自己生成的批次")
+
+
 @app.delete("/api/history/{batch_id}")
-def api_delete_history(batch_id: str):
+def api_delete_history(batch_id: str, user: dict = Depends(get_current_user)):
     """删除指定批次的所有文件和元数据"""
     batch_dir = OUTPUT_ROOT / batch_id
     if not batch_dir.exists() or not batch_dir.is_dir():
         raise HTTPException(status_code=404, detail="批次不存在")
+    _ensure_can_delete_batch(batch_id, user)
 
     # 统计要删除的内容
     pngs = sorted(batch_dir.glob("*.png"))
@@ -3623,7 +3769,7 @@ def api_delete_history(batch_id: str):
 
 
 @app.post("/api/history/batch-delete")
-def api_batch_delete_history(body: Dict[str, List[str]]):
+def api_batch_delete_history(body: Dict[str, List[str]], user: dict = Depends(get_current_user)):
     """批量删除批次"""
     batch_ids = body.get("batch_ids", [])
     if not batch_ids:
@@ -3631,6 +3777,11 @@ def api_batch_delete_history(body: Dict[str, List[str]]):
 
     results = []
     for bid in batch_ids:
+        try:
+            _ensure_can_delete_batch(bid, user)
+        except HTTPException as e:
+            results.append({"batch_id": bid, "status": "forbidden", "reason": e.detail})
+            continue
         try:
             batch_dir = OUTPUT_ROOT / bid
             if not batch_dir.exists():
