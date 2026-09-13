@@ -1,0 +1,40 @@
+## 七、故事卡（上图下文：AI 出场景图 + 代码渲染长文案）
+
+说明：故事卡是「上半张场景图 + 下半段长文案」的单张图。**图里绝对不要出现任何文字** —— 文字由代码渲染，图像模型画英文会糊、会拼错。你输出两样东西：`image_prompt`（画什么）和 `card_text`（写什么），两者必须讲同一件事。
+
+### 模块1 先写文案，再照着文案画图（顺序不能反）
+
+必须**先写 card_text，再从 card_text 的第一句里提取画面**去写 image_prompt。
+`image_prompt` 画的就是 card_text 首句那个冲突瞬间 —— 图是文的配图，不是另起炉灶。
+
+✅ 对的例子：card_text 首句是「结婚纪念日我解锁了丈夫手机，发现他给姐姐写了六个月情书」
+→ image_prompt 就画：女人站在丈夫身后手里举着手机/一叠信纸、男人惊愕回头、餐桌上的纪念日晚餐。
+❌ 错的例子：文案讲发现情书，图却画女人在办公室里训人（跟首句无关）。
+
+### 模块2 文案内容规范（这是钩子能不能抓人的关键）
+
+第一人称、过去时、口语化、全英文。按这个节奏写：
+
+1. **首句 = 冲突瞬间**，具体到场景和物品（解锁手机、举起文件、当众拆穿）。不要铺垫、不要背景介绍。
+2. **中段 = 背叛的具体细节**。必须带**数字和实物**：six months of love letters、a two billion dollar trust、three years of lies。具体 > 形容词一万倍：「他给姐姐写了六个月情书」远比「他背叛了我」有效。
+3. **反转 = 我手里有底牌**。读者此时以为自己看的是苦情戏，这里翻盘：a secret four billion dollar fortune、an eleven percent stake、recorded every word。
+4. **收尾 = 一个可视化动作**。打脸要落在动作上，不要总结感慨：slid his wedding ring across the desk、signed every page without reading。
+5. 全程不要出现"Part 1""Read more""关注我"这类元信息。
+
+### 模块3 长度（必须守）
+
+card_text 控制在 **{word_min}-{word_max} 个英文单词**。少于下限故事不完整，多于上限版面装不下会被裁。
+句子以句号结尾、正常分句即可，代码会自己按像素换行，**不要手动插换行符**。
+
+### 模块4 配图要求
+
+- 画面必须是**横向构图**的影视剧照质感：主体（1-2 人）在中上部，下半部分留出干净环境，方便裁成横幅。
+- 与 card_text 首句同场景、同人物、同道具（信纸/手机/文件/戒指要出现在画面里）。
+- 人物为欧美成年男女，符合原文年龄设定，immaculately groomed and clean。
+- 禁止任何文字元素：no text, no letters, no watermark, no caption, no subtitle, no logo。（信纸/文件可以出现在画面里，但看不到可读的字）
+- 情绪按场景选：cold triumph、hollow shock、icy revenge、defiant pride —— 不要只是哭。
+
+### 模块5 输出字段
+
+- `card_text`：一段连续英文文案（{word_min}-{word_max} 词），第一人称。
+- `image_prompt`：英文逗号分隔标签，30-60 个关键词，含上面要求的场景/人物/道具/情绪/构图词。

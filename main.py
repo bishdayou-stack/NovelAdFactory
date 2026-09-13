@@ -111,7 +111,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, Res
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel, Field, model_validator
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from datetime import timedelta
 
 # Python 3.14 兼容补丁：SSE 客户端断开后，asyncio 空 buffer 写触发
@@ -926,6 +926,7 @@ _RULES_TB_SPLIT = _load_prompt("rules_tb_split.txt")
 _RULES_THREE_PANEL = _load_prompt("rules_three_panel.txt")
 _RULES_VIDEO_SCRIPT = _load_prompt("rules_video_script.txt")
 _RULES_COLLAGE = _load_prompt("rules_cinematic_collage.txt")
+_RULES_STORY_CARD = _load_prompt("rules_story_card.txt")
 
 # B层：加载视觉基因蓝图（构图原型，纯视觉参数，不含具体场景）
 _ARCHETYPES, _ARCHETYPES_FOOTER = _load_archetypes()
@@ -938,7 +939,8 @@ _FULL_RULES = _FULL_RULES_PATH.read_text(encoding="utf-8").strip() if _FULL_RULE
 NOVEL_PROMPT_RULES = _RULES_CORE
 
 
-def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scroll: int, three_panel: int = 0, cinematic_collage: bool = False) -> str:
+def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scroll: int, three_panel: int = 0, cinematic_collage: bool = False, story_card: int = 0,
+                     story_card_style: str = "long") -> str:
     """返回绘图规则：用户自定义优先 → 完整提示词文件（最新提示词.txt）→ 按需组装。
     cinematic_collage=True 时追加电影叙事拼贴风模块（用户自定义/完整规则模式下也追加，保证开关生效）"""
     if user_prompt and user_prompt.strip():
@@ -958,6 +960,10 @@ def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scro
         parts.append(_RULES_TB_SPLIT)
     if three_panel > 0:
         parts.append(_RULES_THREE_PANEL)
+    if story_card > 0 and _RULES_STORY_CARD:
+        words = STORY_CARD_STYLES.get(story_card_style, STORY_CARD_STYLES["long"])["words"]
+        parts.append(_RULES_STORY_CARD.replace("{word_min}", str(words[0]))
+                     .replace("{word_max}", str(words[1])))
     if cinematic_collage and _RULES_COLLAGE:
         parts.append(_RULES_COLLAGE)
     return "\n\n".join(p for p in parts if p)
@@ -985,6 +991,10 @@ _TB_SPLIT_SUFFIX = _SUFFIX_CONFIG.get("TB_SPLIT_SUFFIX",
     "single straight horizontal divider line in center, "
     "top panel above bottom panel, "
     "forbidden left-right layout")
+# 故事卡：只画上方横幅场景，下半留给代码渲染文案 —— 画面里绝不能出现文字
+_STORY_CARD_SUFFIX = _SUFFIX_CONFIG.get("STORY_CARD_SUFFIX",
+    "horizontal cinematic composition, subject in upper center, wide banner framing, "
+    "absolutely no text, no letters, no words, no watermark, no caption, no logo")
 
 # 种族锁定：所有素材面向欧美白人女性，禁止出现亚洲面孔（追加到每个最终绘图 prompt 末尾）
 _ETHNICITY_LOCK = "all characters Caucasian white European, no Asian faces, no Asian facial features"
@@ -1197,6 +1207,8 @@ class GenerateRequest(BaseModel):
     tb_split_count: int = 0
     three_panel_count: int = 0
     three_panel_layout: str = ""  # 异形三宫格布局：vertical-two-left/right、horizontal-two-top/bottom、"random"、空（空=random）
+    story_card_count: int = 0     # 故事卡（上图下文）数量
+    story_card_style: str = "long"  # 故事卡文案档位：long（长文）/ short（短句版）
     scroll_count: int = 0
     popup_count: int = 0
     ai_scroll_count: int = 0   # AI 滚屏（AI 生成文案）
@@ -1264,6 +1276,15 @@ def finalize_square_prompt(kind: str, core: str, base_fallback: str, collage: bo
     # 拼贴风只作用于单帧图（左右/上下分屏的硬分割布局与叠影拼贴矛盾，不叠加）
     extra = f", {_COLLAGE_SUFFIX}" if (collage and kind == "text_single") else ""
     return _dedup_prompt(f"{result}, {_ETHNICITY_LOCK}{extra}")
+
+
+def finalize_story_card_prompt(core: str, base_fallback: str) -> str:
+    """故事卡场景图：横向横幅构图、主体偏上、画面里不能有字（文字由代码渲染）。
+
+    拼贴风不作用于它 —— 拼贴会打乱"下半留干净"的构图要求。
+    """
+    base = (core or "").strip() or (base_fallback or "").strip()
+    return _dedup_prompt(f"{base}, {_STORY_CARD_SUFFIX}, {_ETHNICITY_LOCK}")
 
 
 def finalize_scroll_visual_prompt(core: str, base_fallback: str, collage: bool = False) -> str:
@@ -1381,26 +1402,32 @@ def request_image_prompt_plan(
     use_templates: bool = True,
     three_panel_count: int = 0,
     cinematic_collage: bool = False,
-) -> Tuple[List[dict], List[dict], List[dict], List[dict], List[dict]]:
+    story_card_count: int = 0,
+    story_card_style: str = "long",
+) -> Tuple[List[dict], List[dict], List[dict], List[dict], List[dict], List[dict]]:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     url = api_url.rstrip("/") + "/chat/completions"
-    n_square = text_single_count + lr_split_count + tb_split_count + three_panel_count
+    n_square = text_single_count + lr_split_count + tb_split_count + three_panel_count + story_card_count
     system = SYSTEM_PROMPT_TEMPLATE.format(
         text_single_count=text_single_count,
         scroll_visual_count=scroll_visual_count,
         lr_split_count=lr_split_count,
         tb_split_count=tb_split_count,
         three_panel_count=three_panel_count,
+        story_card_count=story_card_count,
         n_square=n_square,
     )
     # 用户消息 = 按需组装规则 + 小说内容 + （可选）模板参考
-    rules_text = _build_rules_text(user_prompt, text_single_count, lr_split_count, tb_split_count, scroll_visual_count, three_panel_count, cinematic_collage)
+    rules_text = _build_rules_text(user_prompt, text_single_count, lr_split_count, tb_split_count,
+                                   scroll_visual_count, three_panel_count, cinematic_collage,
+                                   story_card=story_card_count, story_card_style=story_card_style)
     novel_text = (novel_content or "").strip()
-    total_images = text_single_count + lr_split_count + tb_split_count + scroll_visual_count + three_panel_count
+    total_images = (text_single_count + lr_split_count + tb_split_count + scroll_visual_count
+                    + three_panel_count + story_card_count)
     user = (
         f"绘图规则：\n{rules_text}\n\n"
         f"小说节选：\n{novel_text}\n\n"
-        f"数量：text_single={text_single_count}, lr={lr_split_count}, tb={tb_split_count}, scroll={scroll_visual_count}, three_panel={three_panel_count}"
+        f"数量：text_single={text_single_count}, lr={lr_split_count}, tb={tb_split_count}, scroll={scroll_visual_count}, three_panel={three_panel_count}, story_card={story_card_count}"
     )
     if total_images >= 6:
         user += "\n\n【重要】共{0}张图，每张必须对应小说中不同的爆款瞬间或不同的情绪切面。严禁重复同一场景。详见系统提示词 Step 3 变体策略。".format(total_images)
@@ -1468,6 +1495,7 @@ def request_image_prompt_plan(
     lr = _extract("lr_split_prompts")
     tb = _extract("tb_split_prompts")
     tp = _extract("three_panel_prompts")
+    sc = _extract("story_card_prompts")
     legacy = data.get("square_prompts")
     if legacy and not ts and not lr and not tb:
         ts_legacy, lr_legacy, tb_legacy = _split_legacy_square_prompts(
@@ -1479,8 +1507,8 @@ def request_image_prompt_plan(
 
     # 统计有效 prompt（image_prompt 非空）
     valid_count = lambda items: sum(1 for it in items if isinstance(it, dict) and str(it.get("image_prompt", "")).strip())
-    print(f"[CHAT API] 有效prompt数: text_single={valid_count(ts)}, lr={valid_count(lr)}, tb={valid_count(tb)}, three_panel={valid_count(tp)}, scroll={valid_count(scroll)}")
-    return ts, lr, tb, tp, scroll
+    print(f"[CHAT API] 有效prompt数: text_single={valid_count(ts)}, lr={valid_count(lr)}, tb={valid_count(tb)}, three_panel={valid_count(tp)}, story_card={valid_count(sc)}, scroll={valid_count(scroll)}")
+    return ts, lr, tb, tp, scroll, sc
 
 
 def request_image_prompt_plan_batched(
@@ -2007,6 +2035,104 @@ def split_text_smartly(full_text: str, max_chars_per_line: int, max_lines: int =
     return final_segments
 
 
+# ====== 故事卡（上图下文，AI 出场景图 + 代码渲染长文案）======
+
+STORY_CARD_W, STORY_CARD_H = 1080, 1920
+STORY_CARD_DEFAULT_FONT = "georgia.ttf"        # 衬线体，跟样例一致（ziti/ 里有 georgia/times）
+# 两档版面：长文把图片区压矮，给文字腾地方，否则字会小到看不清
+STORY_CARD_STYLES = {
+    "long":  {"img_ratio": 0.36, "base_size": 46, "min_size": 26, "words": (220, 300)},
+    "short": {"img_ratio": 0.45, "base_size": 48, "min_size": 30, "words": (110, 150)},
+}
+
+
+def _load_font(path: str, size: int):
+    try:
+        return ImageFont.truetype(path, size)
+    except Exception:
+        return ImageFont.load_default()
+
+
+def wrap_text_by_pixels(text: str, font, max_width: float) -> List[str]:
+    """按**像素宽度**换行。
+
+    不能用 textwrap 按字符数换行 —— 衬线体字宽不等（i 和 m 差一倍），
+    按字符数会算出实际超宽的行。
+    """
+    lines: List[str] = []
+    cur = ""
+    for word in (text or "").split():
+        t = f"{cur} {word}".strip()
+        if not cur or font.getlength(t) <= max_width:
+            cur = t
+        else:
+            lines.append(cur)
+            cur = word
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def fit_story_card_text(text: str, box_w: int, box_h: int, font_path: str,
+                        base_size: int, min_size: int,
+                        line_ratio: float = 1.32) -> Tuple[int, List[str], bool]:
+    """找到「整段文案刚好装进文字区」的最大字号。
+
+    返回 (字号, 行列表, 是否仍装不下)。缩到 min_size 还装不下就返回 overflow=True，
+    由调用方决定告警 —— 别静默把字裁掉。
+    """
+    size = int(base_size)
+    while size > min_size:
+        font = _load_font(font_path, size)
+        lines = wrap_text_by_pixels(text, font, box_w)
+        if len(lines) * size * line_ratio <= box_h:
+            return size, lines, False
+        size -= 2
+    font = _load_font(font_path, min_size)
+    lines = wrap_text_by_pixels(text, font, box_w)
+    return min_size, lines, len(lines) * min_size * line_ratio > box_h
+
+
+def compose_story_card(src_image: Path, out_path: Path, text: str,
+                       style: str = "long", layout: Optional[dict] = None) -> dict:
+    """场景图 + 长文案 → 1080x1920 故事卡（上图下文），覆盖写回 out_path。
+
+    文案由代码渲染而不是让 AI 画：图像模型画英文会糊会拼错，长文案也没法控制。
+    layout 可覆盖默认版面：{img_ratio, bg, fg, font, base_size, min_size, pad}
+    """
+    cfg = {**STORY_CARD_STYLES.get(style, STORY_CARD_STYLES["long"]), **(layout or {})}
+    W, H = STORY_CARD_W, STORY_CARD_H
+    band_h = int(H * float(cfg.get("img_ratio", 0.36)))
+    pad = int(cfg.get("pad", 56))
+    bg = cfg.get("bg", "#FBF3E4")
+    fg = cfg.get("fg", "#1A1A1A")
+    font_path = cfg.get("font") or str(BASE_PATH / "ziti" / STORY_CARD_DEFAULT_FONT)
+
+    with Image.open(src_image) as im:
+        # 方图铺满横幅：按宽度缩放、纵向居中偏上裁（人物头脸通常在中上部）
+        band = ImageOps.fit(im.convert("RGB"), (W, band_h), method=Image.LANCZOS,
+                            centering=(0.5, 0.34))
+    canvas = Image.new("RGB", (W, H), bg)
+    canvas.paste(band, (0, 0))
+
+    box_w = W - pad * 2
+    box_h = H - band_h - pad * 2
+    size, lines, overflow = fit_story_card_text(
+        text, box_w, box_h, font_path,
+        int(cfg.get("base_size", 46)), int(cfg.get("min_size", 26)))
+
+    draw = ImageDraw.Draw(canvas)
+    font = _load_font(font_path, size)
+    y = band_h + pad
+    for line in lines:
+        draw.text((pad, y), line, font=font, fill=fg)
+        y += int(size * 1.32)
+
+    canvas.save(out_path, "PNG", optimize=True)
+    return {"font_size": size, "lines": len(lines), "overflow": overflow,
+            "band_h": band_h}
+
+
 _POPUP_BOX_Y_RATIO = 0.6      # 弹屏文字区从图片高度的 60% 开始（create_popup_frame 里的 box_y）
 _POPUP_BOX_PAD_TOP = 30       # 文字相对文字区顶部的内边距
 
@@ -2285,7 +2411,8 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
         fp = BASE_PATH / "ziti" / fn
         return str(fp) if fp.exists() else FONT_PATH
 
-    total_square = body.text_single_count + body.lr_split_count + body.tb_split_count + body.three_panel_count
+    total_square = (body.text_single_count + body.lr_split_count + body.tb_split_count
+                    + body.three_panel_count + body.story_card_count)
     scroll_visual_total = body.scroll_count + body.popup_count + body.ai_scroll_count + body.ai_popup_count
     total_needed = total_square + scroll_visual_total
     total_images_expected = total_square + scroll_visual_total
@@ -2296,12 +2423,14 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
     lr_prompts: List[dict] = []
     tb_prompts: List[dict] = []
     three_panel_prompts: List[dict] = []
+    story_card_prompts: List[dict] = []
     scroll_prompts: List[dict] = []
 
     if body.api_key.strip() and body.api_url.strip() and total_needed > 0:
         try:
-            print(f"[CHAT API] 单次调用模式，共 {total_needed} 张图（text_single={body.text_single_count}, lr={body.lr_split_count}, tb={body.tb_split_count}, three_panel={body.three_panel_count}, scroll={scroll_visual_total}）")
-            text_single_prompts, lr_prompts, tb_prompts, three_panel_prompts, scroll_prompts = request_image_prompt_plan(
+            print(f"[CHAT API] 单次调用模式，共 {total_needed} 张图（text_single={body.text_single_count}, lr={body.lr_split_count}, tb={body.tb_split_count}, three_panel={body.three_panel_count}, story_card={body.story_card_count}, scroll={scroll_visual_total}）")
+            (text_single_prompts, lr_prompts, tb_prompts, three_panel_prompts,
+             scroll_prompts, story_card_prompts) = request_image_prompt_plan(
                 body.api_url,
                 body.api_key,
                 body.chat_model_name,
@@ -2314,6 +2443,8 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
                 use_templates=body.use_templates,
                 three_panel_count=body.three_panel_count,
                 cinematic_collage=body.cinematic_collage,
+                story_card_count=body.story_card_count,
+                story_card_style=body.story_card_style,
             )
             chat_status = "success"
             valid_ts = sum(1 for it in text_single_prompts if isinstance(it, dict) and str(it.get("image_prompt", "")).strip())
@@ -2356,6 +2487,9 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
     lr_prompts = pad_items(lr_prompts, body.lr_split_count, base_style)
     tb_prompts = pad_items(tb_prompts, body.tb_split_count, base_style)
     three_panel_prompts = pad_items(three_panel_prompts, body.three_panel_count, base_style)
+    # 故事卡兜底提示词：至少保证构图词对（主角在中上部、下半留白、绝不能出现文字）
+    story_card_prompts = pad_items(story_card_prompts, body.story_card_count,
+                                   f"{base_style}, cinematic still, wide horizontal framing")
     scroll_prompts = pad_items(scroll_prompts, scroll_visual_total, scroll_base)
 
     # 三宫格布局：每张独立解析（指定布局固定 / random 各 25% 随机），记录实际使用布局用于返回
@@ -2439,12 +2573,15 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
         square_jobs.append(("tb", i, f"上下分屏{i + 1}"))
     for i in range(body.three_panel_count):
         square_jobs.append(("three_panel", i, f"异形三宫格{i + 1}"))
+    for i in range(body.story_card_count):
+        square_jobs.append(("story_card", i, f"故事卡{i + 1}"))
 
     def _square_item(kind, idx):
         return (
             text_single_prompts[idx] if kind == "text_single"
             else lr_prompts[idx] if kind == "lr"
             else tb_prompts[idx] if kind == "tb"
+            else story_card_prompts[idx] if kind == "story_card"
             else three_panel_prompts[idx]
         )
 
@@ -2453,10 +2590,28 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
         if kind == "three_panel":
             layout = three_panel_layouts.get(idx, "vertical-two-left")
             return finalize_three_panel_prompt(core, layout, base_style), layout
+        if kind == "story_card":
+            return finalize_story_card_prompt(core, base_style), None
         return finalize_square_prompt(kind, core, base_style, collage=body.cinematic_collage), None
 
     def _composite_square(kind, idx, fpath, lab):
         item = _square_item(kind, idx)
+        if kind == "story_card":
+            card_text = (item.get("card_text") or "").strip()
+            if not card_text:
+                warnings.append(f"{lab} 没有文案，跳过合成（只有场景图）")
+                return
+            try:
+                st = compose_story_card(fpath, fpath, card_text, style=body.story_card_style)
+                used_prompts.append({"label": lab, "type": "story_card",
+                                     "prompt": item.get("image_prompt", ""),
+                                     "card_text": card_text,
+                                     "font_size": st["font_size"]})
+                if st["overflow"]:
+                    warnings.append(f"{lab} 文案偏长，字号已缩到下限仍可能溢出，建议改短句版")
+            except Exception as e:
+                warnings.append(f"{lab} 故事卡合成失败：{e}")
+            return
         if kind == "three_panel":
             layout = three_panel_layouts.get(idx, "vertical-two-left")
             panel_texts = {
@@ -5151,6 +5306,8 @@ class AnalysisGenerateRequest(BaseModel):
     three_panel_prompts: List[dict] = []
     three_panel_layout: str = ""  # 异形三宫格布局（空/random=随机）
     three_panel_text_enabled: bool = True  # 三宫格是否叠加文字
+    story_card_prompts: List[dict] = []
+    story_card_style: str = "long"  # 故事卡文案档位：long/short
     cinematic_collage: bool = False  # 电影叙事拼贴风（单帧图生效）
     concurrency: int = 2
 
@@ -5235,6 +5392,8 @@ def _run_analysis_generation(body: AnalysisGenerateRequest, batch_id: int) -> di
         square_jobs.append(("tb", i, f"上下分屏{i+1}", item))
     for i, item in enumerate(body.three_panel_prompts):
         square_jobs.append(("three_panel", i, f"异形三宫格{i+1}", item))
+    for i, item in enumerate(body.story_card_prompts):
+        square_jobs.append(("story_card", i, f"故事卡{i+1}", item))
 
     total = len(square_jobs)
     if total == 0:
@@ -5249,6 +5408,8 @@ def _run_analysis_generation(body: AnalysisGenerateRequest, batch_id: int) -> di
         if kind == "three_panel":
             layout = three_panel_layouts.get(idx, "vertical-two-left")
             final_p = finalize_three_panel_prompt(core, layout, "")
+        elif kind == "story_card":
+            final_p = finalize_story_card_prompt(core, "")
         else:
             final_p = finalize_square_prompt(kind, core, "", collage=getattr(body, "cinematic_collage", False))
         fname = _fetch_image(final_p, "1024x1024", lab)
@@ -5257,6 +5418,22 @@ def _run_analysis_generation(body: AnalysisGenerateRequest, batch_id: int) -> di
             if kind == "three_panel":
                 prompt_dict["layout_used"] = three_panel_layouts.get(idx, "vertical-two-left")
             fpath = batch_dir / fname
+            if kind == "story_card":
+                card_text = (item.get("card_text") or "").strip()
+                if not card_text:
+                    warnings.append(f"{lab} 没有文案，只有场景图")
+                else:
+                    try:
+                        st = compose_story_card(fpath, fpath, card_text, style=body.story_card_style)
+                        prompt_dict["card_text"] = card_text
+                        prompt_dict["font_size"] = st["font_size"]
+                        if st["overflow"]:
+                            warnings.append(f"{lab} 文案偏长，字号已到下限仍可能溢出，建议改短句版")
+                    except Exception as e:
+                        warnings.append(f"{lab} 故事卡合成失败：{e}")
+                generated_images.append(f"/static/output/{batch_id}/{fname}")
+                _push_image_ready(batch_id, f"/static/output/{batch_id}/{fname}", lab)
+                return prompt_dict
             if kind == "three_panel":
                 layout = three_panel_layouts.get(idx, "vertical-two-left")
                 panel_texts = {
@@ -5488,6 +5665,8 @@ class AnalyzeNovelRequest(BaseModel):
     tb_split_count: int = 0
     three_panel_count: int = 0
     three_panel_layout: str = ""  # 异形三宫格布局（空/random=随机）
+    story_card_count: int = 0     # 故事卡（上图下文）数量
+    story_card_style: str = "long"  # 长文 / 短句版
     scroll_count: int = 0
     popup_count: int = 0
     use_templates: bool = False
@@ -5505,10 +5684,15 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
         if body.cinematic_collage and _RULES_COLLAGE:
             analysis_rules = f"{analysis_rules}\n\n{_RULES_COLLAGE}"
     else:
-        analysis_rules = _build_rules_text("", body.text_single_count, body.lr_split_count, body.tb_split_count, 0, body.three_panel_count, body.cinematic_collage)
+        analysis_rules = _build_rules_text("", body.text_single_count, body.lr_split_count,
+                                           body.tb_split_count, 0, body.three_panel_count,
+                                           body.cinematic_collage,
+                                           story_card=body.story_card_count,
+                                           story_card_style=body.story_card_style)
 
     scroll_total = body.scroll_count + body.popup_count
-    n_square = body.text_single_count + body.lr_split_count + body.tb_split_count + body.three_panel_count
+    n_square = (body.text_single_count + body.lr_split_count + body.tb_split_count
+                + body.three_panel_count + body.story_card_count)
 
     system = SYSTEM_PROMPT_TEMPLATE.format(
         text_single_count=body.text_single_count,
@@ -5516,13 +5700,14 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
         lr_split_count=body.lr_split_count,
         tb_split_count=body.tb_split_count,
         three_panel_count=body.three_panel_count,
+        story_card_count=body.story_card_count,
         n_square=max(n_square, 1),
     )
 
     user_msg = (
         f"绘图规则：\n{analysis_rules}\n\n"
         f"小说节选：\n{body.novel_content[:5000]}\n\n"
-        f"数量：text_single={body.text_single_count}, lr={body.lr_split_count}, tb={body.tb_split_count}, three_panel={body.three_panel_count}, scroll={scroll_total}"
+        f"数量：text_single={body.text_single_count}, lr={body.lr_split_count}, tb={body.tb_split_count}, three_panel={body.three_panel_count}, story_card={body.story_card_count}, scroll={scroll_total}"
         f"\n\n【重要】只输出 JSON，不要生成图片。"
     )
 

@@ -107,11 +107,13 @@ Pure JSON only (no markdown, no explanation):
   "scroll_visual_prompts": [{{"image_prompt": "..."}}],
   "lr_split_prompts": [{{"image_prompt": "...", "text_left": "...", "text_right": "...", "text_bottom": "..."}}],
   "tb_split_prompts": [{{"image_prompt": "...", "text_overlay": "..."}}],
-  "three_panel_prompts": [{{"image_prompt": "...", "panel_1_text": "...", "panel_2_text": "...", "panel_3_text": "...", "bottom_text": "...", "layout_type": "..."}}]
+  "three_panel_prompts": [{{"image_prompt": "...", "panel_1_text": "...", "panel_2_text": "...", "panel_3_text": "...", "bottom_text": "...", "layout_type": "..."}}],
+  "story_card_prompts": [{{"image_prompt": "...", "card_text": "..."}}]
 }}
 
-Counts: text_single={text_single_count}, scroll={scroll_visual_count}, lr={lr_split_count}, tb={tb_split_count}, three_panel={three_panel_count}, total={n_square}.
+Counts: text_single={text_single_count}, scroll={scroll_visual_count}, lr={lr_split_count}, tb={tb_split_count}, three_panel={three_panel_count}, story_card={story_card_count}, total={n_square}.
 Zero-count arrays = empty []. scroll_visual has ONLY image_prompt.
 image_prompt: English comma-separated Tags, 30-60 keywords, NO text-drawing instructions. Front-load 3-5 strongest trigger words from hook engines. Quality words (masterpiece, best quality) come AFTER trigger words.
 All text_* fields in English. text_bottom/text_overlay ≤20 words. text_left/text_right ≤8 words.
+story_card（故事卡：上半场景图 + 下半长文案，**图里绝不能有文字**）：先写 card_text（第一人称英文长文案，词数见规则），再照着 card_text 的第一句写 image_prompt，保证图文同源；image_prompt 是横向横幅构图、主体在中上部、下半留干净。
 three_panel: image_prompt 已含「2+1 irregular layout」构图词；panel_1/2/3_text 各 ≤6 词（图1/2/3 状态短语），bottom_text ≤15 词（整图叙事），layout_type 沿用代码给的布局值，不要更改。

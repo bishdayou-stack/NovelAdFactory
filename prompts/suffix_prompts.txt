@@ -9,5 +9,8 @@ SCROLL_VISUAL_SUFFIX=9:16 vertical portrait composition
 # 左右分屏后缀
 LR_SPLIT_SUFFIX=VERTICAL LEFT-RIGHT SPLIT SCREEN ONLY, single straight vertical divider line in center, left panel and right panel side by side, forbidden top-bottom layout
 
+# 故事卡场景图后缀（只画上半部分横幅，下半部分留给代码渲染文案，画面里不能有字）
+STORY_CARD_SUFFIX=horizontal cinematic composition, subject in upper center, clean uncluttered lower area, wide banner framing, absolutely no text, no letters, no words, no watermark, no caption, no subtitle, no logo, no readable writing anywhere in frame
+
 # 上下分屏后缀
 TB_SPLIT_SUFFIX=HORIZONTAL TOP-BOTTOM SPLIT SCREEN ONLY, single straight horizontal divider line in center, top panel above bottom panel, forbidden left-right layout
