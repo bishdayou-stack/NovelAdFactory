@@ -45,23 +45,45 @@ SHORT_TEXT = (   # 约 55 词 —— 正是用户截图里那种「只占半屏�
     "grandfather was begging to merge with belonged entirely to me."
 )
 
+# 真实英文散文的用词长度分布（不是叠同一个短句）—— 用来测「字数上限时会不会溢出」
+PROSE = (
+    "On our third wedding anniversary I unlocked my husband's phone and found six months of love "
+    "letters to my older sister. Every promise he ever gave me was meant for her, and my own family "
+    "let me walk down the aisle knowing I was a decoy bride. While I prepared our anniversary dinner "
+    "he was texting her, bragging about how easily he could throw me away once the trust money hit "
+    "his account. He thought I was a naive, penniless girl he could manipulate, but my grandmother "
+    "left me a secret fortune and an eleven percent stake in his own company. Careless and arrogant, "
+    "he signed every page without reading, transferring all marital assets to me."
+).split()
+
+
+def prose_of(words: int) -> str:
+    return " ".join((PROSE * (words // len(PROSE) + 1))[:words])
+
 
 def main():
     import main
 
     # 1) 两档词数
-    assert main.STORY_CARD_STYLES["long"]["words"] == (280, 380), main.STORY_CARD_STYLES["long"]
-    assert main.STORY_CARD_STYLES["short"]["words"] == (80, 120), main.STORY_CARD_STYLES["short"]
+    assert main.STORY_CARD_STYLES["long"]["words"] == (360, 460), main.STORY_CARD_STYLES["long"]
+    assert main.STORY_CARD_STYLES["short"]["words"] == (110, 150), main.STORY_CARD_STYLES["short"]
     rules_raw = main._RULES_STORY_CARD
     assert "{word_min}" in rules_raw and "{word_max}" in rules_raw, "规则文件里应有词数占位符"
 
     # 2) 占位符替换且两档不同
     long_rules = main._build_rules_text("", 0, 0, 0, 0, 0, False, story_card=2, story_card_style="long")
     short_rules = main._build_rules_text("", 0, 0, 0, 0, 0, False, story_card=1, story_card_style="short")
-    assert "280-380" in long_rules and "{word_min}" not in long_rules, long_rules[-300:]
-    assert "80-120" in short_rules, "短句版词数没替换进去"
+    assert "360-460" in long_rules and "{word_min}" not in long_rules, long_rules[-300:]
+    assert "110-150" in short_rules, "短句版词数没替换进去"
     # 不带故事卡时不该混进这段规则
-    assert "280-380" not in main._build_rules_text("", 1, 0, 0, 0, 0, False)
+    assert "360-460" not in main._build_rules_text("", 1, 0, 0, 0, 0, False)
+
+    # 2b) 规则必须同时管住「忠实原文」和「钩子」—— 只加字数不加这两条，模型会自己编设定
+    #     （实测过：不写「数字规则」时模型会编出 clause twenty-four / fifty-million-dollar buyout）
+    for kw in ("只能用原文里出现过的东西", "禁止编造", "找得到吗", "数字规则", "clause twenty-four"):
+        assert kw in rules_raw, f"规则缺「忠实原文」约束：{kw}"
+    for kw in ("前 8-10 个词", "情绪要有落差", "可视化动作"):
+        assert kw in rules_raw, f"规则缺「钩子」要求：{kw}"
 
     # 3) 场景图提示词：不能有文字 + 必须点名宽幅
     p = main.finalize_story_card_prompt("a woman holds divorce papers, shocked husband", "")
@@ -81,6 +103,28 @@ def main():
     assert 1920 - fb >= 600, f"方图兜底后文字区只剩 {1920 - fb}px"
     # 极扁的图也不能把文字区顶没
     assert main.story_card_band_height(4000, 200, main.STORY_CARD_W, 1920) == int(1920 * main.STORY_CARD_BAND_MIN_RATIO)
+
+    # 4b) 「加字以后不能溢出」的保证：按真实英文词长测两档的**字数上限**
+    font_path = str(main.BASE_PATH / "ziti" / main.STORY_CARD_DEFAULT_FONT)
+    for style, cfg in main.STORY_CARD_STYLES.items():
+        H = cfg["h"]
+        band = main.story_card_band_height(1344, 768, main.STORY_CARD_W, H)
+        box_w, box_h = main.STORY_CARD_W - 48 * 2, H - band - 48 * 2
+        lo, hi = cfg["words"]
+        # 字数上限必须装得下，而且还要留 2px 余量（正好卡在下限的话，模型多写一句就爆）
+        size_hi, _, of_hi = main.fit_story_card_text(
+            prose_of(hi), box_w, box_h, font_path, cfg["min_size"], cfg["max_size"])
+        assert not of_hi, f"{style} 写到上限 {hi} 词就溢出了"
+        assert size_hi >= cfg["min_size"] + 2, f"{style} 上限字号 {size_hi} 贴到下限了，没余量"
+        # 下限也不能撑爆（字少时字号自动放大，但不该超过 max）
+        size_lo, _, of_lo = main.fit_story_card_text(
+            prose_of(lo), box_w, box_h, font_path, cfg["min_size"], cfg["max_size"])
+        assert not of_lo and size_lo <= cfg["max_size"], (style, size_lo)
+        assert size_lo > size_hi, f"{style} 字少反而字号更小？{size_lo} vs {size_hi}"
+        # 模型略微超写（上限的 1.25 倍）仍不该溢出 —— 不能只卡在临界点上
+        _, _, of_over = main.fit_story_card_text(
+            prose_of(int(hi * 1.25)), box_w, box_h, font_path, cfg["min_size"], cfg["max_size"])
+        assert not of_over, f"{style} 超写 25%（{int(hi * 1.25)} 词）就溢出了，余量不够"
 
     tmp = Path(tempfile.mkdtemp(prefix="story_card_"))
     src = tmp / "scene.png"                                    # 纯红宽幅场景图，好判定
