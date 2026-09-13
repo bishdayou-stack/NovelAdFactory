@@ -2057,8 +2057,8 @@ STORY_CARD_BAND_MIN_RATIO, STORY_CARD_BAND_MAX_RATIO = 0.25, 0.62
 # 两档版面：canvas 高度不同（长文 9:16 / 短句 1:1），字号由 fit_story_card_text 在
 # min~max 之间自适应 —— 字少自动放大填满，字多自动缩小，两头都不留白。
 STORY_CARD_STYLES = {
-    "long":  {"h": 1920, "words": (360, 460), "min_size": 22, "max_size": 64},
-    "short": {"h": 1080, "words": (110, 150), "min_size": 22, "max_size": 64},
+    "long":  {"h": 1920, "words": (260, 340), "min_size": 24, "max_size": 64},
+    "short": {"h": 1080, "words": (80, 120),  "min_size": 24, "max_size": 64},
 }
 
 

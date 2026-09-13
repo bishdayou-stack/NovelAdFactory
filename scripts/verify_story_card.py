@@ -65,18 +65,18 @@ def main():
     import main
 
     # 1) 两档词数
-    assert main.STORY_CARD_STYLES["long"]["words"] == (360, 460), main.STORY_CARD_STYLES["long"]
-    assert main.STORY_CARD_STYLES["short"]["words"] == (110, 150), main.STORY_CARD_STYLES["short"]
+    assert main.STORY_CARD_STYLES["long"]["words"] == (260, 340), main.STORY_CARD_STYLES["long"]
+    assert main.STORY_CARD_STYLES["short"]["words"] == (80, 120), main.STORY_CARD_STYLES["short"]
     rules_raw = main._RULES_STORY_CARD
     assert "{word_min}" in rules_raw and "{word_max}" in rules_raw, "规则文件里应有词数占位符"
 
     # 2) 占位符替换且两档不同
     long_rules = main._build_rules_text("", 0, 0, 0, 0, 0, False, story_card=2, story_card_style="long")
     short_rules = main._build_rules_text("", 0, 0, 0, 0, 0, False, story_card=1, story_card_style="short")
-    assert "360-460" in long_rules and "{word_min}" not in long_rules, long_rules[-300:]
-    assert "110-150" in short_rules, "短句版词数没替换进去"
+    assert "260-340" in long_rules and "{word_min}" not in long_rules, long_rules[-300:]
+    assert "80-120" in short_rules, "短句版词数没替换进去"
     # 不带故事卡时不该混进这段规则
-    assert "360-460" not in main._build_rules_text("", 1, 0, 0, 0, 0, False)
+    assert "260-340" not in main._build_rules_text("", 1, 0, 0, 0, 0, False)
 
     # 2a) 回归：用户自定义提示词**不能吞掉**故事卡模块
     #     实测事故 —— 分析页的「分析提示词」被 config.json 预填（非空），旧代码 `if user_prompt: return user_prompt`
@@ -86,10 +86,10 @@ def main():
     with_custom = main._build_rules_text(MY_PROMPT, 0, 0, 0, 0, 0, False,
                                          story_card=1, story_card_style="short")
     assert MY_PROMPT in with_custom, "用户自定义提示词被丢了"
-    assert "110-150" in with_custom, "用户填了自定义提示词时，故事卡字数规则被吞掉了"
+    assert "80-120" in with_custom, "用户填了自定义提示词时，故事卡字数规则被吞掉了"
     assert "clause twenty-four" in with_custom, "用户填了自定义提示词时，忠实原文规则被吞掉了"
     # 用户没要故事卡时，别硬塞
-    assert "110-150" not in main._build_rules_text(MY_PROMPT, 0, 0, 0, 0, 0, False)
+    assert "80-120" not in main._build_rules_text(MY_PROMPT, 0, 0, 0, 0, 0, False)
     # 拼贴风开关在自定义提示词下也必须生效（原有行为，别被这次重构弄丢）
     assert main._RULES_COLLAGE[:20] in main._build_rules_text(
         MY_PROMPT, 0, 0, 0, 0, 0, True) if main._RULES_COLLAGE else True
@@ -112,6 +112,15 @@ def main():
         assert kw in low, f"场景图提示词缺「{kw}」约束：{p[:200]}"
     assert "caucasian" in low, "缺种族锁定"
     assert "16:9" in p and "widescreen" in low, f"提示词没要求宽幅构图：{p[-260:]}"
+    # 3a) 回归：**不能再要求「下半部留空、主体放上三分之一」**
+    #     那是当年「把方图裁成横幅」时代的指令。改成零裁剪后整张图都被用上，
+    #     照旧指令走只会让人物缩在上三分之一、下半幅空着 —— 用户实测反馈「人物都有遮挡」。
+    for stale in ("lower third", "lower area", "lower part", "upper-center third", "clean minimal lower"):
+        assert stale not in low, f"提示词里还留着裁图时代的旧构图指令「{stale}」，人物会又小又被挡"
+    # 必须明确要求人脸不被挡、主体够大
+    assert "unobstructed" in low, "提示词没要求「脸不被遮挡」"
+    for kw in ("遮挡", "铺满整个 16:9 画幅"):
+        assert kw in rules_raw, f"配图规则缺反遮挡/铺满约束：{kw}"
 
     # 4) 图片带 = 原图比例，零裁剪
     assert main.STORY_CARD_IMG_SIZE == "1344x768"
