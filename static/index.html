@@ -633,6 +633,10 @@
             </select>
             <span id="dashIntervalHint" class="text-[10px] text-slate-400 whitespace-nowrap">默认10分钟</span>
           </div>
+          <button id="btnDashRefresh" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all" title="重新读取当前筛选条件下的数据（不跳页、不改筛选、不重新同步）">
+            <svg id="btnDashRefreshIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            刷新
+          </button>
           <button id="btnSyncData" class="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             同步数据
@@ -5607,10 +5611,12 @@
     function loadDashboardAccounts() {
       fetch('/api/dashboard/accounts').then(function(r) { return r.json(); }).then(function(data) {
         var sel = document.getElementById('dashAccountFilter');
+        var keep = sel.value;   // 重建选项别把用户选的账户冲掉（刷新按钮会走这里）
         sel.innerHTML = '<option value="">全部账户</option>';
         (data || []).forEach(function(a) {
           sel.innerHTML += '<option value="' + a.account_id + '">' + escapeHtml(a.display) + '</option>';
         });
+        if (keep) sel.value = keep;   // 账户已不存在时回落到「全部账户」
       }).catch(function() {});
     }
 
@@ -5979,6 +5985,16 @@
         }).catch(function() { clearInterval(timer); });
       }, 3000);
     }
+
+    document.getElementById('btnDashRefresh').addEventListener('click', function() {
+      // 只重读本地数据，不重新同步书城、不跳页、不动日期/账户/关键词筛选。
+      // ponytail: 图标转 700ms 是点击反馈，不是完成信号（各 load* 不返回 Promise，接不到真完成）。
+      // 要精确的话得让 refreshDashboard 返回 Promise.all，目前几个本地查询都是亚秒级，不值当。
+      var icon = document.getElementById('btnDashRefreshIcon');
+      icon.classList.add('loading-spin');
+      setTimeout(function() { icon.classList.remove('loading-spin'); }, 700);
+      loadDashboard();
+    });
 
     document.getElementById('btnSyncData').addEventListener('click', function() {
       var btn = this;
