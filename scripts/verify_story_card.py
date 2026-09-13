@@ -82,6 +82,10 @@ def main():
     #     （实测过：不写「数字规则」时模型会编出 clause twenty-four / fifty-million-dollar buyout）
     for kw in ("只能用原文里出现过的东西", "禁止编造", "找得到吗", "数字规则", "clause twenty-four"):
         assert kw in rules_raw, f"规则缺「忠实原文」约束：{kw}"
+    # 反转必须是**条件式**的。写成硬性要求会和「只能用原文有的东西」打架：原文没反转时，
+    # 模型要么编一个（上一轮 clause twenty-four 就是这么来的），要么交一段没钩子的苦情戏。
+    assert "原文没写反转 → 跳过这一步" in rules_raw, "反转不是条件式的，会和忠实原文冲突"
+    assert "留悬念" in rules_raw, "缺「没反转时靠留悬念收尾」的兜底"
     for kw in ("前 8-10 个词", "情绪要有落差", "可视化动作"):
         assert kw in rules_raw, f"规则缺「钩子」要求：{kw}"
 

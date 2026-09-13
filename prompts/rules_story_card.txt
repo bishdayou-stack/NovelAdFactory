@@ -35,9 +35,16 @@ Facebook 信息流里这张图只有一瞬，读者看到的第一行决定他�
    - 前 8-10 个词就要制造悬念：读者扫到 "On our ninth wedding anniversary, while sitting in the hospital suite…" 就必须想知道后面发生了什么。
    - ❌ 开头就交代背景（"I had been married for nine years to a man who…"）—— 读者划走。
 2. **中段 = 背叛的具体细节**。必须带**数字和实物**：six months of love letters、a two billion dollar trust、three years of lies。具体 > 形容词一万倍：「他给姐姐写了六个月情书」远比「他背叛了我」有效。
-3. **反转 = 我手里有底牌**。读者此时以为自己看的是苦情戏，这里翻盘：a secret four billion dollar fortune、an eleven percent stake、recorded every word。
-4. **收尾 = 一个可视化动作**。打脸要落在动作上，不要总结感慨：slid his wedding ring across the desk、signed every page without reading。
-5. **情绪要有落差**：他以为我会哭 → 我一滴泪没掉。他以为我净身出户 → 我拿走了他全部身家。落差越硬，钩子越强。
+3. **反转 —— 原文有才写，没有就绝对不许编**（这条和"忠实原文"是一对，别只顾一头）：
+   - 原文里已经写了翻盘（底牌、隐情身份、股权、协议条款、录音…）→ 在这里亮出来。
+   - **原文没写反转 → 跳过这一步，不要自己造一个。** 造出来的反转读者回原文一查没有，钩子当场废掉。
+   - 没有反转时，钩子要靠**原文里真实存在的那一击**顶上去，而且要顶得更狠：
+     被最信任的人当众羞辱、最亲近的朋友一直在骗我、我手里还攥着他不知道的东西（原文明写了的那个）。
+   - 结尾改成**留悬念**而不是打脸：`I walked away without saying a word`、`I never told him what was in my handbag`
+     —— 留白比硬凑的打脸更让人想点进去。
+4. **收尾 = 一个可视化动作**。不要总结感慨，落在一个具体的动作上：`slid the papers across the desk`、`signed every page without reading`、
+   `walked out without looking back`。
+5. **情绪要有落差**：他以为我会哭 → 我一滴泪没掉。他以为我什么都不知道 → 我连他藏了什么都知道。落差越硬，钩子越强。
 6. 全程不要出现 "Part 1" "Read more" "关注我" 这类元信息，也不要写 "You won't believe what happened next" 这种空转句 —— 必须是实的剧情。
 
 写完自己过一遍：**这个名字/数字/情节，在原文里找得到吗？** 找不到就删掉重写。
