@@ -942,31 +942,40 @@ NOVEL_PROMPT_RULES = _RULES_CORE
 def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scroll: int, three_panel: int = 0, cinematic_collage: bool = False, story_card: int = 0,
                      story_card_style: str = "long") -> str:
     """返回绘图规则：用户自定义优先 → 完整提示词文件（最新提示词.txt）→ 按需组装。
-    cinematic_collage=True 时追加电影叙事拼贴风模块（用户自定义/完整规则模式下也追加，保证开关生效）"""
-    if user_prompt and user_prompt.strip():
-        base = user_prompt.strip()
-        return f"{base}\n\n{_RULES_COLLAGE}" if cinematic_collage and _RULES_COLLAGE else base
-    if _FULL_RULES:
-        base = _FULL_RULES
-        return f"{base}\n\n{_RULES_COLLAGE}" if cinematic_collage and _RULES_COLLAGE else base
-    parts = [_RULES_CORE, _RULES_SHARED]
-    if text_single > 0:
-        parts.append(_RULES_TEXT_SINGLE)
-    if scroll > 0:
-        parts.append(_RULES_SCROLL)
-    if lr > 0:
-        parts.append(_RULES_LR_SPLIT)
-    if tb > 0:
-        parts.append(_RULES_TB_SPLIT)
-    if three_panel > 0:
-        parts.append(_RULES_THREE_PANEL)
+
+    **故事卡模块和拼贴风模块是强制追加的，任何分支都带**（拼贴风原本就是这个做法）。
+    故事卡模块里装的是代码里的数值配置（字数区间、两档版面），用户的通用提示词不可能知道，
+    被「用户自定义优先」吞掉就会出事 —— 实测：分析页的「分析提示词」框被 config.json 的
+    analysis_prompt 预填（非空），于是这里的 else 分支从来没走过，故事卡字数规则一条都没进 prompt，
+    模型自己写 45 词、配一张跟文案无关的图，怎么调 STORY_CARD_STYLES 都不生效。
+    """
+    story_card_rule = ""
     if story_card > 0 and _RULES_STORY_CARD:
         words = STORY_CARD_STYLES.get(story_card_style, STORY_CARD_STYLES["long"])["words"]
-        parts.append(_RULES_STORY_CARD.replace("{word_min}", str(words[0]))
-                     .replace("{word_max}", str(words[1])))
-    if cinematic_collage and _RULES_COLLAGE:
-        parts.append(_RULES_COLLAGE)
-    return "\n\n".join(p for p in parts if p)
+        story_card_rule = (_RULES_STORY_CARD
+                           .replace("{word_min}", str(words[0]))
+                           .replace("{word_max}", str(words[1])))
+
+    if user_prompt and user_prompt.strip():
+        base = user_prompt.strip()
+    elif _FULL_RULES:
+        base = _FULL_RULES
+    else:
+        parts = [_RULES_CORE, _RULES_SHARED]
+        if text_single > 0:
+            parts.append(_RULES_TEXT_SINGLE)
+        if scroll > 0:
+            parts.append(_RULES_SCROLL)
+        if lr > 0:
+            parts.append(_RULES_LR_SPLIT)
+        if tb > 0:
+            parts.append(_RULES_TB_SPLIT)
+        if three_panel > 0:
+            parts.append(_RULES_THREE_PANEL)
+        base = "\n\n".join(p for p in parts if p)
+
+    tail = [story_card_rule, _RULES_COLLAGE if (cinematic_collage and _RULES_COLLAGE) else ""]
+    return "\n\n".join(p for p in [base] + tail if p)
 
 # 后缀常量
 _SUFFIX_CONFIG = {}
@@ -5707,17 +5716,12 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
     if not body.api_key.strip() or not body.novel_content.strip():
         raise HTTPException(status_code=400, detail="缺少 API Key 或小说内容")
 
-    # 用户提示词优先
-    if body.analysis_prompt.strip():
-        analysis_rules = body.analysis_prompt.strip()
-        if body.cinematic_collage and _RULES_COLLAGE:
-            analysis_rules = f"{analysis_rules}\n\n{_RULES_COLLAGE}"
-    else:
-        analysis_rules = _build_rules_text("", body.text_single_count, body.lr_split_count,
-                                           body.tb_split_count, 0, body.three_panel_count,
-                                           body.cinematic_collage,
-                                           story_card=body.story_card_count,
-                                           story_card_style=body.story_card_style)
+    # 用户提示词优先，但走 _build_rules_text 统一组装 —— 故事卡/拼贴风模块必须强制带上，
+    # 不能因为「分析提示词」框有内容（config 会预填）就把它们整个吞掉。
+    analysis_rules = _build_rules_text(
+        body.analysis_prompt, body.text_single_count, body.lr_split_count,
+        body.tb_split_count, 0, body.three_panel_count, body.cinematic_collage,
+        story_card=body.story_card_count, story_card_style=body.story_card_style)
 
     scroll_total = body.scroll_count + body.popup_count
     n_square = (body.text_single_count + body.lr_split_count + body.tb_split_count

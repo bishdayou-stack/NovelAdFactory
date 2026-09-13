@@ -78,6 +78,22 @@ def main():
     # 不带故事卡时不该混进这段规则
     assert "360-460" not in main._build_rules_text("", 1, 0, 0, 0, 0, False)
 
+    # 2a) 回归：用户自定义提示词**不能吞掉**故事卡模块
+    #     实测事故 —— 分析页的「分析提示词」被 config.json 预填（非空），旧代码 `if user_prompt: return user_prompt`
+    #     直接跳过组装，故事卡字数规则一条都没进 prompt，模型自己写 45 词、配不相干的图，
+    #     怎么调 STORY_CARD_STYLES 都不生效（表现为「字数越改越少」）。
+    MY_PROMPT = "暗黑浪漫风格，强调权力反转和禁忌关系。"
+    with_custom = main._build_rules_text(MY_PROMPT, 0, 0, 0, 0, 0, False,
+                                         story_card=1, story_card_style="short")
+    assert MY_PROMPT in with_custom, "用户自定义提示词被丢了"
+    assert "110-150" in with_custom, "用户填了自定义提示词时，故事卡字数规则被吞掉了"
+    assert "clause twenty-four" in with_custom, "用户填了自定义提示词时，忠实原文规则被吞掉了"
+    # 用户没要故事卡时，别硬塞
+    assert "110-150" not in main._build_rules_text(MY_PROMPT, 0, 0, 0, 0, 0, False)
+    # 拼贴风开关在自定义提示词下也必须生效（原有行为，别被这次重构弄丢）
+    assert main._RULES_COLLAGE[:20] in main._build_rules_text(
+        MY_PROMPT, 0, 0, 0, 0, 0, True) if main._RULES_COLLAGE else True
+
     # 2b) 规则必须同时管住「忠实原文」和「钩子」—— 只加字数不加这两条，模型会自己编设定
     #     （实测过：不写「数字规则」时模型会编出 clause twenty-four / fifty-million-dollar buyout）
     for kw in ("只能用原文里出现过的东西", "禁止编造", "找得到吗", "数字规则", "clause twenty-four"):
