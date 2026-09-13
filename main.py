@@ -2039,10 +2039,17 @@ def split_text_smartly(full_text: str, max_chars_per_line: int, max_lines: int =
 
 STORY_CARD_W, STORY_CARD_H = 1080, 1920
 STORY_CARD_DEFAULT_FONT = "georgia.ttf"        # 衬线体，跟样例一致（ziti/ 里有 georgia/times）
-# 两档版面：长文把图片区压矮，给文字腾地方，否则字会小到看不清
+# 场景图按宽幅生成。**别改回 1024x1024**：方图铺 1080 宽的横幅要砍掉 1/3 画面（人物头被切），
+# 按 1.75:1 生成则图片带按同比例铺满，一刀不裁。实测接口精确遵守请求尺寸（任意值都认）。
+STORY_CARD_IMG_SIZE = "1344x768"               # 1.75:1 ≈ 16:9，两边都 ≥ 1024 最稳
+# 图片带占画布高度的夹取区间。正常走 1.75:1 落在区间内；万一服务端不认尺寸回落到方图，
+# 靠它兜住版面，不至于把文字区挤没。
+STORY_CARD_BAND_MIN_RATIO, STORY_CARD_BAND_MAX_RATIO = 0.25, 0.62
+# 两档版面：canvas 高度不同（长文 9:16 / 短句 1:1），字号由 fit_story_card_text 在
+# min~max 之间自适应 —— 字少自动放大填满，字多自动缩小，两头都不留白。
 STORY_CARD_STYLES = {
-    "long":  {"img_ratio": 0.36, "base_size": 46, "min_size": 26, "words": (220, 300)},
-    "short": {"img_ratio": 0.45, "base_size": 48, "min_size": 30, "words": (110, 150)},
+    "long":  {"h": 1920, "words": (280, 380), "min_size": 26, "max_size": 64},
+    "short": {"h": 1080, "words": (80, 120),  "min_size": 24, "max_size": 64},
 }
 
 
@@ -2074,14 +2081,18 @@ def wrap_text_by_pixels(text: str, font, max_width: float) -> List[str]:
 
 
 def fit_story_card_text(text: str, box_w: int, box_h: int, font_path: str,
-                        base_size: int, min_size: int,
+                        min_size: int, max_size: int,
                         line_ratio: float = 1.32) -> Tuple[int, List[str], bool]:
-    """找到「整段文案刚好装进文字区」的最大字号。
+    """找到「整段文案刚好填满文字区」的字号。
+
+    **必须从 max_size 往下试**：原来从固定 base_size 往下缩，字少时停在 base_size 不再往上长，
+    一屏文案只占半屏、下面一大片留白（实测 50 词只填了 1117px 文字区的一半）。
+    从大往小找 = 字少自动放大填满，字多自动缩小 —— 任何字数都不留白。
 
     返回 (字号, 行列表, 是否仍装不下)。缩到 min_size 还装不下就返回 overflow=True，
     由调用方决定告警 —— 别静默把字裁掉。
     """
-    size = int(base_size)
+    size = int(max_size)
     while size > min_size:
         font = _load_font(font_path, size)
         lines = wrap_text_by_pixels(text, font, box_w)
@@ -2093,24 +2104,40 @@ def fit_story_card_text(text: str, box_w: int, box_h: int, font_path: str,
     return min_size, lines, len(lines) * min_size * line_ratio > box_h
 
 
+def story_card_band_height(src_w: int, src_h: int, canvas_w: int, canvas_h: int) -> int:
+    """图片带高度：按场景图**实际宽高比**算，正常情况下零裁剪。
+
+    以前写死 1080x691（1.56:1）去裁 1024 方图，砍掉 36% 画面，人物头就是这么被切掉的。
+    场景图现在按 STORY_CARD_IMG_SIZE 生成，算出来恰好是原比例（纯缩放，不裁）；
+    夹取区间只兜底服务端不认尺寸的情况。
+    """
+    ratio = (src_w / src_h) if src_h else 1.0
+    band = int(round(canvas_w / max(ratio, 1e-6)))
+    lo = int(canvas_h * STORY_CARD_BAND_MIN_RATIO)
+    hi = int(canvas_h * STORY_CARD_BAND_MAX_RATIO)
+    return max(lo, min(band, hi))
+
+
 def compose_story_card(src_image: Path, out_path: Path, text: str,
                        style: str = "long", layout: Optional[dict] = None) -> dict:
-    """场景图 + 长文案 → 1080x1920 故事卡（上图下文），覆盖写回 out_path。
+    """场景图 + 长文案 → 故事卡（上图下文），覆盖写回 out_path。
 
+    长文版 1080x1920（9:16），短句版 1080x1080（1:1）。
     文案由代码渲染而不是让 AI 画：图像模型画英文会糊会拼错，长文案也没法控制。
-    layout 可覆盖默认版面：{img_ratio, bg, fg, font, base_size, min_size, pad}
+    layout 可覆盖默认版面：{h, band_h, bg, fg, font, min_size, max_size, pad}
     """
     cfg = {**STORY_CARD_STYLES.get(style, STORY_CARD_STYLES["long"]), **(layout or {})}
-    W, H = STORY_CARD_W, STORY_CARD_H
-    band_h = int(H * float(cfg.get("img_ratio", 0.36)))
-    pad = int(cfg.get("pad", 56))
+    W, H = STORY_CARD_W, int(cfg.get("h", STORY_CARD_H))
+    pad = int(cfg.get("pad", 48))
     bg = cfg.get("bg", "#FBF3E4")
     fg = cfg.get("fg", "#1A1A1A")
     font_path = cfg.get("font") or str(BASE_PATH / "ziti" / STORY_CARD_DEFAULT_FONT)
 
     with Image.open(src_image) as im:
-        # 方图铺满横幅：按宽度缩放、纵向居中偏上裁（人物头脸通常在中上部）
-        band = ImageOps.fit(im.convert("RGB"), (W, band_h), method=Image.LANCZOS,
+        rgb = im.convert("RGB")
+        band_h = int(cfg.get("band_h") or story_card_band_height(rgb.width, rgb.height, W, H))
+        # 图片带比例 = 场景图比例时是纯缩放，不裁；兜底情况下才居中偏上裁一点
+        band = ImageOps.fit(rgb, (W, band_h), method=Image.LANCZOS,
                             centering=(0.5, 0.34))
     canvas = Image.new("RGB", (W, H), bg)
     canvas.paste(band, (0, 0))
@@ -2119,7 +2146,7 @@ def compose_story_card(src_image: Path, out_path: Path, text: str,
     box_h = H - band_h - pad * 2
     size, lines, overflow = fit_story_card_text(
         text, box_w, box_h, font_path,
-        int(cfg.get("base_size", 46)), int(cfg.get("min_size", 26)))
+        int(cfg.get("min_size", 26)), int(cfg.get("max_size", 64)))
 
     draw = ImageDraw.Draw(canvas)
     font = _load_font(font_path, size)
@@ -2648,7 +2675,9 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
         """单个方图生成任务"""
         item = _square_item(kind, idx)
         final_p, layout = _square_final_prompt(kind, idx, item)
-        name = fetch_image(final_p, "1024x1024", lab)
+        # 故事卡要宽幅底图（图片带按同比例铺，零裁剪），其余方图仍是 1024 方
+        size = STORY_CARD_IMG_SIZE if kind == "story_card" else "1024x1024"
+        name = fetch_image(final_p, size, lab)
         prompt_dict = {"label": lab, "type": kind, "prompt": final_p}
         if kind == "three_panel":
             prompt_dict["layout_used"] = layout
@@ -5412,7 +5441,7 @@ def _run_analysis_generation(body: AnalysisGenerateRequest, batch_id: int) -> di
             final_p = finalize_story_card_prompt(core, "")
         else:
             final_p = finalize_square_prompt(kind, core, "", collage=getattr(body, "cinematic_collage", False))
-        fname = _fetch_image(final_p, "1024x1024", lab)
+        fname = _fetch_image(final_p, STORY_CARD_IMG_SIZE if kind == "story_card" else "1024x1024", lab)
         if fname:
             prompt_dict = {"label": lab, "type": kind, "prompt": final_p}
             if kind == "three_panel":

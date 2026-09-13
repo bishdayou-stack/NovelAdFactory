@@ -9,8 +9,10 @@ SCROLL_VISUAL_SUFFIX=9:16 vertical portrait composition
 # 左右分屏后缀
 LR_SPLIT_SUFFIX=VERTICAL LEFT-RIGHT SPLIT SCREEN ONLY, single straight vertical divider line in center, left panel and right panel side by side, forbidden top-bottom layout
 
-# 故事卡场景图后缀（只画上半部分横幅，下半部分留给代码渲染文案，画面里不能有字）
-STORY_CARD_SUFFIX=horizontal cinematic composition, subject in upper center, clean uncluttered lower area, wide banner framing, absolutely no text, no letters, no words, no watermark, no caption, no subtitle, no logo, no readable writing anywhere in frame
+# 故事卡场景图后缀（16:9 宽幅横幅底图，下半部分留给代码渲染文案，画面里不能有字）
+# 生成尺寸见 main.STORY_CARD_IMG_SIZE —— 图会按原比例铺进图片带，所以构图必须按横幅来，
+# 不能画成方图构图（方图构图横过来裁会切掉头顶）。
+STORY_CARD_SUFFIX=16:9 widescreen horizontal banner composition, cinematic film still framed for a wide 16:9 crop, subjects (one or two people) positioned in the upper-center third of the frame, heads and faces well inside the top edge with headroom, full upper body and surrounding environment visible across the wide frame, lower third kept clean and uncluttered, absolutely no text, no letters, no words, no watermark, no caption, no subtitle, no logo, no readable writing anywhere in frame
 
 # 上下分屏后缀
 TB_SPLIT_SUFFIX=HORIZONTAL TOP-BOTTOM SPLIT SCREEN ONLY, single straight horizontal divider line in center, top panel above bottom panel, forbidden left-right layout
