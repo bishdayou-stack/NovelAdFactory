@@ -87,6 +87,23 @@ def main():
     assert "{bg_count}" not in many and f"必须是 {main.CAPTION_BG_COUNT_MULTI}" in many, "多底图模式没换成 3"
     assert "均分" in many, "多底图规则没说要按 captions 顺序分段"
 
+    # 3b-2) **回归：pad_items 不能把带 captions 的条目整条丢掉**
+    #       实测事故：pad_items 按 image_prompt(单数) 判有效，而字幕视频的 entry 是
+    #       image_prompts(复数)+captions —— 每条都被判无效整条替换，captions 全丢，
+    #       表现是「底图出来了但视频没有」，warning 写「没有字幕文案，跳过合成（只有底图）」。
+    cap_items = [{"image_prompts": ["p1"], "captions": ["a", "b"]},
+                 {"image_prompts": ["p2"], "captions": ["c"]}]
+    filler = {"image_prompts": ["f"], "captions": []}
+    kept = main.pad_items(cap_items, 2, filler, key="captions")
+    assert [o.get("captions") for o in kept] == [["a", "b"], ["c"]], f"captions 被 pad_items 丢了：{kept}"
+    padded = main.pad_items(cap_items, 3, filler, key="captions")
+    assert padded[2] == filler and [o.get("captions") for o in padded[:2]] == [["a", "b"], ["c"]]
+    # captions 为空的条目才该被顶掉
+    assert main.pad_items([{"captions": []}], 1, filler, key="captions")[0] == filler
+    # 不传 key 时（普通图路径）行为不变：字符串 filler 组成 {"image_prompt": ...}
+    assert main.pad_items([], 1, "F")[0] == {"image_prompt": "F"}
+    assert main.pad_items([{"image_prompt": "x"}], 1, "F")[0] == {"image_prompt": "x"}
+
     # 3c) 提示词取值：新格式数组 / 旧格式单值 / 缺失
     assert main.caption_bg_prompts_of({"image_prompts": ["a", "b"]}) == ["a", "b"]
     assert main.caption_bg_prompts_of({"image_prompt": "solo"}) == ["solo"]
@@ -182,6 +199,36 @@ def main():
         assert st_rel["lines"] == 4
     finally:
         shutil.rmtree(rel_dir, ignore_errors=True)
+
+    # 9) 回归：视频字段必须**一路活到接口**。
+    #    `_save_batch_meta` 和 `/api/history/{id}` 都是白名单式的固定字段列表 ——
+    #    加新视频类型时只加一处，就会出现「mp4 在磁盘上、_meta.json 里也有、接口偏偏不返回」，
+    #    前端历史那条路就渲染不出来。caption_videos 两处都漏过一次。
+    from fastapi.testclient import TestClient
+    bid = main._init_batch(999)
+    try:
+        sample = {
+            "batch_id": bid, "status": "success",
+            "videos": [f"/static/output/{bid}/{bid}-caption-1.mp4"],
+            "caption_videos": [f"/static/output/{bid}/{bid}-caption-1.mp4"],
+            "scroll_videos": [f"/static/output/{bid}/{bid}-scroll-video-1.mp4"],
+            "ai_scroll_videos": [f"/static/output/{bid}/{bid}-ai-scroll-1.mp4"],
+            "ai_popup_videos": [f"/static/output/{bid}/{bid}-ai-popup-1.mp4"],
+            "popup_videos": [], "images": [],
+        }
+        main._save_batch_meta(sample)
+        meta = json.loads((main.OUTPUT_ROOT / str(bid) / "_meta.json").read_text(encoding="utf-8"))
+        for k in ("videos", "caption_videos", "scroll_videos", "ai_scroll_videos", "ai_popup_videos"):
+            assert meta.get(k) == sample[k], f"_save_batch_meta 把 {k} 丢了"
+
+        main.app.dependency_overrides[main.get_current_user] = lambda: {"id": 999, "role": "admin"}
+        c = TestClient(main.app, raise_server_exceptions=False)
+        d = c.get(f"/api/history/{bid}").json()
+        for k in ("videos", "caption_videos", "scroll_videos", "ai_scroll_videos", "ai_popup_videos"):
+            assert d.get(k) == sample[k], f"/api/history 没返回 {k}（白名单漏了）"
+    finally:
+        main.app.dependency_overrides.pop(main.get_current_user, None)
+        shutil.rmtree(main.OUTPUT_ROOT / str(bid), ignore_errors=True)
 
     shutil.rmtree(tmp, ignore_errors=True)
     print(f"OK: 逐句字幕视频正常（{len(CAPTIONS)} 句 → {got:.1f}s / {st_video['groups']} 组 / "

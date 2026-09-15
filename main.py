@@ -1715,13 +1715,25 @@ def pad_prompts(prompts: List[str], n: int, filler: str) -> List[str]:
     return out
 
 
-def pad_items(items: List[dict], n: int, filler_image_prompt: str) -> List[dict]:
+def pad_items(items: List[dict], n: int, filler, key: str = "image_prompt") -> List[dict]:
+    """把 items 补齐到 n 条，缺的用 filler 顶。
+
+    **key 决定「这条算不算有效」看哪个字段。** 普通图看 image_prompt；
+    逐句字幕视频的 entry 是 image_prompts(复数数组) + captions，用 image_prompt 判会
+    把每一条都当无效整条替换掉，captions 全丢 —— 实测表现就是「底图出来了但视频没有」，
+    warning 写着「没有字幕文案，跳过合成（只有底图）」。所以那边必须传 key="captions"。
+
+    filler 给字符串 → 组成 {"image_prompt": 字符串}；给 dict → 直接当整条用（字幕视频要保留结构）。
+    """
     out: List[dict] = []
     for i in range(n):
-        if i < len(items) and isinstance(items[i], dict) and str(items[i].get("image_prompt", "")).strip():
-            out.append(items[i])
-        else:
-            out.append({"image_prompt": filler_image_prompt})
+        item = items[i] if i < len(items) else None
+        v = item.get(key) if isinstance(item, dict) else None
+        # 列表字段（captions / image_prompts）要看长度，不能 str() 完再判 ——
+        # str([]) == "[]" 是非空字符串，空列表会被误判成有效。
+        ok = (len(v) > 0) if isinstance(v, (list, tuple)) else bool(str(v or "").strip())
+        out.append(item if (ok and isinstance(item, dict)) else
+                   (dict(filler) if isinstance(filler, dict) else {"image_prompt": filler}))
     return out
 
 
@@ -2770,7 +2782,8 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
                                    f"{base_style}, cinematic still, wide horizontal framing")
     scroll_prompts = pad_items(scroll_prompts, scroll_visual_total, scroll_base)
     caption_video_prompts = pad_items(caption_video_prompts, body.caption_video_count,
-                                      {"image_prompts": [scroll_base], "captions": []})
+                                      {"image_prompts": [scroll_base], "captions": []},
+                                      key="captions")
     # 字幕视频的底图**以 caption_video_prompts.image_prompts 为准**，覆盖掉 scroll 槽位里那份：
     # 模型对同一张底图会写两遍（一遍进 scroll_visual_prompts，一遍进这里），专门那条规则写得更准。
     # 底图本身仍走滚屏那套生成流程（并发/取消/进度/命名都现成），只是提示词换掉。
@@ -3391,7 +3404,6 @@ def _background_generation(body: GenerateRequest, batch_id: int) -> None:
         _save_batch_meta(result)
 
 
-@app.post("/api/generate")
 def _init_batch(user_id: int) -> int:
     """创建新批次目录并写入初始 meta（含 user_id），返回 batch_id"""
     batch_id = allocate_batch_id(OUTPUT_ROOT)
@@ -3404,8 +3416,15 @@ def _init_batch(user_id: int) -> int:
     return batch_id
 
 
+@app.post("/api/generate")
+@app.post("/generate")
 def api_generate(body: GenerateRequest, user: dict = Depends(get_current_user)):
-    """提交生产任务到后台线程，立即返回 batch_id"""
+    """提交生产任务到后台线程，立即返回 batch_id
+
+    两个路径都注册：前端一直用 /generate，而 CLAUDE.md / 文档里写的是 /api/generate。
+    以前 @app.post("/api/generate") 挂错了函数（挂到 _init_batch 上），导致
+    /api/generate 什么都不做、只返回一个裸 batch_id —— 谁照着文档调谁中招。
+    """
     batch_id = _init_batch(user["id"])
     _register_batch(batch_id)
     _update_progress(batch_id, 0, "任务已提交，正在启动...", "running")
@@ -3415,11 +3434,6 @@ def api_generate(body: GenerateRequest, user: dict = Depends(get_current_user)):
         "batch_id": batch_id,
         "message": f"任务 #{batch_id} 已提交到后台处理",
     }
-
-
-@app.post("/generate")
-def generate_alias(body: GenerateRequest, user: dict = Depends(get_current_user)):
-    return api_generate(body, user)
 
 
 # --- 取消接口 ---
@@ -3833,6 +3847,13 @@ def _save_batch_meta(result: dict) -> None:
             "images": result.get("images", []),
             "videos": result.get("videos", []),
             "popup_videos": result.get("popup_videos", []),
+            # 这里是**白名单**：结果里新增视频类型时必须一起加进来，否则字段被丢在这里，
+            # /api/history 拿不到 → 前端历史那条路渲染不出来（文件明明在，界面上就是没有）。
+            # 逐句字幕视频就这么漏过一次。
+            "caption_videos": result.get("caption_videos", []),
+            "scroll_videos": result.get("scroll_videos", []),
+            "ai_scroll_videos": result.get("ai_scroll_videos", []),
+            "ai_popup_videos": result.get("ai_popup_videos", []),
             "image_count": len(result.get("images", [])),
             "video_count": len(result.get("videos", [])),
             "warnings": result.get("warnings", []),
@@ -4140,6 +4161,12 @@ def api_history_detail(batch_id: str, user: dict = Depends(get_current_user)):
         "images": imgs,
         "videos": vids,
         "popup_videos": popups,
+        # 和 _save_batch_meta 一样是**白名单**：结果里新增视频类型时两处都要加，
+        # 只加一处就会出现「文件在、_meta.json 里也有、接口偏偏不返回」。
+        "caption_videos": meta.get("caption_videos", []),
+        "scroll_videos": meta.get("scroll_videos", []),
+        "ai_scroll_videos": meta.get("ai_scroll_videos", []),
+        "ai_popup_videos": meta.get("ai_popup_videos", []),
         "warnings": meta.get("warnings", []),
         "errors": meta.get("errors", []),
         "chat_status": meta.get("chat_status", "unknown"),
