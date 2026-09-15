@@ -43,14 +43,23 @@ def _curl_json_post(url: str, payload: dict, headers: dict, timeout_sec: int = 3
     else:
         cmd.extend(["-d", data_str])
     cmd.append(url)
+    # 计时埋点：分析页和生产中心用的是同一个聊天 API，但生产中心跑在后台线程（HTTP 早返回、
+    # 慢一点看不出来），分析页是同步阻塞（慢就是「一直卡在分析中」）。两边都打这行日志，
+    # 一对比就知道到底卡在哪一层、是不是同一个调用。（曾经只凭代码猜了半天，没有证据。）
+    _t0 = time.time()
+    _host = url.split("//")[-1].split("/")[0]
     try:
         result = _subprocess.run(cmd, capture_output=True, timeout=timeout_sec + 10)
         output = (result.stdout or b"").decode("utf-8", errors="replace").strip()
         lines = output.rsplit("\n", 1)
         body_text = lines[0] if len(lines) == 2 else output
         http_code = int(lines[1]) if len(lines) == 2 else 0
+        print(f"[CURL] POST {_host} 耗时 {time.time() - _t0:.1f}s http={http_code} "
+              f"请求 {len(data_str)}B 响应 {len(body_text)}B")
         return json.loads(body_text) if body_text else {}, http_code, None
     except Exception as e:
+        print(f"[CURL] POST {_host} 耗时 {time.time() - _t0:.1f}s 失败: {e} "
+              f"(请求 {len(data_str)}B, timeout={timeout_sec}s)")
         return None, 0, str(e)
     finally:
         if tmp_file:
@@ -6051,8 +6060,16 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
         "max_tokens": 8192,
     }
 
+    # 分阶段埋点：分析页是同步阻塞的，卡住时前端只能干等。把每一段耗时打出来，
+    # 一眼看出是「组装提示词」慢还是「调 Chat API」慢。
+    _t_all = time.time()
+    print(f"[ANALYZE] 开始: 小说 {len(body.novel_content or '')}B → 截取 5000B; "
+          f"analysis_prompt {len(body.analysis_prompt or '')}B; "
+          f"规则 {len(analysis_rules)}B; system {len(system)}B; user {len(user_msg)}B; "
+          f"故事卡={body.story_card_count}")
     try:
         j, code, curl_err = _curl_json_post(url, payload, headers, 300)
+        print(f"[ANALYZE] Chat API 返回: 累计 {time.time() - _t_all:.1f}s http={code}")
         if curl_err or code >= 400:
             return {"status": "failed", "error": f"Chat API HTTP {code}: {str(j)[:300] if j else (curl_err or '')}"}
         if not isinstance(j, dict):
