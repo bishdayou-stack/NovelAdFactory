@@ -1471,6 +1471,8 @@ def request_image_prompt_plan(
         story_card_count=story_card_count,
         caption_video_count=caption_video_count,
         bg_count=caption_bg_count(caption_multi_bg),
+        cap_min=CAPTION_MIN_LINES,
+        cap_max=CAPTION_MAX_LINES,
         n_square=n_square,
     )
     # 用户消息 = 按需组装规则 + 小说内容 + （可选）模板参考
@@ -2232,11 +2234,13 @@ def compose_story_card(src_image: Path, out_path: Path, text: str,
 
 # ====== 逐句字幕视频（一张静态底图 + 逐句浮现的字幕）======
 
-CAPTION_MIN_LINES, CAPTION_MAX_LINES = 21, 24   # LLM 要出的句数
-CAPTION_SEC_PER_LINE = 1.2      # 每句字幕停留秒数 → 21~24 句 = 25.2~28.8 秒（要的就是 25-30s）
+CAPTION_MIN_LINES, CAPTION_MAX_LINES = 13, 15   # LLM 要出的句数
+CAPTION_SEC_PER_LINE = 2.0      # 每句字幕停留秒数 → 13~15 句 = 26~30 秒（要的就是 25-30s）
 CAPTION_GROUP_SIZE = 3          # 同时最多显示几句；满一组清空，接着下一组
 CAPTION_MAX_WORDS = 10          # 单句超过这个词数就打回（LLM 偶尔会写长）
 CAPTION_BG_SIZE = "768x1344"    # 底图请求尺寸（9:16，跟滚屏/AI 滚屏一致）
+CAPTION_FONT_RATIO = 0.052      # 字幕字号 = 画面宽 × 这个比例
+CAPTION_BOX_ALPHA = 128         # 字幕框底色的不透明度（0=全透 / 255=实心）→ 128 ≈ 半透
 CAPTION_BLOCK_CENTER = 0.62     # 字幕块中心落在画面高度的这个位置（别用 0.5：正中会压住人物的脸）
 CAPTION_BG_COUNT_MULTI = 3      # 「底图跟随文案」开启时的底图张数
 # 为什么是 3：26 秒的片子分 3 段，每张停 8~9 秒，还能看清画面；再多就变成幻灯片闪切，
@@ -2291,7 +2295,9 @@ def render_caption_state(bg: Image.Image, visible: List[str], font, font_path: s
                          out_path: Path) -> None:
     """把「当前该显示的那几句」画到底图副本上，存成一张 PNG。
 
-    白底圆角框 + 黑字，水平居中，整块垂直居中 —— 和样例一致。
+    半透明白底圆角框 + 黑字，水平居中，整块垂直居中。
+    框是**半透明**的（CAPTION_BOX_ALPHA）：底图从字后面透出来，人物被压住一点没关系，
+    不然一片死白会把画面挡成两截。
     """
     img = bg.copy()
     draw = ImageDraw.Draw(img, "RGBA")
@@ -2315,7 +2321,7 @@ def render_caption_state(bg: Image.Image, visible: List[str], font, font_path: s
     for lines, bw, bh in boxes:
         x = (W - bw) // 2
         draw.rounded_rectangle([x, y, x + bw, y + bh], radius=int(bh * 0.20),
-                               fill=(255, 255, 255, 244))
+                               fill=(255, 255, 255, CAPTION_BOX_ALPHA))
         # 整组行要**一起**在框内居中：第一行的中心是框中心再往上挪 (行数-1)/2 行。
         # 别把第一行直接放框中心再往下叠 —— 折行的第二句会掉到框外面去（实测踩过）。
         ty = y + bh / 2 - (len(lines) - 1) * line_h / 2
@@ -2362,7 +2368,7 @@ def compose_caption_video(bg_image_path, captions: List[str], out_path: Path,
             owner[i] = gi
 
     W, H = bgs[0].size
-    font = _load_font(caption_font_path(), max(24, int(W * 0.062)))
+    font = _load_font(caption_font_path(), max(20, int(W * CAPTION_FONT_RATIO)))
 
     tmp_dir = out_path.parent / f"_{out_path.stem}_frames"
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -6098,6 +6104,8 @@ def build_analysis_prompt(body: AnalyzeNovelRequest):
         # 分析页不支持逐句字幕视频，显式给 0/1 —— 不然会每次打一条「缺占位符」告警
         caption_video_count=0,
         bg_count=1,
+        cap_min=CAPTION_MIN_LINES,
+        cap_max=CAPTION_MAX_LINES,
         n_square=max(n_square, 1),
     )
 

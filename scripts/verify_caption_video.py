@@ -34,7 +34,7 @@ CAPTIONS = [
 
 
 def captions_21() -> list:
-    """21 句（= CAPTION_MIN_LINES），用来测分段：3 段应是 7/7/7。"""
+    """21 句，只为测分段（3 段应是 7/7/7），跟 CAPTION_MIN_LINES 无关。"""
     out = []
     while len(out) < 21:
         out.extend(CAPTIONS)
@@ -56,7 +56,8 @@ def probe_duration(path: Path) -> float:
 def main():
     import main
 
-    # 1) 时长落在 25-30 秒
+    # 1) 时长落在 25-30 秒，且每句停留约 2 秒（用户嫌原来 1.2 秒翻太快）
+    assert main.CAPTION_SEC_PER_LINE >= 1.8, f"每句只停 {main.CAPTION_SEC_PER_LINE}s，字幕又翻太快了"
     for n in (main.CAPTION_MIN_LINES, main.CAPTION_MAX_LINES):
         sec = n * main.CAPTION_SEC_PER_LINE
         assert 25 <= sec <= 30, f"{n} 句 × {main.CAPTION_SEC_PER_LINE}s = {sec}s，不在 25-30 秒"
@@ -72,6 +73,17 @@ def main():
     assert "逐句字幕" not in off, "没要字幕视频却混进了字幕规则"
     for kw in ("忠实原文", "不许自己编", "同一件事", "绝对不要有文字"):
         assert kw in raw, f"字幕规则缺关键约束：{kw}"
+
+    # 2b) 回归：**底图不能再被要求「分区」**。
+    #     事故现场：规则里写着「上三分之一放人物脸、画面 45%~85% 高度留干净给字幕」——
+    #     模型照做，出图就是上半一个人、下半糊一块东西的「两截图」。同一句话在 system prompt 里也有，
+    #     两处都得清掉，只清一处等于没清。
+    for where, text in (("rules_caption_video.txt", raw),
+                        ("system_prompt.txt", main.SYSTEM_PROMPT_TEMPLATE)):
+        for bad in ("45%-85%", "45%~85%", "上三分之一", "留干净"):
+            assert bad not in text, f"{where} 还留着「分区留白」的老指令（{bad}）—— 底图又会被画成两截"
+    assert "两截" in raw and "从上到下铺满整个画幅" in raw, "规则没写清「正常一张竖屏图、别分两截」"
+    assert "两截" in main.SYSTEM_PROMPT_TEMPLATE, "system prompt 没写清「别分两截」"
 
     # 3) 回归：自定义提示词不能吞掉字幕规则
     MY = "暗黑浪漫风格。"
@@ -117,27 +129,36 @@ def main():
     # 4~6) 排版 / 分组 / 超长句
     tmp = Path(tempfile.mkdtemp(prefix="capvideo_"))
     bg_path = tmp / "bg.png"
-    Image.new("RGB", (768, 1344), (30, 50, 80)).save(bg_path)
+    BG_RGB = (30, 50, 80)
+    Image.new("RGB", (768, 1344), BG_RGB).save(bg_path)
     bg = Image.open(bg_path).convert("RGB")
 
-    font = main._load_font(main.caption_font_path(), max(24, int(768 * 0.062)))
+    font = main._load_font(main.caption_font_path(), max(20, int(768 * main.CAPTION_FONT_RATIO)))
     for i, want_boxes in ((0, 1), (2, 3)):
         png = tmp / f"state{i}.png"
         main.render_caption_state(bg, CAPTIONS[:i + 1], font, main.caption_font_path(), png)
         a = np.asarray(Image.open(png).convert("RGB"))
-        white_rows = (a > 235).all(axis=2).any(axis=1)     # 该行有没有白框
+        # 框是**半透明**的，框内不再是纯白 —— 只能按「比底图亮」来认（底图 R=30，半透白框 R≈143）
+        bright_rows = (a[:, :, 0] > 100).any(axis=1)
         dark_rows = (a < 60).all(axis=2).any(axis=1)       # 该行有没有黑字
 
-        # 白框按行分成连续的几条带
+        # 框按行分成连续的几条带
         bands, start = [], None
-        for r, w in enumerate(white_rows):
+        for r, w in enumerate(bright_rows):
             if w and start is None:
                 start = r
             elif not w and start is not None:
                 bands.append((start, r - 1)); start = None
         if start is not None:
-            bands.append((start, len(white_rows) - 1))
+            bands.append((start, len(bright_rows) - 1))
         assert len(bands) == want_boxes, f"第 {i+1} 句应显示 {want_boxes} 个框，实际 {len(bands)}"
+
+        # 半透明：框内底色必须**介于底图和纯白之间**。
+        # 实心白框（旧的 alpha=244）合成出来 R≈245，全透就是底图 R=30 —— 两边都够远，卡在 200 能分辨。
+        px = a[bands[0][0]:bands[0][1] + 1].reshape(-1, 3)
+        box_px = px[px[:, 0] > 100]
+        assert 100 < box_px[:, 0].max() < 200, (
+            f"字幕框不是半透明（最亮 R={box_px[:, 0].max()}，纯白框≈245 / 底图 R={BG_RGB[0]}）")
 
         # **每个文字像素都必须落在某个白框的行区间里**。
         # 旧写法把第一行放框中心再往下叠，折行的第二句会掉进框与框之间的缝里 ——
@@ -151,6 +172,8 @@ def main():
     too_long = "word " * (main.CAPTION_MAX_WORDS + 3)
     st_video = main.compose_caption_video(bg_path, CAPTIONS + [too_long], tmp / "v.mp4")
     assert st_video["lines"] == len(CAPTIONS), f"超长句没被丢掉：{st_video}"
+    # 字号调小过（0.062W → 0.052W），别再调大回去
+    assert st_video["font_size"] < 768 * 0.06, f"字号又变大了：{st_video['font_size']}px"
 
     # 7) 真的出片，且时长精确
     out = tmp / "v.mp4"
@@ -232,7 +255,8 @@ def main():
 
     shutil.rmtree(tmp, ignore_errors=True)
     print(f"OK: 逐句字幕视频正常（{len(CAPTIONS)} 句 → {got:.1f}s / {st_video['groups']} 组 / "
-          f"字号 {st_video['font_size']}px；折行不外溢、超长句被丢、时长精确）")
+          f"字号 {st_video['font_size']}px / 每句 {main.CAPTION_SEC_PER_LINE}s / 半透明框；"
+          f"折行不外溢、超长句被丢、时长精确）")
 
 
 if __name__ == "__main__":

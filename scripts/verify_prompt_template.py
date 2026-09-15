@@ -26,7 +26,8 @@ def main():
     # 1) 占位符自动发现
     got = set(main.SYSTEM_PROMPT_FIELDS)
     assert got, "一个占位符都没解析出来，模板加载失败了？"
-    for must in ("text_single_count", "story_card_count", "caption_video_count", "bg_count", "n_square"):
+    for must in ("text_single_count", "story_card_count", "caption_video_count", "bg_count",
+                 "cap_min", "cap_max", "n_square"):
         assert must in got, f"模板里的 {must} 没被解析出来"
     # 解析结果必须和模板正文对得上（防止解析逻辑改坏后静默漏掉字段）
     in_text = set(re.findall(r"(?<!\{)\{([a-z_]+)\}(?!\})", main.SYSTEM_PROMPT_TEMPLATE))
@@ -44,8 +45,16 @@ def main():
     # 3) 两个路由各自那套字段
     cs = rendered(text_single_count=2, scroll_visual_count=1, lr_split_count=0, tb_split_count=0,
                   three_panel_count=0, story_card_count=1, caption_video_count=1,
-                  bg_count=main.CAPTION_BG_COUNT_MULTI, n_square=3)
+                  bg_count=main.CAPTION_BG_COUNT_MULTI,
+                  cap_min=main.CAPTION_MIN_LINES, cap_max=main.CAPTION_MAX_LINES, n_square=3)
     assert "caption_video=1" in cs, "生成中心那套的 caption_video 计数没渲染对"
+    # 句数必须跟着常量走：模板里原本写死「21-24 句」，改了 CAPTION_MIN/MAX_LINES 模板不跟着变，
+    # 模型照样照旧句数出稿，视频长度直接不对。现在改成占位符，两处各验一次：
+    #   (a) 传进常量时渲染出来就是常量值  (b) 模板和规则文件里都不许再出现写死的句数
+    assert f"{main.CAPTION_MIN_LINES}-{main.CAPTION_MAX_LINES} 句" in cs, "system prompt 里的句数没跟着常量走"
+    for where, text in (("system_prompt.txt", main.SYSTEM_PROMPT_TEMPLATE),
+                        ("rules_caption_video.txt", main._RULES_CAPTION_VIDEO)):
+        assert "21-24" not in text and "21~24" not in text, f"{where} 里还写死着旧句数 21-24"
     assert f"长度必须正好 {main.CAPTION_BG_COUNT_MULTI}" in cs, "生成中心那套的底图张数没渲染对"
     assert f"均分成 {main.CAPTION_BG_COUNT_MULTI} 段" in cs, "生成中心那套的分段数没渲染对"
     an = rendered(text_single_count=1, scroll_visual_count=2, lr_split_count=0, tb_split_count=0,

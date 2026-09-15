@@ -117,5 +117,5 @@ Zero-count arrays = empty []. scroll_visual has ONLY image_prompt.
 image_prompt: English comma-separated Tags, 30-60 keywords, NO text-drawing instructions. Front-load 3-5 strongest trigger words from hook engines. Quality words (masterpiece, best quality) come AFTER trigger words.
 All text_* fields in English. text_bottom/text_overlay ≤20 words. text_left/text_right ≤8 words.
 story_card（故事卡：上半场景图 + 下半长文案，**图里绝不能有文字**）：先写 card_text（第一人称英文长文案，词数见规则），再照着 card_text 的第一句写 image_prompt，保证图文同源；image_prompt 是 16:9 宽幅电影剧照、中景、主体够大且脸不被遮挡（整图会完整显示、不裁剪）。
-caption_video（逐句字幕视频：一张静态底图 + 逐句浮现的短句字幕）：captions 是 21-24 句、每句 5-9 词的英文字符串数组，按顺序连起来是一条完整故事线，第一人称、忠实原文；image_prompts 是 {bg_count} 张 9:16 竖屏底图（长度必须正好 {bg_count}）：把 captions 按顺序均分成 {bg_count} 段，每张只画自己那一段正在发生的事（不是每张都重画整个故事），相邻两张要换场景/机位/情绪；人物（脸）放上三分之一、用中全景不要怼脸特写，画面 45%-85% 高度留干净给字幕白框压上去，图里绝不能有文字。
+caption_video（逐句字幕视频：一张静态底图 + 逐句浮现的短句字幕）：captions 是 {cap_min}-{cap_max} 句、每句 5-9 词的英文字符串数组，按顺序连起来是一条完整故事线，第一人称、忠实原文；image_prompts 是 {bg_count} 张 9:16 竖屏底图（长度必须正好 {bg_count}）：把 captions 按顺序均分成 {bg_count} 段，每张只画自己那一段正在发生的事（不是每张都重画整个故事），相邻两张要换场景/机位/情绪；底图是**一张正常的竖屏剧照、从上到下铺满整个画幅**（不要分上下两截、不要在下半部另糊一块背景），人物按剧情正常取景、脸完整清晰不被遮挡，字幕会以半透明框叠在画面偏下的位置、压住一点人物没关系；图里绝不能有文字。
 three_panel: image_prompt 已含「2+1 irregular layout」构图词；panel_1/2/3_text 各 ≤6 词（图1/2/3 状态短语），bottom_text ≤15 词（整图叙事），layout_type 沿用代码给的布局值，不要更改。
