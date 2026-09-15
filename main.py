@@ -6110,9 +6110,50 @@ def build_analysis_prompt(body: AnalyzeNovelRequest):
     return system, user_msg, analysis_rules
 
 
+def _strip_code_fence(raw: str) -> str:
+    """剥掉模型偶尔加的 ```json ... ``` 围栏。"""
+    if not raw.startswith("```"):
+        return raw
+    lines = raw.split("\n")
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def _analysis_call_chat(url: str, payload: dict, headers: dict, aid: str):
+    """调一次模型，期间用心跳把「已等待 Ns」顶上去。
+
+    返回 (content, finish_reason, error)。error 非空表示这次调用本身失败。
+    """
+    stop_beat = threading.Event()
+
+    def _beat():
+        t0 = time.time()
+        while not stop_beat.wait(5):
+            el = int(time.time() - t0)
+            _analysis_set(aid, percent=min(85, 30 + el), step=f"模型生成中… 已等待 {el}s")
+
+    threading.Thread(target=_beat, daemon=True).start()
+    try:
+        j, code, curl_err = _curl_json_post(url, payload, headers, 300)
+    finally:
+        stop_beat.set()
+    if curl_err or code >= 400:
+        return "", "", f"Chat API HTTP {code}: {str(j)[:300] if j else (curl_err or '')}"
+    if not isinstance(j, dict):
+        return "", "", "Chat API 响应格式异常"
+    choice = (j.get("choices") or [{}])[0]
+    content = ((choice.get("message") or {}).get("content") or "").strip()
+    finish = str(choice.get("finish_reason") or "").strip()
+    if not content:
+        return "", finish, "Chat API 返回了空内容，请重试或检查 API 配置"
+    return content, finish, ""
+
+
 def run_analysis_job(body: AnalyzeNovelRequest, aid: str) -> None:
     """后台跑分析：进度和结果都写进 _ANALYSIS_JOBS[aid]。"""
-    raw = ""
     try:
         _analysis_set(aid, status="running", percent=15, step="正在组装提示词…")
         system, user_msg, analysis_rules = build_analysis_prompt(body)
@@ -6135,50 +6176,39 @@ def run_analysis_job(body: AnalyzeNovelRequest, aid: str) -> None:
               f"规则 {len(analysis_rules)}B; system {len(system)}B; user {len(user_msg)}B; "
               f"故事卡={body.story_card_count}")
 
-        # 模型这一整块是阻塞调用，拿不到真实进度 —— 起个心跳把「已等待多少秒」顶上去。
-        # 这是诚实的等待时间，不是假完成信号；停在 85% 等真实结果。
-        stop_beat = threading.Event()
+        # 中转站会把响应掐断（表现为 JSON 解析到一半 Unterminated string）。这种情况重试
+        # 一次往往就好了，比直接报错有用得多 —— 所以解析失败先重试，第二次才判失败。
+        last_error, last_raw = "", ""
+        for attempt in (1, 2):
+            raw, finish, err = _analysis_call_chat(url, payload, headers, aid)
+            print(f"[ANALYZE] Chat API 返回: 累计 {time.time() - _t_all:.1f}s "
+                  f"第{attempt}次 finish_reason={finish or '未知'} 内容 {len(raw)}B err={err or '无'}")
+            if err:
+                _analysis_set(aid, status="failed", percent=100, step="调用模型失败", error=err)
+                return
 
-        def _beat():
-            t0 = time.time()
-            while not stop_beat.wait(5):
-                el = int(time.time() - t0)
-                _analysis_set(aid, percent=min(85, 30 + el),
-                              step=f"模型生成中… 已等待 {el}s")
+            _analysis_set(aid, percent=92, step="正在解析结果…")
+            try:
+                data = json.loads(_strip_code_fence(raw))
+            except json.JSONDecodeError as e:
+                # 截断是最常见的原因：内容到一半就没了。把 finish_reason 和字节数一起报出来，
+                # 用户和日志一眼能分清是「输出被截断」还是「模型吐了格式错的东西」。
+                truncated = finish == "length" or "Unterminated" in str(e)
+                last_error = (
+                    f"模型输出被截断（收到 {len(raw)} 字节后中断，finish_reason={finish or '未知'}）。"
+                    f"通常是中转站在传输中掐断了响应，已自动重试仍未成功，请再试一次"
+                    f"或减少请求的图片数量。" if truncated else
+                    f"JSON 解析失败: {e}（收到 {len(raw)} 字节，finish_reason={finish or '未知'}）")
+                last_raw = raw[:500]
+                if attempt == 1:
+                    _analysis_set(aid, percent=88, step="结果被截断，正在重试…")
+                    continue
+                _analysis_set(aid, status="failed", percent=100, step="解析失败",
+                              error=last_error, raw=last_raw)
+                return
 
-        threading.Thread(target=_beat, daemon=True).start()
-        try:
-            j, code, curl_err = _curl_json_post(url, payload, headers, 300)
-        finally:
-            stop_beat.set()
-        print(f"[ANALYZE] Chat API 返回: 累计 {time.time() - _t_all:.1f}s http={code}")
-
-        if curl_err or code >= 400:
-            _analysis_set(aid, status="failed", percent=100, step="调用模型失败",
-                          error=f"Chat API HTTP {code}: {str(j)[:300] if j else (curl_err or '')}")
+            _analysis_set(aid, status="success", percent=100, step="完成", result=data, error="")
             return
-        if not isinstance(j, dict):
-            _analysis_set(aid, status="failed", percent=100, step="响应异常",
-                          error="Chat API 响应格式异常")
-            return
-        raw = (j["choices"][0]["message"]["content"] or "").strip()
-        if not raw:
-            _analysis_set(aid, status="failed", percent=100, step="空响应",
-                          error="Chat API 返回了空内容，请重试或检查 API 配置")
-            return
-        _analysis_set(aid, percent=92, step="正在解析结果…")
-        if raw.startswith("```"):
-            lines = raw.split("\n")
-            if lines and lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            raw = "\n".join(lines).strip()
-        data = json.loads(raw)
-        _analysis_set(aid, status="success", percent=100, step="完成", result=data, error="")
-    except json.JSONDecodeError as e:
-        _analysis_set(aid, status="failed", percent=100, step="解析失败",
-                      error=f"JSON 解析失败: {e}", raw=raw[:500])
     except Exception as e:
         traceback.print_exc()
         _analysis_set(aid, status="failed", percent=100, step="失败", error=str(e))

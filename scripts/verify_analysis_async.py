@@ -97,6 +97,36 @@ def main():
         st = run_case(lambda *a, **k: (_api(fenced), 200, None))
         assert st["status"] == "success", st
 
+        # 中转站掐断响应（JSON 到一半 Unterminated string）→ 必须自动重试一次
+        calls = {"n": 0}
+        def flaky_then_ok(*a, **k):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return (_api(GOOD[:len(GOOD) // 2]), 200, None)   # 截断
+            return (_api(GOOD), 200, None)
+        st = run_case(flaky_then_ok)
+        assert st["status"] == "success", st
+        assert calls["n"] == 2, f"没有重试（只调了 {calls['n']} 次）"
+
+        # 两次都被截断 → failed，且错误信息要说清是截断、带字节数，并提示可重试
+        calls["n"] = 0
+        st = run_case(lambda *a, **k: (_api(GOOD[:len(GOOD) // 2]), 200, None))
+        assert st["status"] == "failed", st
+        assert "截断" in st["error"] and "字节" in st["error"], st["error"]
+        assert "重试" in st["error"], "错误信息没告诉用户可以重试"
+
+        # finish_reason=length 时也要认出来（哪怕 JSON 恰好还能解析一半）
+        def length_cut(*a, **k):
+            d = _api(GOOD[:len(GOOD) // 2])
+            d["choices"][0]["finish_reason"] = "length"
+            return (d, 200, None)
+        st = run_case(length_cut)
+        assert st["status"] == "failed" and "截断" in st["error"], st
+
+        # 不是截断的格式错（比如模型吐了人话）→ 报解析失败，不要误报成截断
+        st = run_case(lambda *a, **k: (_api("好的，我来分析这本小说："), 200, None))
+        assert st["status"] == "failed" and "JSON 解析失败" in st["error"], st
+
         # 提示词组装抛异常也要落到 failed，不能把任务永远挂在 running
         def boom(*a, **k):
             raise RuntimeError("组装炸了")
