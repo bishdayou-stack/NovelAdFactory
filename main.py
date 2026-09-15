@@ -7,6 +7,7 @@ import base64
 import shutil
 import random
 import time
+import string
 import textwrap
 import traceback
 import threading
@@ -916,6 +917,27 @@ def _load_archetypes() -> Tuple[Dict[str, list], str]:
 
 SYSTEM_PROMPT_TEMPLATE = _load_prompt("system_prompt.txt")
 
+# 模板里有哪些占位符，从模板自身解析出来 —— 别手写一份名单，那份迟早和模板对不上
+SYSTEM_PROMPT_FIELDS = {fn for _, fn, _, _ in string.Formatter().parse(SYSTEM_PROMPT_TEMPLATE) if fn}
+
+
+def format_system_prompt(**kw) -> str:
+    """统一格式化系统提示词，缺的占位符补 0 并告警。
+
+    `SYSTEM_PROMPT_TEMPLATE.format(...)` 原本在生成中心和分析页两个路由里各写了一遍，
+    往模板加占位符时只改了一处 —— 另一处直接 KeyError → 500，前端只拿到纯文本
+    "Internal Server Error"，报成 `Unexpected token 'I' ... is not valid JSON`（实测踩过：
+    加 caption_video_count / bg_count 时分析页就是这么挂的）。
+    这里按模板自动补齐，以后模板加减占位符不会再整条路由 500；补 0 的那次会打日志，
+    不至于变成查不出来的静默错误。
+    """
+    missing = sorted(SYSTEM_PROMPT_FIELDS - set(kw))
+    if missing:
+        print(f"[WARN] 系统提示词缺占位符 {missing}，按 0 填充；检查调用方是否漏传")
+    full = {name: 0 for name in SYSTEM_PROMPT_FIELDS}
+    full.update(kw)
+    return SYSTEM_PROMPT_TEMPLATE.format(**full)
+
 # 按需加载规则文件（根据图片类型组装，减少 token 浪费）
 _RULES_CORE = _load_prompt("rules_core.txt")
 _RULES_SHARED = _load_prompt("rules_shared_modules.txt")
@@ -1431,7 +1453,7 @@ def request_image_prompt_plan(
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     url = api_url.rstrip("/") + "/chat/completions"
     n_square = text_single_count + lr_split_count + tb_split_count + three_panel_count + story_card_count
-    system = SYSTEM_PROMPT_TEMPLATE.format(
+    system = format_system_prompt(
         text_single_count=text_single_count,
         scroll_visual_count=scroll_visual_count,
         lr_split_count=lr_split_count,
@@ -5997,13 +6019,16 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
     n_square = (body.text_single_count + body.lr_split_count + body.tb_split_count
                 + body.three_panel_count + body.story_card_count)
 
-    system = SYSTEM_PROMPT_TEMPLATE.format(
+    system = format_system_prompt(
         text_single_count=body.text_single_count,
         scroll_visual_count=scroll_total,
         lr_split_count=body.lr_split_count,
         tb_split_count=body.tb_split_count,
         three_panel_count=body.three_panel_count,
         story_card_count=body.story_card_count,
+        # 分析页不支持逐句字幕视频，显式给 0/1 —— 不然会每次打一条「缺占位符」告警
+        caption_video_count=0,
+        bg_count=1,
         n_square=max(n_square, 1),
     )
 
