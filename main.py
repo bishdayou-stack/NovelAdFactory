@@ -6011,12 +6011,45 @@ class AnalyzeNovelRequest(BaseModel):
     use_templates: bool = False
     cinematic_collage: bool = False  # 电影叙事拼贴风（单帧图生效）
 
-@app.post("/api/analyze-novel")
-def api_analyze_novel(body: AnalyzeNovelRequest):
-    """分析小说内容，返回生成的图片提示词（不实际生成图片）"""
-    if not body.api_key.strip() or not body.novel_content.strip():
-        raise HTTPException(status_code=400, detail="缺少 API Key 或小说内容")
+# ====== 小说分析的后台任务 ======
+# 分析原本是同步阻塞的：模型一慢，HTTP 就一直挂着，前端只能显示「一直卡在分析中」。
+# 改成和生产中心一样的「提交 → 后台跑 → 前端轮询进度」。
+_ANALYSIS_JOBS: Dict[str, dict] = {}
+_ANALYSIS_LOCK = threading.Lock()
+_ANALYSIS_TTL = 30 * 60      # 结果留 30 分钟：够前端轮询和用户看弹窗，又不至于把内存堆满
+# 单独开一个执行器：生成中心那个 _EXECUTOR 只有 4 个 worker，被长视频任务占满时
+# 分析任务会排在后面 —— 那又变成「卡住」了，正是这次要修的东西。
+_ANALYSIS_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="analyze")
 
+
+def _analysis_sweep() -> None:
+    """清掉过期任务。跟着每次提交/轮询顺手做，不另起定时线程。"""
+    cutoff = time.time() - _ANALYSIS_TTL
+    with _ANALYSIS_LOCK:
+        for k in [k for k, v in _ANALYSIS_JOBS.items() if v.get("created_at", 0) < cutoff]:
+            _ANALYSIS_JOBS.pop(k, None)
+
+
+def _analysis_set(aid: str, **kw) -> None:
+    with _ANALYSIS_LOCK:
+        job = _ANALYSIS_JOBS.setdefault(aid, {"created_at": time.time()})
+        job.update(kw)
+        job["updated_at"] = time.time()
+
+
+def _analysis_get(aid: str):
+    with _ANALYSIS_LOCK:
+        job = _ANALYSIS_JOBS.get(aid)
+        return dict(job) if job else None
+
+
+def build_analysis_prompt(body: AnalyzeNovelRequest):
+    """组装分析用的 (system, user, rules)。
+
+    抽成独立函数是为了能单测：当初往 system 模板里加占位符漏改了这条路由，
+    KeyError → 500 → 前端只拿到纯文本 "Internal Server Error"，报成
+    `Unexpected token 'I' ... is not valid JSON`。见 scripts/verify_prompt_template.py。
+    """
     # 用户提示词优先，但走 _build_rules_text 统一组装 —— 故事卡/拼贴风模块必须强制带上，
     # 不能因为「分析提示词」框有内容（config 会预填）就把它们整个吞掉。
     analysis_rules = _build_rules_text(
@@ -6042,41 +6075,71 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
     )
 
     user_msg = (
-        f"绘图规则：\n{analysis_rules}\n\n"
-        f"小说节选：\n{body.novel_content[:5000]}\n\n"
+        "绘图规则：\n" + analysis_rules + "\n\n"
+        "小说节选：\n" + body.novel_content[:5000] + "\n\n"
         f"数量：text_single={body.text_single_count}, lr={body.lr_split_count}, tb={body.tb_split_count}, three_panel={body.three_panel_count}, story_card={body.story_card_count}, scroll={scroll_total}"
-        f"\n\n【重要】只输出 JSON，不要生成图片。"
+        "\n\n【重要】只输出 JSON，不要生成图片。"
     )
+    return system, user_msg, analysis_rules
 
-    headers = {"Authorization": f"Bearer {body.api_key}", "Content-Type": "application/json"}
-    url = body.api_url.rstrip("/") + "/chat/completions"
-    payload = {
-        "model": body.chat_model_name,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_msg},
-        ],
-        "temperature": 0.85,
-        "max_tokens": 8192,
-    }
 
-    # 分阶段埋点：分析页是同步阻塞的，卡住时前端只能干等。把每一段耗时打出来，
-    # 一眼看出是「组装提示词」慢还是「调 Chat API」慢。
-    _t_all = time.time()
-    print(f"[ANALYZE] 开始: 小说 {len(body.novel_content or '')}B → 截取 5000B; "
-          f"analysis_prompt {len(body.analysis_prompt or '')}B; "
-          f"规则 {len(analysis_rules)}B; system {len(system)}B; user {len(user_msg)}B; "
-          f"故事卡={body.story_card_count}")
+def run_analysis_job(body: AnalyzeNovelRequest, aid: str) -> None:
+    """后台跑分析：进度和结果都写进 _ANALYSIS_JOBS[aid]。"""
+    raw = ""
     try:
-        j, code, curl_err = _curl_json_post(url, payload, headers, 300)
+        _analysis_set(aid, status="running", percent=15, step="正在组装提示词…")
+        system, user_msg, analysis_rules = build_analysis_prompt(body)
+
+        headers = {"Authorization": f"Bearer {body.api_key}", "Content-Type": "application/json"}
+        url = body.api_url.rstrip("/") + "/chat/completions"
+        payload = {
+            "model": body.chat_model_name,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_msg},
+            ],
+            "temperature": 0.85,
+            "max_tokens": 8192,
+        }
+
+        _t_all = time.time()
+        print(f"[ANALYZE] 开始: 小说 {len(body.novel_content or '')}B → 截取 5000B; "
+              f"analysis_prompt {len(body.analysis_prompt or '')}B; "
+              f"规则 {len(analysis_rules)}B; system {len(system)}B; user {len(user_msg)}B; "
+              f"故事卡={body.story_card_count}")
+
+        # 模型这一整块是阻塞调用，拿不到真实进度 —— 起个心跳把「已等待多少秒」顶上去。
+        # 这是诚实的等待时间，不是假完成信号；停在 85% 等真实结果。
+        stop_beat = threading.Event()
+
+        def _beat():
+            t0 = time.time()
+            while not stop_beat.wait(5):
+                el = int(time.time() - t0)
+                _analysis_set(aid, percent=min(85, 30 + el),
+                              step=f"模型生成中… 已等待 {el}s")
+
+        threading.Thread(target=_beat, daemon=True).start()
+        try:
+            j, code, curl_err = _curl_json_post(url, payload, headers, 300)
+        finally:
+            stop_beat.set()
         print(f"[ANALYZE] Chat API 返回: 累计 {time.time() - _t_all:.1f}s http={code}")
+
         if curl_err or code >= 400:
-            return {"status": "failed", "error": f"Chat API HTTP {code}: {str(j)[:300] if j else (curl_err or '')}"}
+            _analysis_set(aid, status="failed", percent=100, step="调用模型失败",
+                          error=f"Chat API HTTP {code}: {str(j)[:300] if j else (curl_err or '')}")
+            return
         if not isinstance(j, dict):
-            return {"status": "failed", "error": "Chat API 响应格式异常"}
+            _analysis_set(aid, status="failed", percent=100, step="响应异常",
+                          error="Chat API 响应格式异常")
+            return
         raw = (j["choices"][0]["message"]["content"] or "").strip()
         if not raw:
-            return {"status": "failed", "error": "Chat API 返回了空内容，请重试或检查 API 配置"}
+            _analysis_set(aid, status="failed", percent=100, step="空响应",
+                          error="Chat API 返回了空内容，请重试或检查 API 配置")
+            return
+        _analysis_set(aid, percent=92, step="正在解析结果…")
         if raw.startswith("```"):
             lines = raw.split("\n")
             if lines and lines[0].startswith("```"):
@@ -6085,13 +6148,44 @@ def api_analyze_novel(body: AnalyzeNovelRequest):
                 lines = lines[:-1]
             raw = "\n".join(lines).strip()
         data = json.loads(raw)
-        return {"status": "success", "data": data}
+        _analysis_set(aid, status="success", percent=100, step="完成", result=data, error="")
     except json.JSONDecodeError as e:
-        return {"status": "failed", "error": f"JSON 解析失败: {e}", "raw": raw[:500]}
-    except HTTPException:
-        raise
+        _analysis_set(aid, status="failed", percent=100, step="解析失败",
+                      error=f"JSON 解析失败: {e}", raw=raw[:500])
     except Exception as e:
-        return {"status": "failed", "error": str(e)}
+        traceback.print_exc()
+        _analysis_set(aid, status="failed", percent=100, step="失败", error=str(e))
+
+
+@app.post("/api/analyze-novel")
+def api_analyze_novel(body: AnalyzeNovelRequest):
+    """提交分析任务，立刻返回；结果去 /api/analyze-novel/status/{id} 轮询。
+
+    以前这里是同步返回结果，模型慢就直接把 HTTP 挂住 —— 前端表现为「一直卡在分析中」。
+    """
+    if not body.api_key.strip() or not body.novel_content.strip():
+        raise HTTPException(status_code=400, detail="缺少 API Key 或小说内容")
+    _analysis_sweep()
+    aid = f"ja_{int(time.time() * 1000)}_{random.randint(1000, 9999)}"
+    _analysis_set(aid, status="running", percent=5, step="任务已提交", error="", result=None)
+    _ANALYSIS_EXECUTOR.submit(run_analysis_job, body, aid)
+    return {"status": "submitted", "analysis_id": aid}
+
+
+@app.get("/api/analyze-novel/status/{aid}")
+def api_analyze_novel_status(aid: str):
+    """轮询分析进度。只有成功那次才带 data —— 别让前端每 2 秒收一遍大 JSON。"""
+    _analysis_sweep()
+    job = _analysis_get(aid)
+    if not job:
+        raise HTTPException(status_code=404, detail="分析任务不存在或已过期（结果保留 30 分钟）")
+    out = {"status": job.get("status", "running"), "percent": job.get("percent", 0),
+           "step": job.get("step", ""), "error": job.get("error", "")}
+    if out["status"] == "success":
+        out["data"] = job.get("result") or {}
+    elif job.get("raw"):
+        out["raw"] = job["raw"]
+    return out
 
 
 # ---- App 管理 API ----

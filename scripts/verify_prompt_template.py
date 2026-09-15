@@ -77,18 +77,20 @@ def main():
         f"（format_system_prompt 内部）。往模板加占位符时漏改其他调用点会 500，"
         f"请改走 format_system_prompt()")
 
-    # 5) 冒烟：分析页路由不能 500，且必须回 JSON
-    #    （前端那句 `Unexpected token 'I', "Internal S"...` 就是因为拿到了非 JSON 的 500 页面）
-    from fastapi.testclient import TestClient
-    client = TestClient(main.app, raise_server_exceptions=False)
-    r = client.post("/api/analyze-novel", json={
-        "api_key": "x", "api_url": "https://example.invalid/v1",
-        "novel_content": "test", "analysis_prompt": "", "story_card_count": 1})
-    assert r.status_code != 500, f"分析页仍然 500：{r.text[:200]}"
-    try:
-        r.json()
-    except Exception as e:
-        raise AssertionError(f"分析页返回的不是 JSON（前端会报解析错误）：{r.text[:200]} ({e})")
+    # 5) 分析页组装提示词不能炸。
+    #    这里直接调 build_analysis_prompt 而不是打 HTTP：分析改成后台任务之后，
+    #    打路由只会拿到「已提交」，格式化发生在后台，HTTP 那层测不到它了。
+    body = main.AnalyzeNovelRequest(api_key="x", api_url="https://example.invalid/v1",
+                                    novel_content="test novel", analysis_prompt="", story_card_count=1)
+    system, user_msg, rules = main.build_analysis_prompt(body)
+    assert "caption_video=0" in system, "分析页的 system 没渲染对"
+    assert "{bg_count}" not in system and "{" not in system.split("Counts:")[1][:80], "system 还有没替换的占位符"
+    assert "绘图规则" in user_msg and "只输出 JSON" in user_msg
+    # 用户自定义分析提示词要保留，且故事卡规则不能被吞掉（那条回归见 verify_story_card.py）
+    body2 = main.AnalyzeNovelRequest(api_key="x", api_url="https://e.invalid/v1",
+                                     novel_content="n", analysis_prompt="我的风格", story_card_count=1)
+    _, user2, rules2 = main.build_analysis_prompt(body2)
+    assert "我的风格" in user2 and "我的风格" in rules2
 
     print(f"OK: 系统提示词模板接线正常（{len(got)} 个占位符自动发现；少传字段补 0 不炸；"
           f"分析页不再 500 且返回 JSON）")

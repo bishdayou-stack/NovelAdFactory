@@ -3914,19 +3914,49 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      }).then(function(r) { return r.json(); }).then(function(data) {
-        if (data.status === 'success') {
-          naPendingPrompts = data.data;
-          showConfirmModal(data.data);
-        } else {
-          alert('分析失败: ' + (data.error || data.detail || '未知错误'));
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.status !== 'submitted' || !d.analysis_id) {
+          throw new Error(d.error || d.detail || '提交失败');
         }
+        pollAnalysisProgress(d.analysis_id, btn);   // 按钮在这里不恢复，交给轮询结束时恢复
       }).catch(function(e) {
-        alert('请求异常: ' + e.message);
-      }).finally(function() {
+        alert('提交失败: ' + e.message);
         btn.disabled = false;
         btn.textContent = '分析小说 → 生成提示词';
       });
+    }
+
+    // 分析现在是后台跑（和生产中心一致），前端轮询进度。
+    // 以前是同步阻塞：模型一慢，请求就一直挂着，页面看起来像卡死 —— 实际只是在等。
+    var _analysisPollTimer = null;
+    function pollAnalysisProgress(aid, btn) {
+      if (_analysisPollTimer) { clearInterval(_analysisPollTimer); _analysisPollTimer = null; }
+      function finish() {
+        if (_analysisPollTimer) { clearInterval(_analysisPollTimer); _analysisPollTimer = null; }
+        btn.disabled = false;
+        btn.textContent = '分析小说 → 生成提示词';
+      }
+      _analysisPollTimer = setInterval(function() {
+        fetch('/api/analyze-novel/status/' + encodeURIComponent(aid))
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d.status === 'running') {
+              btn.textContent = '分析中 ' + (d.percent || 0) + '% · ' + (d.step || '');
+              return;
+            }
+            finish();
+            if (d.status === 'success') {
+              naPendingPrompts = d.data;
+              showConfirmModal(d.data);
+            } else {
+              alert('分析失败: ' + (d.error || '未知错误'));
+            }
+          })
+          .catch(function(e) {
+            finish();
+            alert('获取分析进度失败: ' + e.message);
+          });
+      }, 2000);
     }
 
     function showConfirmModal(data) {
