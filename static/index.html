@@ -3043,8 +3043,7 @@
       var assets = [];
       Object.keys(_assetSelect).forEach(function(k){ assets.push(_assetSelect[k]); });
       if (!assets.length) { alert('请先勾选要投放的素材'); return; }
-      _dwAssets = assets;
-      _dwAssetPage = 1;
+      dwSetAssetPool(assets);
       switchTab('delivery-wizard');
     }
 
@@ -4277,10 +4276,11 @@
     }
 
     // ====== 投放向导 (Delivery Wizard) 4 步批量 ======
-    var _dwAssets = [];        // 素材池 [{image_url, image_type, overlay_text}]
-    var _dwSelected = new Set(); // 已选素材索引
-    var _dwAssetPage = 1;       // 素材池当前页
-    var _dwAssetPageSize = 64;  // 素材池每页数量（8 列 × 8 行）
+    var _dwAssets = [];        // 素材池（一维）[{image_url, image_type, overlay_text}]
+    var _dwBatches = [];       // 上面的素材按批次分组 [{batch_id, novel_id, created_at, indices:[素材下标]}]
+    var _dwSelected = new Set(); // 已选素材索引（指向 _dwAssets）
+    var _dwAssetPage = 1;       // 素材池当前是第几页**批次**
+    var _dwBatchPageSize = 6;   // 每页几个批次（素材池按批次展示，不再是每页 64 张混在一起）
     var _dwAudiences = [];      // 受众模版缓存 [{audience_id, audience_name, targeting_json}]
     var _dwErrors = [];         // 投放过程累积的错误信息
     var _dwEs = null;           // 发布进度 EventSource
@@ -4555,22 +4555,69 @@
       return JSON.stringify(placements);
     }
 
+    // 素材 URL → 批次目录（/static/output/<批次>/xxx.png）
+    function dwBatchOfUrl(url) {
+      var m = /\/output\/([^\/]+)\//.exec(String(url || ''));
+      return m ? m[1] : '';
+    }
+
+    // 批次 → 书籍ID。生产中心/分析页「发布到 Meta」那条路只拿得到 DOM 里的图片地址，
+    // 没有 novel_id，回查素材浏览已经拉到的列表；列表里也没有（没访问过素材浏览）就单独查一次，
+    // 查到再重画一遍 —— 用户点了「发布到 Meta」总得知道自己在投哪本书。
+    var _dwNovelIdCache = {};
+    function dwNovelIdOfBatch(batchId) {
+      if (!batchId) return '';
+      if (_dwNovelIdCache[batchId] !== undefined) return _dwNovelIdCache[batchId];
+      var hit = (allAssetsData || []).filter(function(x) {
+        return String(x.batch_id) === String(batchId);
+      })[0];
+      if (hit) { _dwNovelIdCache[batchId] = hit.novel_id || ''; return _dwNovelIdCache[batchId]; }
+      _dwNovelIdCache[batchId] = '';   // 先占位，免得每次重画都再发一次请求
+      fetch('/api/history/' + encodeURIComponent(batchId)).then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d && d.novel_id) {
+            _dwNovelIdCache[batchId] = d.novel_id;
+            dwRenderAssetPool();
+          }
+        }).catch(function() {});
+      return '';
+    }
+
+    // 把素材整理成「批次 → 素材」。_dwAssets 仍然是一维的 —— _dwSelected 存的是它里面的
+    // 下标，重排会让已选项错位；批次只记住自己占了哪些下标。素材自带的 batch_id/novel_id
+    // 优先用（history 那条路是现成的），没有就从 URL 里抠批次目录、再回查书籍ID。
+    function dwSetAssetPool(assets) {
+      var groups = [], byKey = {};
+      assets.forEach(function(a, i) {
+        var bid = String(a.batch_id || dwBatchOfUrl(a.image_url) || '');
+        if (!byKey[bid]) {
+          byKey[bid] = { batch_id: bid, novel_id: a.novel_id || dwNovelIdOfBatch(bid), indices: [] };
+          groups.push(byKey[bid]);
+        }
+        byKey[bid].indices.push(i);
+      });
+      _dwAssets = assets;
+      _dwBatches = groups;
+      _dwSelected = new Set();
+      _dwAssetPage = 1;
+    }
+
     function dwLoadFromAssets() {
       var build = function() {
         if (!allAssetsData || !allAssetsData.length) { alert('素材浏览暂无素材'); return; }
         var assets = [];
         allAssetsData.forEach(function(item) {
           (item.images || []).forEach(function(src) {
-            assets.push({ image_url: src, image_type: 'text_single', overlay_text: '' });
+            assets.push({ image_url: src, image_type: 'text_single', overlay_text: '',
+                          batch_id: item.batch_id, novel_id: item.novel_id });
           });
           (item.videos || []).forEach(function(src) {
-            assets.push({ image_url: src, image_type: 'scroll', overlay_text: '' });
+            assets.push({ image_url: src, image_type: 'scroll', overlay_text: '',
+                          batch_id: item.batch_id, novel_id: item.novel_id });
           });
         });
         if (!assets.length) { alert('素材浏览暂无图片或视频素材'); return; }
-        _dwAssets = assets;
-        _dwSelected = new Set();
-        _dwAssetPage = 1;
+        dwSetAssetPool(assets);
         dwRenderAssetPool();
       };
       if (allAssetsData && allAssetsData.length) { build(); return; }
@@ -4590,55 +4637,79 @@
       }).catch(function(e) { alert('加载素材失败: ' + e); });
     }
 
+    // 单张素材卡片（图片用缩略图；视频用封面缩略图 + ▶）
+    function dwAssetCardHtml(i) {
+      var a = _dwAssets[i];
+      var sel = _dwSelected.has(i);
+      var full = absUrl(a.image_url);
+      var isImg = /\.png$/i.test(full);
+      var isVideo = /\.mp4$/i.test(full);
+      var bodyHtml;
+      if (isImg) {
+        var src = full.replace(/\.png$/i, '_thumb.jpg');
+        var safeFull = full.replace(/'/g, "\\'");
+        bodyHtml = '<img src="' + src + '" class="w-full h-32 object-contain" loading="lazy" onerror="if(this.src.indexOf(\'_thumb.jpg\')!==-1&&this.getAttribute(\'data-fb\')!==\'1\'){this.setAttribute(\'data-fb\',\'1\');this.src=\'' + safeFull + '\';}" />';
+      } else if (isVideo) {
+        var vParts = full.split('/');
+        var vFile = encodeURIComponent(vParts[vParts.length - 1]);
+        var vBatch = encodeURIComponent(vParts[vParts.length - 2] || '');
+        var vPoster = '/api/media/video-poster?batch=' + vBatch + '&file=' + vFile;
+        bodyHtml = '<div class="relative w-full h-32 bg-black overflow-hidden"><img src="' + vPoster + '" class="w-full h-full object-contain" loading="lazy" onerror="this.style.display=\'none\'"><span class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="w-9 h-9 rounded-full bg-black/55 text-white flex items-center justify-center text-sm">▶</span></span></div>';
+      } else {
+        bodyHtml = '<img src="' + full + '" class="w-full h-32 object-contain" loading="lazy" />';
+      }
+      return '<div class="relative cursor-pointer bg-slate-900 rounded-lg overflow-hidden border ' + (sel ? 'border-indigo-500' : 'border-slate-700') + '" onclick="dwToggleAsset(' + i + ')">' + bodyHtml + '<div class="absolute inset-0 ' + (sel ? 'bg-indigo-500/10' : '') + '"></div>' + (sel ? '<div class="absolute top-1 right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs flex items-center justify-center">✓</div>' : '') + '</div>';
+    }
+
+    // 取第 page 页该显示的批次（页码越界就夹回来）。翻页是按**批次**翻的，不是按素材张数。
+    function dwBatchSlice(page) {
+      var pages = Math.max(1, Math.ceil(_dwBatches.length / _dwBatchPageSize));
+      var p = Math.min(Math.max(1, page), pages);
+      var start = (p - 1) * _dwBatchPageSize;
+      return { page: p, pages: pages, groups: _dwBatches.slice(start, start + _dwBatchPageSize) };
+    }
+
+    // 素材池**按批次展示**：一个批次一条标题栏（批次号 + 书籍ID + 素材数），下面是它的素材。
+    // 以前是把所有批次的素材拉平成一坨、按 64 张一页翻 —— 看不出哪张是哪本书的。
     function dwRenderAssetPool() {
       var el = document.getElementById('dwAssetPool');
       var need = parseInt(document.getElementById('dwTotal').textContent) || 0;
       document.getElementById('dwNeedN').textContent = need;
-      if (!_dwAssets.length) {
+      if (!_dwAssets.length || !_dwBatches.length) {
         el.innerHTML = '<div class="text-xs text-slate-500 col-span-4 py-8 text-center">请先从生产中心/小说分析收集，或点右上角「从素材浏览加载」</div>';
         document.getElementById('dwAssetPager').innerHTML = '';
         dwUpdateSelected();
         return;
       }
-      var total = _dwAssets.length;
-      var totalPages = Math.ceil(total / _dwAssetPageSize);
-      if (_dwAssetPage > totalPages) _dwAssetPage = totalPages;
-      var start = (_dwAssetPage - 1) * _dwAssetPageSize;
-      var end = Math.min(start + _dwAssetPageSize, total);
+      var slice = dwBatchSlice(_dwAssetPage);
+      _dwAssetPage = slice.page;
+      var totalPages = slice.pages;
       var html = '';
-      for (var i = start; i < end; i++) {
-        var a = _dwAssets[i];
-        var sel = _dwSelected.has(i);
-        // 图片用缩略图；视频用封面缩略图 + ▶（点卡片即选中，发布时按 .mp4 走视频创意上传）
-        var full = absUrl(a.image_url);
-        var isImg = /\.png$/i.test(full);
-        var isVideo = /\.mp4$/i.test(full);
-        var bodyHtml;
-        if (isImg) {
-          var src = full.replace(/\.png$/i, '_thumb.jpg');
-          var safeFull = full.replace(/'/g, "\\'");
-          bodyHtml = '<img src="' + src + '" class="w-full h-32 object-contain" loading="lazy" onerror="if(this.src.indexOf(\'_thumb.jpg\')!==-1&&this.getAttribute(\'data-fb\')!==\'1\'){this.setAttribute(\'data-fb\',\'1\');this.src=\'' + safeFull + '\';}" />';
-        } else if (isVideo) {
-          var vParts = full.split('/');
-          var vFile = encodeURIComponent(vParts[vParts.length - 1]);
-          var vBatch = encodeURIComponent(vParts[vParts.length - 2] || '');
-          var vPoster = '/api/media/video-poster?batch=' + vBatch + '&file=' + vFile;
-          bodyHtml = '<div class="relative w-full h-32 bg-black overflow-hidden"><img src="' + vPoster + '" class="w-full h-full object-contain" loading="lazy" onerror="this.style.display=\'none\'"><span class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="w-9 h-9 rounded-full bg-black/55 text-white flex items-center justify-center text-sm">▶</span></span></div>';
-        } else {
-          bodyHtml = '<img src="' + full + '" class="w-full h-32 object-contain" loading="lazy" />';
-        }
-        html += '<div class="relative cursor-pointer bg-slate-900 rounded-lg overflow-hidden border ' + (sel ? 'border-indigo-500' : 'border-slate-700') + '" onclick="dwToggleAsset(' + i + ')">' + bodyHtml + '<div class="absolute inset-0 ' + (sel ? 'bg-indigo-500/10' : '') + '"></div>' + (sel ? '<div class="absolute top-1 right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs flex items-center justify-center">✓</div>' : '') + '</div>';
-      }
+      slice.groups.forEach(function(g) {
+        var picked = g.indices.filter(function(i) { return _dwSelected.has(i); }).length;
+        var when = String(g.created_at || g.updated_at || '');
+        if (when) when = when.substring(0, 16).replace('T', ' ');
+        html += '<div class="col-span-8 flex flex-wrap items-center gap-2 border-b border-slate-700 pb-1 mt-1">' +
+            '<span class="text-xs font-bold text-slate-200">批次 #' + escapeHtml(String(g.batch_id || '未知')) + '</span>' +
+            (g.novel_id
+              ? '<span class="rounded px-1.5 py-0.5 text-[10px] font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-mono">书籍ID: ' + escapeHtml(String(g.novel_id)) + '</span>'
+              : '<span class="text-[10px] text-slate-500">无书籍ID</span>') +
+            '<span class="text-[10px] text-slate-500">' + g.indices.length + ' 个素材</span>' +
+            (picked ? '<span class="text-[10px] font-semibold text-emerald-400">已选 ' + picked + '</span>' : '') +
+            (when ? '<span class="text-[10px] text-slate-500">' + escapeHtml(when) + '</span>' : '') +
+          '</div>';
+        g.indices.forEach(function(i) { html += dwAssetCardHtml(i); });
+      });
       el.innerHTML = html;
-      dwRenderAssetPager(total, totalPages);
+      dwRenderAssetPager(totalPages);
       dwUpdateSelected();
     }
 
-    function dwRenderAssetPager(total, totalPages) {
+    function dwRenderAssetPager(totalPages) {
       var pager = document.getElementById('dwAssetPager');
       if (totalPages <= 1) { pager.innerHTML = ''; return; }
       var html = '<button class="px-2 py-0.5 rounded border border-slate-700 text-slate-300 hover:text-white' + (_dwAssetPage <= 1 ? ' opacity-30' : '') + '" ' + (_dwAssetPage > 1 ? 'onclick="dwAssetGo(' + (_dwAssetPage - 1) + ')"' : '') + '>◀ 上一页</button>';
-      html += '<span class="px-2">第 ' + _dwAssetPage + ' / ' + totalPages + ' 页（共 ' + total + ' 张）</span>';
+      html += '<span class="px-2">第 ' + _dwAssetPage + ' / ' + totalPages + ' 页（共 ' + _dwBatches.length + ' 个批次 / ' + _dwAssets.length + ' 个素材）</span>';
       html += '<button class="px-2 py-0.5 rounded border border-slate-700 text-slate-300 hover:text-white' + (_dwAssetPage >= totalPages ? ' opacity-30' : '') + '" ' + (_dwAssetPage < totalPages ? 'onclick="dwAssetGo(' + (_dwAssetPage + 1) + ')"' : '') + '>下一页 ▶</button>';
       pager.innerHTML = html;
     }
@@ -4753,8 +4824,7 @@
         assets.push({ image_url: dwRelUrl(v.src), image_type: "scroll", overlay_text: "" });
       });
       if (!assets.length) { alert("暂无素材，请先生成图片或视频"); return; }
-      _dwAssets = assets;
-      _dwSelected = new Set();
+      dwSetAssetPool(assets);
       switchTab("delivery-wizard");
       dwInitBatch();
     }
@@ -4766,8 +4836,7 @@
         assets.push({ image_url: dwRelUrl(img.src), image_type: "text_single", overlay_text: "" });
       });
       if (!assets.length) { alert("暂无素材，请先生成图片"); return; }
-      _dwAssets = assets;
-      _dwSelected = new Set();
+      dwSetAssetPool(assets);
       switchTab("delivery-wizard");
       dwInitBatch();
     }
