@@ -276,7 +276,13 @@
                 <div><label class="mb-1 block text-[11px] text-slate-500">AI 弹屏</label><input id="aiPopupCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
                 <div class="col-span-2 flex items-end gap-3">
                   <div class="w-1/2"><label class="mb-1 block text-[11px] text-slate-500">逐句字幕视频</label><input id="captionVideoCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
-                  <div class="pb-2.5 text-[11px] leading-snug text-slate-400">一张静态底图从头用到尾，字幕逐句浮现，约 26-31 秒</div>
+                  <div class="pb-2.5 text-[11px] leading-snug text-slate-400">底图 + 逐句浮现的字幕，约 26-29 秒</div>
+                </div>
+                <div class="col-span-2">
+                  <label class="flex items-start gap-2 cursor-pointer">
+                    <input id="captionMultiBg" type="checkbox" class="accent-indigo-600 w-4 h-4 mt-0.5 shrink-0" />
+                    <span class="text-[11px] leading-snug text-slate-500"><span class="font-medium text-slate-600">底图跟随文案切换</span>（开启后按文案分 3 段各出一张底图，每张对应那几句的内容；关闭则一张底图用到底）</span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -3464,6 +3470,7 @@
         ai_scroll_count: parseInt(document.getElementById("aiScrollCount").value) || 0,
         ai_popup_count: parseInt(document.getElementById("aiPopupCount").value) || 0,
         caption_video_count: parseInt(document.getElementById("captionVideoCount").value) || 0,
+        caption_multi_bg: !!document.getElementById("captionMultiBg").checked,
         scroll_style: selectedScroll.style,
         popup_style: selectedPopup.style,
         use_templates: useTemplatesMode,

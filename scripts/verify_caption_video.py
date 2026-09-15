@@ -33,6 +33,14 @@ CAPTIONS = [
 ]
 
 
+def captions_21() -> list:
+    """21 句（= CAPTION_MIN_LINES），用来测分段：3 段应是 7/7/7。"""
+    out = []
+    while len(out) < 21:
+        out.extend(CAPTIONS)
+    return out[:21]
+
+
 def probe_duration(path: Path) -> float:
     import main
     out = subprocess.run([main.imageio_ffmpeg.get_ffmpeg_exe(), "-i", str(path)],
@@ -69,6 +77,25 @@ def main():
     MY = "暗黑浪漫风格。"
     mixed = main._build_rules_text(MY, 0, 0, 0, 0, 0, False, caption_video=1)
     assert MY in mixed and "逐句字幕" in mixed, "自定义提示词把字幕规则吞掉了"
+
+    # 3b) 底图张数：开关关=1 张，开=CAPTION_BG_COUNT_MULTI 张，且规则里的 {bg_count} 要换成真值
+    assert main.caption_bg_count(False) == 1 and main.caption_bg_count(True) == main.CAPTION_BG_COUNT_MULTI
+    assert main.CAPTION_BG_COUNT_MULTI == 3, "底图张数改了？确认过观感/成本再改"
+    one = main._build_rules_text("", 0, 0, 0, 0, 0, False, caption_video=1)
+    many = main._build_rules_text("", 0, 0, 0, 0, 0, False, caption_video=1, caption_multi_bg=True)
+    assert "{bg_count}" not in one and "必须是 1" in one, "单底图模式没把 {bg_count} 换成 1"
+    assert "{bg_count}" not in many and f"必须是 {main.CAPTION_BG_COUNT_MULTI}" in many, "多底图模式没换成 3"
+    assert "均分" in many, "多底图规则没说要按 captions 顺序分段"
+
+    # 3c) 提示词取值：新格式数组 / 旧格式单值 / 缺失
+    assert main.caption_bg_prompts_of({"image_prompts": ["a", "b"]}) == ["a", "b"]
+    assert main.caption_bg_prompts_of({"image_prompt": "solo"}) == ["solo"]
+    assert main.caption_bg_prompts_of({}) == [] and main.caption_bg_prompts_of(None) == []
+
+    # 3d) 均分：不丢、不空、前面的段多一个
+    assert main.split_evenly(list(range(22)), 3) == [list(range(8)), list(range(8, 15)), list(range(15, 22))]
+    assert sum(len(x) for x in main.split_evenly(list(range(21)), 3)) == 21
+    assert all(main.split_evenly(list(range(7)), 3)), "均分出了空段"
 
     # 4~6) 排版 / 分组 / 超长句
     tmp = Path(tempfile.mkdtemp(prefix="capvideo_"))
@@ -114,6 +141,32 @@ def main():
     got = probe_duration(out)
     want = len(CAPTIONS) * main.CAPTION_SEC_PER_LINE
     assert abs(got - want) < 0.15, f"时长 {got}s ≠ 期望 {want}s（concat 末帧多留的那段没裁掉）"
+
+    # 7b) 多底图：3 张纯色底图 → 每句画面必须用**它那一段**的颜色（底图真的跟着文案切了）
+    colors = [(200, 30, 30), (30, 160, 60), (40, 60, 200)]
+    bg_paths = []
+    for ci, col in enumerate(colors):
+        p = tmp / f"bg{ci}.png"
+        Image.new("RGB", (768, 1344), col).save(p)
+        bg_paths.append(p)
+    multi = tmp / "multi.mp4"
+    st_multi = main.compose_caption_video(bg_paths, captions_21(), multi)
+    assert st_multi["backgrounds"] == 3, st_multi
+    groups = main.split_evenly(list(range(21)), 3)
+    for ci, col in enumerate(colors):
+        mid = (groups[ci][0] + groups[ci][-1]) / 2
+        frame = tmp / f"chk{ci}.png"
+        subprocess.run([main.imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-ss",
+                        f"{mid * main.CAPTION_SEC_PER_LINE + 0.1:.2f}", "-i", str(multi),
+                        "-frames:v", "1", str(frame)], capture_output=True)
+        a = np.asarray(Image.open(frame).convert("RGB"))
+        # 取画面最顶部一条（字幕块在上三分之一以下，这里一定是背景）
+        top = a[:120].reshape(-1, 3).mean(axis=0)
+        assert max(abs(int(top[k]) - col[k]) for k in range(3)) < 30, (
+            f"第 {ci+1} 段底图颜色不对：期望 {col}，实测 {tuple(int(x) for x in top)}")
+    # 关掉开关 = 一张底图用到底
+    st_one = main.compose_caption_video(bg_paths[0], captions_21(), tmp / "one.mp4")
+    assert st_one["backgrounds"] == 1, st_one
 
     # 8) 回归：**相对路径**也要能出片。
     #    ffmpeg 的 concat 清单把相对路径按「清单文件所在目录」解析，
