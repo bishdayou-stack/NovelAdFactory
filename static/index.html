@@ -274,6 +274,10 @@
                 <div><label class="mb-1 block text-[11px] text-slate-500">滚屏视频</label><input id="scrollCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
                 <div><label class="mb-1 block text-[11px] text-slate-500">AI 滚屏</label><input id="aiScrollCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
                 <div><label class="mb-1 block text-[11px] text-slate-500">AI 弹屏</label><input id="aiPopupCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
+                <div class="col-span-2 flex items-end gap-3">
+                  <div class="w-1/2"><label class="mb-1 block text-[11px] text-slate-500">逐句字幕视频</label><input id="captionVideoCount" type="number" min="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm input-focus bg-slate-50/50" value="0" /></div>
+                  <div class="pb-2.5 text-[11px] leading-snug text-slate-400">一张静态底图从头用到尾，字幕逐句浮现，约 26-31 秒</div>
+                </div>
               </div>
             </div>
             <!-- 风格开关 -->
@@ -3204,8 +3208,9 @@
       var popupList = Array.isArray(data.popup_videos) ? data.popup_videos.filter(Boolean) : [];
       var aiScrollVideos = Array.isArray(data.ai_scroll_videos) ? data.ai_scroll_videos.filter(Boolean) : [];
       var aiPopupVideos = Array.isArray(data.ai_popup_videos) ? data.ai_popup_videos.filter(Boolean) : [];
+      var captionVideos = Array.isArray(data.caption_videos) ? data.caption_videos.filter(Boolean) : [];
 
-      if (imgs.length || scrollVideos.length || popupList.length || aiScrollVideos.length || aiPopupVideos.length) emptyHint.hidden = true;
+      if (imgs.length || scrollVideos.length || popupList.length || aiScrollVideos.length || aiPopupVideos.length || captionVideos.length) emptyHint.hidden = true;
 
       imgs.forEach(function(src) {
         var full = absUrl(src);
@@ -3222,6 +3227,7 @@
       if (popupList.length) popupList.forEach(function(src, idx) { addVideoBlock("弹屏 " + (idx + 1), "bg-violet-100 text-violet-700", src, "保存弹屏"); });
       if (aiScrollVideos.length) aiScrollVideos.forEach(function(src, idx) { addVideoBlock("AI滚屏视频" + (aiScrollVideos.length > 1 ? " " + (idx + 1) : ""), "bg-cyan-100 text-cyan-700", src, "保存AI滚屏视频"); });
       if (aiPopupVideos.length) aiPopupVideos.forEach(function(src, idx) { addVideoBlock("AI弹屏 " + (idx + 1), "bg-teal-100 text-teal-700", src, "保存AI弹屏"); });
+      if (captionVideos.length) captionVideos.forEach(function(src, idx) { addVideoBlock("逐句字幕视频" + (captionVideos.length > 1 ? " " + (idx + 1) : ""), "bg-amber-100 text-amber-700", src, "保存逐句字幕视频"); });
 
       function addVideoBlock(title, badge, src, btnLabel) {
         var full = absUrl(src);
@@ -3272,6 +3278,7 @@
         popup_videos: data.popup_videos || [],
         ai_scroll_videos: (data.videos || []).filter(function(v) { return v.indexOf("ai-scroll") >= 0; }),
         ai_popup_videos: [],
+        caption_videos: (data.videos || []).filter(function(v) { return v.indexOf("caption-") >= 0; }),
         message: data.message,
         warnings: data.warnings || [],
         errors: data.errors || [],
@@ -3456,6 +3463,7 @@
         popup_count: parseInt(document.getElementById("popupCount").value) || 0,
         ai_scroll_count: parseInt(document.getElementById("aiScrollCount").value) || 0,
         ai_popup_count: parseInt(document.getElementById("aiPopupCount").value) || 0,
+        caption_video_count: parseInt(document.getElementById("captionVideoCount").value) || 0,
         scroll_style: selectedScroll.style,
         popup_style: selectedPopup.style,
         use_templates: useTemplatesMode,

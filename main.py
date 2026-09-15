@@ -927,6 +927,7 @@ _RULES_THREE_PANEL = _load_prompt("rules_three_panel.txt")
 _RULES_VIDEO_SCRIPT = _load_prompt("rules_video_script.txt")
 _RULES_COLLAGE = _load_prompt("rules_cinematic_collage.txt")
 _RULES_STORY_CARD = _load_prompt("rules_story_card.txt")
+_RULES_CAPTION_VIDEO = _load_prompt("rules_caption_video.txt")
 
 # B层：加载视觉基因蓝图（构图原型，纯视觉参数，不含具体场景）
 _ARCHETYPES, _ARCHETYPES_FOOTER = _load_archetypes()
@@ -940,7 +941,7 @@ NOVEL_PROMPT_RULES = _RULES_CORE
 
 
 def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scroll: int, three_panel: int = 0, cinematic_collage: bool = False, story_card: int = 0,
-                     story_card_style: str = "long") -> str:
+                     story_card_style: str = "long", caption_video: int = 0) -> str:
     """返回绘图规则：用户自定义优先 → 完整提示词文件（最新提示词.txt）→ 按需组装。
 
     **故事卡模块和拼贴风模块是强制追加的，任何分支都带**（拼贴风原本就是这个做法）。
@@ -955,6 +956,12 @@ def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scro
         story_card_rule = (_RULES_STORY_CARD
                            .replace("{word_min}", str(words[0]))
                            .replace("{word_max}", str(words[1])))
+
+    caption_rule = ""
+    if caption_video > 0 and _RULES_CAPTION_VIDEO:
+        caption_rule = (_RULES_CAPTION_VIDEO
+                        .replace("{cap_min}", str(CAPTION_MIN_LINES))
+                        .replace("{cap_max}", str(CAPTION_MAX_LINES)))
 
     if user_prompt and user_prompt.strip():
         base = user_prompt.strip()
@@ -974,7 +981,8 @@ def _build_rules_text(user_prompt: str, text_single: int, lr: int, tb: int, scro
             parts.append(_RULES_THREE_PANEL)
         base = "\n\n".join(p for p in parts if p)
 
-    tail = [story_card_rule, _RULES_COLLAGE if (cinematic_collage and _RULES_COLLAGE) else ""]
+    tail = [story_card_rule, caption_rule,
+            _RULES_COLLAGE if (cinematic_collage and _RULES_COLLAGE) else ""]
     return "\n\n".join(p for p in [base] + tail if p)
 
 # 后缀常量
@@ -1222,6 +1230,7 @@ class GenerateRequest(BaseModel):
     popup_count: int = 0
     ai_scroll_count: int = 0   # AI 滚屏（AI 生成文案）
     ai_popup_count: int = 0     # AI 弹屏（AI 生成文案）
+    caption_video_count: int = 0  # 逐句字幕视频（一张静态底图 + 逐句浮现的字幕）
     scroll_style: dict = {}
     popup_style: dict = {}
     use_templates: bool = False  # 默认不参考爆款模板
@@ -1413,7 +1422,8 @@ def request_image_prompt_plan(
     cinematic_collage: bool = False,
     story_card_count: int = 0,
     story_card_style: str = "long",
-) -> Tuple[List[dict], List[dict], List[dict], List[dict], List[dict], List[dict]]:
+    caption_video_count: int = 0,
+) -> Tuple[List[dict], List[dict], List[dict], List[dict], List[dict], List[dict], List[dict]]:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     url = api_url.rstrip("/") + "/chat/completions"
     n_square = text_single_count + lr_split_count + tb_split_count + three_panel_count + story_card_count
@@ -1424,19 +1434,21 @@ def request_image_prompt_plan(
         tb_split_count=tb_split_count,
         three_panel_count=three_panel_count,
         story_card_count=story_card_count,
+        caption_video_count=caption_video_count,
         n_square=n_square,
     )
     # 用户消息 = 按需组装规则 + 小说内容 + （可选）模板参考
     rules_text = _build_rules_text(user_prompt, text_single_count, lr_split_count, tb_split_count,
                                    scroll_visual_count, three_panel_count, cinematic_collage,
-                                   story_card=story_card_count, story_card_style=story_card_style)
+                                   story_card=story_card_count, story_card_style=story_card_style,
+                                   caption_video=caption_video_count)
     novel_text = (novel_content or "").strip()
     total_images = (text_single_count + lr_split_count + tb_split_count + scroll_visual_count
                     + three_panel_count + story_card_count)
     user = (
         f"绘图规则：\n{rules_text}\n\n"
         f"小说节选：\n{novel_text}\n\n"
-        f"数量：text_single={text_single_count}, lr={lr_split_count}, tb={tb_split_count}, scroll={scroll_visual_count}, three_panel={three_panel_count}, story_card={story_card_count}"
+        f"数量：text_single={text_single_count}, lr={lr_split_count}, tb={tb_split_count}, scroll={scroll_visual_count}, three_panel={three_panel_count}, story_card={story_card_count}, caption_video={caption_video_count}"
     )
     if total_images >= 6:
         user += "\n\n【重要】共{0}张图，每张必须对应小说中不同的爆款瞬间或不同的情绪切面。严禁重复同一场景。详见系统提示词 Step 3 变体策略。".format(total_images)
@@ -1505,6 +1517,7 @@ def request_image_prompt_plan(
     tb = _extract("tb_split_prompts")
     tp = _extract("three_panel_prompts")
     sc = _extract("story_card_prompts")
+    cv = _extract("caption_video_prompts")
     legacy = data.get("square_prompts")
     if legacy and not ts and not lr and not tb:
         ts_legacy, lr_legacy, tb_legacy = _split_legacy_square_prompts(
@@ -1516,8 +1529,8 @@ def request_image_prompt_plan(
 
     # 统计有效 prompt（image_prompt 非空）
     valid_count = lambda items: sum(1 for it in items if isinstance(it, dict) and str(it.get("image_prompt", "")).strip())
-    print(f"[CHAT API] 有效prompt数: text_single={valid_count(ts)}, lr={valid_count(lr)}, tb={valid_count(tb)}, three_panel={valid_count(tp)}, story_card={valid_count(sc)}, scroll={valid_count(scroll)}")
-    return ts, lr, tb, tp, scroll, sc
+    print(f"[CHAT API] 有效prompt数: text_single={valid_count(ts)}, lr={valid_count(lr)}, tb={valid_count(tb)}, three_panel={valid_count(tp)}, story_card={valid_count(sc)}, caption_video={valid_count(cv)}, scroll={valid_count(scroll)}")
+    return ts, lr, tb, tp, scroll, sc, cv
 
 
 def request_image_prompt_plan_batched(
@@ -1566,7 +1579,7 @@ def request_image_prompt_plan_batched(
                 use_templates=use_templates,
                 three_panel_count=tp_c,
                 cinematic_collage=cinematic_collage,
-            )
+            )[:5]
             all_ts.extend(ts_p)
             all_lr.extend(lr_p)
             all_tb.extend(tb_p)
@@ -2169,6 +2182,139 @@ def compose_story_card(src_image: Path, out_path: Path, text: str,
             "band_h": band_h}
 
 
+# ====== 逐句字幕视频（一张静态底图 + 逐句浮现的字幕）======
+
+CAPTION_MIN_LINES, CAPTION_MAX_LINES = 21, 24   # LLM 要出的句数
+CAPTION_SEC_PER_LINE = 1.2      # 每句字幕停留秒数 → 21~24 句 = 25.2~28.8 秒（要的就是 25-30s）
+CAPTION_GROUP_SIZE = 3          # 同时最多显示几句；满一组清空，接着下一组
+CAPTION_MAX_WORDS = 10          # 单句超过这个词数就打回（LLM 偶尔会写长）
+CAPTION_BG_SIZE = "768x1344"    # 底图请求尺寸（9:16，跟滚屏/AI 滚屏一致）
+CAPTION_BLOCK_CENTER = 0.62     # 字幕块中心落在画面高度的这个位置（别用 0.5：正中会压住人物的脸）
+
+
+def caption_font_path() -> str:
+    """字幕字体：粗黑体，跟样例一致。ziti/ 里没有粗体就退回默认黑体。"""
+    for fn in ("arialbd.ttf", "Arial Bold.ttf", "arial.ttf", "Arial.ttf"):
+        p = BASE_PATH / "ziti" / fn
+        if p.exists():
+            return str(p)
+    return FONT_PATH
+
+
+def render_caption_state(bg: Image.Image, visible: List[str], font, font_path: str,
+                         out_path: Path) -> None:
+    """把「当前该显示的那几句」画到底图副本上，存成一张 PNG。
+
+    白底圆角框 + 黑字，水平居中，整块垂直居中 —— 和样例一致。
+    """
+    img = bg.copy()
+    draw = ImageDraw.Draw(img, "RGBA")
+    W, H = img.size
+    size = font.size
+    pad_x, pad_y = int(size * 0.60), int(size * 0.34)
+    gap = int(size * 0.38)
+    max_w = W * 0.86
+
+    line_h = size * 1.24
+    boxes = []   # (折行后的每行, 框宽, 框高)
+    for text in visible:
+        lines = wrap_text_by_pixels(text, font, max_w - pad_x * 2)
+        tw = max(font.getlength(ln) for ln in lines)
+        bw = int(tw + pad_x * 2)
+        bh = int(len(lines) * line_h + pad_y * 2)
+        boxes.append((lines, bw, bh))
+
+    total_h = sum(b[2] for b in boxes) + gap * (len(boxes) - 1)
+    y = int(H * CAPTION_BLOCK_CENTER - total_h / 2)
+    for lines, bw, bh in boxes:
+        x = (W - bw) // 2
+        draw.rounded_rectangle([x, y, x + bw, y + bh], radius=int(bh * 0.20),
+                               fill=(255, 255, 255, 244))
+        # 整组行要**一起**在框内居中：第一行的中心是框中心再往上挪 (行数-1)/2 行。
+        # 别把第一行直接放框中心再往下叠 —— 折行的第二句会掉到框外面去（实测踩过）。
+        ty = y + bh / 2 - (len(lines) - 1) * line_h / 2
+        for ln in lines:
+            draw.text((W / 2, ty), ln, font=font, fill=(12, 12, 12), anchor="mm")
+            ty += line_h
+        y += bh + gap
+    img.save(out_path, "PNG", optimize=True)
+
+
+def compose_caption_video(bg_image_path: Path, captions: List[str], out_path: Path,
+                          seconds_per_line: float = CAPTION_SEC_PER_LINE,
+                          group_size: int = CAPTION_GROUP_SIZE,
+                          fps: int = 30) -> dict:
+    """静态底图 + 逐句字幕 → mp4。
+
+    每句一个画面：底图上叠「本组已浮现的句子」，每句停留 seconds_per_line 秒，
+    满 group_size 句清空重新来（跟样例一样）。
+
+    **不逐帧生成**：整段视频是静态的，只有字幕在变。逐帧写 900 帧纯属浪费 ——
+    这里只渲染「每句一张 PNG」（20 多张），再交给 ffmpeg concat 打上各自时长。
+    """
+    captions = [c.strip() for c in (captions or []) if c and c.strip()]
+    captions = [c for c in captions if len(c.split()) <= CAPTION_MAX_WORDS]
+    if not captions:
+        raise ValueError("没有可用的字幕句")
+
+    with Image.open(bg_image_path) as im:
+        bg = im.convert("RGB")
+    W, H = bg.size
+    font = _load_font(caption_font_path(), max(24, int(W * 0.062)))
+
+    tmp_dir = out_path.parent / f"_{out_path.stem}_frames"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    pngs: List[Path] = []
+    durations: List[float] = []
+    for i in range(len(captions)):
+        start = (i // group_size) * group_size
+        visible = captions[start:i + 1]
+        png = tmp_dir / f"{i:03d}.png"
+        render_caption_state(bg, visible, font, caption_font_path(), png)
+        pngs.append(png)
+        durations.append(seconds_per_line)
+
+    _concat_images_to_mp4(pngs, durations, out_path, fps)
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+    return {"lines": len(captions), "seconds": round(len(captions) * seconds_per_line, 1),
+            "font_size": font.size, "groups": -(-len(captions) // group_size)}
+
+
+def _concat_images_to_mp4(pngs: List[Path], durations: List[float],
+                          out_path: Path, fps: int = 30) -> None:
+    """一串「图片 + 各自时长」拼成 mp4（ffmpeg concat 解复用器）。"""
+    list_file = out_path.parent / f"_{out_path.stem}.concat.txt"
+    # **必须绝对路径**：concat 清单里的相对路径是相对「清单文件所在目录」解析的，
+    # 传进去 output/xxx/a.png 会变成 output/xxx/output/xxx/a.png 而打不开。
+    rows = []
+    for p, d in zip(pngs, durations):
+        rows.append(f"file '{Path(p).resolve().as_posix()}'")
+        rows.append(f"duration {d:.3f}")
+    # concat 要求末帧再写一次，否则最后一屏会丢
+    rows.append(f"file '{Path(pngs[-1]).resolve().as_posix()}'")
+    list_file.write_text("\n".join(rows), encoding="utf-8")
+    # 上面那句重复会把最后一屏**再按上一段时长多留一次**（实测 6 句本想 7.2s，出来 8.4s），
+    # 用 -t 裁到精确总时长，视频长度才不会随句数漂移。
+    total = sum(durations)
+    cmd = [
+        imageio_ffmpeg.get_ffmpeg_exe(), "-y",
+        "-f", "concat", "-safe", "0", "-i", str(list_file),
+        "-vf", f"fps={fps},format=yuv420p",
+        "-t", f"{total:.3f}",
+        "-c:v", "libx264", "-preset", "veryfast", "-threads", "2",
+        "-movflags", "+faststart", str(out_path),
+    ]
+    try:
+        proc = _subprocess.run(cmd, stdout=_subprocess.DEVNULL, stderr=_subprocess.PIPE)
+        if proc.returncode != 0 or not out_path.exists():
+            raise RuntimeError(f"ffmpeg 拼接失败: {proc.stderr.decode(errors='replace')[-400:]}")
+    finally:
+        try:
+            list_file.unlink()
+        except Exception:
+            pass
+
+
 _POPUP_BOX_Y_RATIO = 0.6      # 弹屏文字区从图片高度的 60% 开始（create_popup_frame 里的 box_y）
 _POPUP_BOX_PAD_TOP = 30       # 文字相对文字区顶部的内边距
 
@@ -2449,7 +2595,8 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
 
     total_square = (body.text_single_count + body.lr_split_count + body.tb_split_count
                     + body.three_panel_count + body.story_card_count)
-    scroll_visual_total = body.scroll_count + body.popup_count + body.ai_scroll_count + body.ai_popup_count
+    scroll_visual_total = (body.scroll_count + body.popup_count + body.ai_scroll_count
+                           + body.ai_popup_count + body.caption_video_count)
     total_needed = total_square + scroll_visual_total
     total_images_expected = total_square + scroll_visual_total
 
@@ -2460,13 +2607,14 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
     tb_prompts: List[dict] = []
     three_panel_prompts: List[dict] = []
     story_card_prompts: List[dict] = []
+    caption_video_prompts: List[dict] = []
     scroll_prompts: List[dict] = []
 
     if body.api_key.strip() and body.api_url.strip() and total_needed > 0:
         try:
             print(f"[CHAT API] 单次调用模式，共 {total_needed} 张图（text_single={body.text_single_count}, lr={body.lr_split_count}, tb={body.tb_split_count}, three_panel={body.three_panel_count}, story_card={body.story_card_count}, scroll={scroll_visual_total}）")
             (text_single_prompts, lr_prompts, tb_prompts, three_panel_prompts,
-             scroll_prompts, story_card_prompts) = request_image_prompt_plan(
+             scroll_prompts, story_card_prompts, caption_video_prompts) = request_image_prompt_plan(
                 body.api_url,
                 body.api_key,
                 body.chat_model_name,
@@ -2481,6 +2629,7 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
                 cinematic_collage=body.cinematic_collage,
                 story_card_count=body.story_card_count,
                 story_card_style=body.story_card_style,
+                caption_video_count=body.caption_video_count,
             )
             chat_status = "success"
             valid_ts = sum(1 for it in text_single_prompts if isinstance(it, dict) and str(it.get("image_prompt", "")).strip())
@@ -2527,6 +2676,8 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
     story_card_prompts = pad_items(story_card_prompts, body.story_card_count,
                                    f"{base_style}, cinematic still, wide horizontal framing")
     scroll_prompts = pad_items(scroll_prompts, scroll_visual_total, scroll_base)
+    caption_video_prompts = pad_items(caption_video_prompts, body.caption_video_count,
+                                      {"image_prompt": scroll_base, "captions": []})
 
     # 三宫格布局：每张独立解析（指定布局固定 / random 各 25% 随机），记录实际使用布局用于返回
     three_panel_layouts: Dict[int, str] = {}
@@ -2747,8 +2898,10 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
             lab = f"弹屏底图{i - body.scroll_count + 1}"
         elif i < body.scroll_count + body.popup_count + body.ai_scroll_count:
             lab = f"AI滚屏底图{i - body.scroll_count - body.popup_count + 1}"
-        else:
+        elif i < body.scroll_count + body.popup_count + body.ai_scroll_count + body.ai_popup_count:
             lab = f"AI弹屏底图{i - body.scroll_count - body.popup_count - body.ai_scroll_count + 1}"
+        else:
+            lab = f"逐句字幕底图{i - body.scroll_count - body.popup_count - body.ai_scroll_count - body.ai_popup_count + 1}"
         name = fetch_image(p, "768x1344", lab)
         return (i, name, lab, p)
 
@@ -3010,8 +3163,40 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
         else:
             warnings.append("AI弹屏文案生成失败，跳过AI弹屏视频合成")
 
+    # 逐句字幕视频：一张静态底图 + LLM 排好的短句，逐句浮现
+    caption_video_urls: List[str] = []
+    if not _is_batch_cancelled(batch_id) and body.caption_video_count > 0:
+        cv_start = (body.scroll_count + body.popup_count + body.ai_scroll_count
+                    + body.ai_popup_count)
+        for i in range(body.caption_video_count):
+            if _is_batch_cancelled(batch_id):
+                break
+            bg_idx = cv_start + i
+            if bg_idx >= len(scroll_png_paths):
+                warnings.append(f"逐句字幕视频{i + 1} 没有底图，跳过")
+                continue
+            item = caption_video_prompts[i] if i < len(caption_video_prompts) else {}
+            captions = item.get("captions") or []
+            if not [c for c in captions if str(c).strip()]:
+                warnings.append(f"逐句字幕视频{i + 1} 没有字幕文案，跳过合成（只有底图）")
+                continue
+            try:
+                out = batch_dir / f"{batch_id}-caption-{i + 1}.mp4"
+                st = compose_caption_video(scroll_png_paths[bg_idx], captions, out)
+                _merge_music_to_video(out)
+                u = f"/static/output/{batch_id}/{out.name}"
+                generated_images.append(u)
+                _push_image_ready(batch_id, u, f"逐句字幕视频{i + 1}")
+                caption_video_urls.append(u)
+                used_prompts.append({"label": f"逐句字幕视频{i + 1}", "type": "caption_video",
+                                     "prompt": item.get("image_prompt", ""),
+                                     "captions": captions})
+                warnings.append(f"[OK] 逐句字幕视频{i + 1}：{st['lines']} 句 / {st['seconds']} 秒 / 字号 {st['font_size']}px")
+            except Exception as e:
+                errors.append(f"逐句字幕视频{i + 1}：{e}")
+
     # 清理 9:16 滚屏底图（已合成视频的底图不再保留）
-    if not _is_batch_cancelled(batch_id) and (body.video_text.strip() or body.ai_scroll_count > 0 or body.ai_popup_count > 0):
+    if not _is_batch_cancelled(batch_id) and (body.video_text.strip() or body.ai_scroll_count > 0 or body.ai_popup_count > 0 or body.caption_video_count > 0):
         for p in scroll_png_paths:
             try:
                 p.unlink(missing_ok=True)
@@ -3039,11 +3224,13 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
     _update_progress(batch_id, final_pct, message, status)
     _deregister_batch(batch_id)
 
+    # 注意：弹屏/AI弹屏/逐句字幕的 mp4 已经进过 generated_images，这里只能补滚屏那两个
+    # （滚屏视频没走 generated_images），否则视频列表会出现重复项
     all_video_urls = [u for u in generated_images if u.endswith(".mp4")] + scroll_video_urls + ai_scroll_urls
     dl_names = [Path(u).name for u in generated_images if u.endswith(".png")]
     for u in scroll_video_urls + ai_scroll_urls:
         dl_names.append(Path(u).name)
-    dl_names.extend(Path(u).name for u in popup_urls + ai_popup_urls)
+    dl_names.extend(Path(u).name for u in popup_urls + ai_popup_urls + caption_video_urls)
 
     return {
         "status": status,
@@ -3058,6 +3245,7 @@ def run_full_generation(body: GenerateRequest, batch_id: Optional[int] = None) -
         "popup_videos": popup_urls,
         "ai_scroll_videos": ai_scroll_urls,
         "ai_popup_videos": ai_popup_urls,
+        "caption_videos": caption_video_urls,
         "message": message,
         "warnings": warnings,
         "errors": errors,
