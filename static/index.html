@@ -105,7 +105,11 @@
 
     <nav class="flex-1 px-3 py-4 space-y-0.5">
       <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium px-3 mb-2 mt-1">主菜单</div>
-      <button type="button" id="nav-generate" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white bg-white/5 font-medium transition-all border-0 cursor-pointer">
+      <button type="button" id="nav-dashboard" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white bg-white/5 font-medium transition-all border-0 cursor-pointer">
+        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span class="truncate">数据看板</span>
+      </button>
+      <button type="button" id="nav-generate" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
         <span class="truncate">生产中心</span>
       </button>
@@ -134,10 +138,6 @@
         <span class="truncate">小说分析</span>
       </button>
       <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium px-3 mb-2 mt-5">数据</div>
-      <button type="button" id="nav-dashboard" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
-        <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-        <span class="truncate">数据看板</span>
-      </button>
       <button type="button" id="nav-novel-mgr" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all border-0 cursor-pointer">
         <svg class="sidebar-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
         <span class="truncate">小说管理</span>
@@ -228,7 +228,7 @@
     </div>
 
     <!-- ====== Tab: 生产中心 ====== -->
-    <div id="tab-generate" class="flex-1 px-6 pb-6 overflow-y-auto">
+    <div id="tab-generate" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="space-y-4">
           <!-- 小说内容 -->
@@ -604,7 +604,7 @@
     </div>
 
     <!-- ====== Tab: 数据看板 ====== -->
-    <div id="tab-dashboard" class="flex-1 px-6 pb-6 overflow-y-auto" hidden>
+    <div id="tab-dashboard" class="flex-1 px-6 pb-6 overflow-y-auto">
       <div class="flex items-center justify-between mb-4 mt-2">
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2">
@@ -1879,7 +1879,7 @@
             _justLoggedInTimer = setTimeout(function() { _justLoggedIn = false; }, 3000);
             loadSyncInterval();
             loadSiteOptions();   // 站点名按用户解析，登录后重新拉一次
-            refreshAllData();
+            switchTab('dashboard');   // 登录后落在首页（数据看板）；switchTab 内部会自己刷新看板数据
           } else {
             document.getElementById('loginError').textContent = result.data.detail || '登录失败';
             document.getElementById('loginError').classList.remove('hidden');
@@ -1958,13 +1958,9 @@
       });
     }
 
-    function refreshAllData() {
-      // 触发当前视图的数据刷新
-      if (currentTab === 'generate') { /* 无需刷新 */ }
-      else if (currentTab === 'history') { loadHistoryView(); }
-      else if (currentTab === 'dashboard') { loadDashboardData(); }
-    }
-
+    // refreshAllData 已删除：它调的 loadDashboardData()/loadHistoryView() 两个函数全文件都没定义过，
+    // 而 currentTab 默认就是 'dashboard'，所以它每次必然抛 ReferenceError（被登录那里的 .catch 吞掉，
+    // 只在已隐藏的登录框里写一行「网络错误」）。切页签请直接调 switchTab()，它会自己刷新对应视图。
     // ====== 用户管理 ======
 
     var userEditingId = null;
@@ -2254,11 +2250,12 @@
 
     document.getElementById('nav-users').addEventListener('click', function() { switchTab('users'); });
 
-    // 初始侧边栏状态
+    // 初始侧边栏状态。
+    // 注意：**这里不能调 switchTab** —— switchTab 定义在下面那段 <script> 里，跨 script 不提升，
+    // 在这里调必然 ReferenceError（首页因此一直停在生产中心）。落地页逻辑挪到了第二段脚本末尾。
     if (authToken && currentUser) {
       hideLoginOverlay();
       updateSidebarUser();
-      switchTab('dashboard');
     }
   </script>
   <script>
@@ -9246,6 +9243,15 @@
     document.getElementById('btnAddApp').addEventListener('click', addApp);
     document.getElementById('btnAddBm').addEventListener('click', addBm);
     document.getElementById('btnDiscoverBm').addEventListener('click', openBmDiscover);
+
+    // ====== 首页：数据看板 ======
+    // 放这里（第二段脚本的最末尾）而不是开头，是因为 switchTab → loadDashboard() 会碰
+    // chartTrendInst 这类在后面才赋值的变量；等顶层 init 全部跑完再切，最稳。
+    // 同一段 script 里函数声明会提升，所以这里能直接调后面定义的 switchTab/loadSyncInterval。
+    if (authToken && currentUser) {
+      switchTab('dashboard');
+      loadSyncInterval();   // 一进页面就按配置的间隔自动刷新（以前只有「登录那一刻」会启动）
+    }
 
 </script>
 </body>
