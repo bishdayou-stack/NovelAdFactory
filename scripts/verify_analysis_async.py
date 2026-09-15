@@ -12,6 +12,7 @@
   5. 过期清理不会误删新任务
 """
 import json
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -140,7 +141,94 @@ def main():
     finally:
         main._curl_json_post = real
 
-    # 5) 过期清理：只清旧的
+    # 6) 分析成功后**服务端直接出图**（用户不再确认提示词）。
+    #    链在服务端而不是前端，就是为了「点完分析就关页面」这种最常见的用法 ——
+    #    链在前端的话，人一走分析跑完图一张都不出。
+    spawned = []
+    real_gen = main._run_analysis_generation
+
+    def fake_gen(req, bid):
+        spawned.append((req, bid))
+
+    def run_auto(raw_json, **kw):
+        main._run_analysis_generation = fake_gen
+        main._curl_json_post = lambda *a, **k: (_api(raw_json), 200, None)
+        body = _job_body()
+        for k, v in kw.items():
+            setattr(body, k, v)
+        jid = f"auto_{time.time_ns()}"
+        main._analysis_set(jid, status="running", percent=5, step="任务已提交", error="", result=None)
+        try:
+            main.run_analysis_job(body, jid, 4242)
+        finally:
+            main._run_analysis_generation = real_gen
+        return main._analysis_get(jid)
+
+    empty_json = json.dumps({"text_single_prompts": [], "scroll_visual_prompts": [],
+                             "lr_split_prompts": [], "tb_split_prompts": [],
+                             "three_panel_prompts": [], "story_card_prompts": []})
+    made = []
+    try:
+        # 6a) 成功 → 服务端提交出图，status 里带 batch_id，批次记在触发分析的用户名下
+        st = run_auto(GOOD, auto_generate=True)
+        assert st["status"] == "success", st
+        assert st.get("batch_id"), "auto_generate=True 却没提交出图批次"
+        assert st["step"] == "已提交出图", st["step"]
+        made.append(st["batch_id"])
+        meta = json.loads((main.OUTPUT_ROOT / str(st["batch_id"]) / "_meta.json")
+                          .read_text(encoding="utf-8"))
+        assert meta["user_id"] == 4242, f"批次没记到提交人名下，历史记录里会看不到：{meta}"
+
+        for _ in range(100):
+            if spawned:
+                break
+            time.sleep(0.05)
+        assert spawned, "出图任务没进后台线程"
+        req, bid = spawned[0]
+        assert bid == st["batch_id"], (bid, st["batch_id"])
+        assert req.text_single_prompts == json.loads(GOOD)["text_single_prompts"], req.text_single_prompts
+        assert req.api_key == "k" and req.image_model_name == "", "出图参数没从分析请求带过来"
+
+        # 6b) 模型一条提示词都没出 → 不提交空批次，且状态里要说明白
+        st = run_auto(empty_json, auto_generate=True)
+        assert st["status"] == "success" and not st.get("batch_id"), st
+        assert "没有可生成的提示词" in st["step"], st
+
+        # 6c) 不开 auto_generate 时行为不变（老调用方/脚本还按原样用）
+        st = run_auto(GOOD)
+        assert st["status"] == "success" and not st.get("batch_id"), st
+        assert st["step"] == "完成", st
+
+        # 6d) 提交出图炸了也不能把分析判死 —— 提示词是好的，还能在历史里看到
+        real_init = main._init_batch
+        main._init_batch = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("提交炸了"))
+        try:
+            st = run_auto(GOOD, auto_generate=True)
+        finally:
+            main._init_batch = real_init
+            main._curl_json_post = real
+        assert st["status"] == "success" and not st.get("batch_id"), st
+        assert "提交出图失败" in st["step"], st["step"]
+    finally:
+        main._curl_json_post = real
+        main._run_analysis_generation = real_gen
+        for b in made:
+            shutil.rmtree(main.OUTPUT_ROOT / str(b), ignore_errors=True)
+
+    # 6e) 轮询响应必须带 batch_id —— 前端就靠它从「分析进度」切到「出图进度」
+    main._analysis_set("withbatch", status="success", percent=100, step="已提交出图",
+                       result={}, batch_id=777)
+    got = client.get("/api/analyze-novel/status/withbatch").json()
+    assert got.get("batch_id") == 777, f"轮询响应没带 batch_id，前端切不到出图进度：{got}"
+
+    # 6f) 静态：前端必须继续发 auto_generate=true，且确认弹窗要清干净。
+    #     漏了 auto_generate 后端默认 False —— 页面会静默变回「只分析不出图」，什么错都不报。
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert "auto_generate: true" in html, "分析页没再发 auto_generate，分析完不会自动出图"
+    assert "confirmModal" not in html and "startAnalysisGeneration" not in html, \
+        "「确认提示词」那条老路还留在前端，会和新流程打架"
+
+    # 7) 过期清理：只清旧的
     old_id, new_id = "sweep_old", "sweep_new"
     main._analysis_set(old_id, status="success", percent=100)
     main._analysis_set(new_id, status="success", percent=100)
@@ -151,7 +239,8 @@ def main():
     assert main._analysis_get(new_id) is not None, "新任务被误清了"
 
     print("OK: 分析已改为异步（提交 <2s 返回 / 进度只进不退 / 5 条失败路径都落到 failed / "
-          "轮询不重复传大 JSON / 过期清理不误伤）")
+          "轮询不重复传大 JSON / 过期清理不误伤）；分析成功后服务端自动提交出图"
+          "（批次记在提交人名下 / 没提示词就不提交空批次 / 提交失败不判死分析）")
 
 
 if __name__ == "__main__":

@@ -173,6 +173,21 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     database.set_session_token(user["id"], credentials.credentials, expires)
     return user
 
+def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[dict]:
+    """能认就认：带 token 且有效返回用户，否则返回 None（**不抛 401**）。
+
+    给 /api/analyze-novel 用：这条路由历来没有鉴权，加上 get_current_user 会把
+    现有的直接调用方（脚本、curl）全部打断。但「分析完自动出图」要把批次记到
+    用户名下，否则历史记录里看不到 —— 所以是「认得出就记，认不出就记 0」。
+    """
+    if not credentials:
+        return None
+    try:
+        return database.verify_session_token(credentials.credentials)
+    except Exception:
+        return None
+
+
 def get_current_admin(user: dict = Depends(get_current_user)) -> dict:
     """确保当前用户是管理员"""
     if user.get("role") != "admin":
@@ -6043,6 +6058,15 @@ class AnalyzeNovelRequest(BaseModel):
     popup_count: int = 0
     use_templates: bool = False
     cinematic_collage: bool = False  # 电影叙事拼贴风（单帧图生效）
+    # ---- 以下字段只有 auto_generate 时才用得上：分析成功后要直接出图，出图参数得跟着一起来 ----
+    auto_generate: bool = False      # True = 分析完直接提交生成，不用用户再确认提示词
+    novel_id: str = ""
+    image_model_name: str = ""
+    text_single_text_enabled: bool = True
+    lr_split_text_enabled: bool = True
+    tb_split_text_enabled: bool = True
+    three_panel_text_enabled: bool = True
+    concurrency: int = 2
 
 # ====== 小说分析的后台任务 ======
 # 分析原本是同步阻塞的：模型一慢，HTTP 就一直挂着，前端只能显示「一直卡在分析中」。
@@ -6160,7 +6184,51 @@ def _analysis_call_chat(url: str, payload: dict, headers: dict, aid: str):
     return content, finish, ""
 
 
-def run_analysis_job(body: AnalyzeNovelRequest, aid: str) -> None:
+def _spawn_analysis_generation(body: AnalyzeNovelRequest, data: dict, user_id: int) -> Optional[int]:
+    """把分析结果直接送进出图队列，返回 batch_id（没有可用提示词时返回 None）。
+
+    这一步刻意放在**服务端**，而不是「前端拿到结果再发一次 /api/generate-from-analysis」：
+    用户点完分析就关页面是最常见的用法，链在前端的话就是「分析跑完了，但图一张没出」。
+    批次记在触发分析的那个用户名下，人不在也能在历史记录里找到。
+    """
+    def _items(key):
+        return [it for it in (data.get(key) or []) if str(it or "").strip()]
+
+    counts = {k: len(_items(k)) for k in (
+        "text_single_prompts", "lr_split_prompts", "tb_split_prompts",
+        "three_panel_prompts", "story_card_prompts")}
+    if not any(counts.values()):
+        print(f"[ANALYZE] 模型没返回任何提示词，跳过出图: {counts}")
+        return None
+
+    req = AnalysisGenerateRequest(
+        api_key=body.api_key,
+        api_url=body.api_url,
+        image_model_name=body.image_model_name,
+        novel_id=body.novel_id,
+        text_single_prompts=data.get("text_single_prompts") or [],
+        text_single_text_enabled=body.text_single_text_enabled,
+        lr_split_prompts=data.get("lr_split_prompts") or [],
+        lr_split_text_enabled=body.lr_split_text_enabled,
+        tb_split_prompts=data.get("tb_split_prompts") or [],
+        tb_split_text_enabled=body.tb_split_text_enabled,
+        three_panel_prompts=data.get("three_panel_prompts") or [],
+        three_panel_layout=body.three_panel_layout,
+        three_panel_text_enabled=body.three_panel_text_enabled,
+        story_card_prompts=data.get("story_card_prompts") or [],
+        story_card_style=body.story_card_style,
+        cinematic_collage=body.cinematic_collage,
+        concurrency=body.concurrency,
+    )
+    batch_id = _init_batch(user_id)
+    _register_batch(batch_id)
+    _update_progress(batch_id, 0, "任务已提交，正在启动...", "running")
+    _EXECUTOR.submit(_run_analysis_generation, req, batch_id)
+    print(f"[ANALYZE] 已自动提交出图 批次 #{batch_id} user={user_id} {counts}")
+    return batch_id
+
+
+def run_analysis_job(body: AnalyzeNovelRequest, aid: str, user_id: int = 0) -> None:
     """后台跑分析：进度和结果都写进 _ANALYSIS_JOBS[aid]。"""
     try:
         _analysis_set(aid, status="running", percent=15, step="正在组装提示词…")
@@ -6215,7 +6283,26 @@ def run_analysis_job(body: AnalyzeNovelRequest, aid: str) -> None:
                               error=last_error, raw=last_raw)
                 return
 
-            _analysis_set(aid, status="success", percent=100, step="完成", result=data, error="")
+            # 先出图再标成功：反过来的话前端可能先轮询到「成功」却还没有 batch_id，
+            # 那一瞬间会当成「模型没出提示词」处理。
+            batch_id, spawn_err = None, ""
+            if body.auto_generate:
+                try:
+                    batch_id = _spawn_analysis_generation(body, data, user_id)
+                except Exception as e:
+                    # 出图提交失败不该把分析判死：提示词是好的，历史里也能看到。
+                    traceback.print_exc()
+                    spawn_err = str(e)
+            step = "完成"
+            if body.auto_generate:
+                if batch_id:
+                    step = "已提交出图"
+                elif spawn_err:
+                    step = f"分析完成，但提交出图失败：{spawn_err}"
+                else:
+                    step = "完成（没有可生成的提示词）"
+            _analysis_set(aid, status="success", percent=100, step=step, result=data,
+                          error="", batch_id=batch_id)
             return
     except Exception as e:
         traceback.print_exc()
@@ -6223,17 +6310,19 @@ def run_analysis_job(body: AnalyzeNovelRequest, aid: str) -> None:
 
 
 @app.post("/api/analyze-novel")
-def api_analyze_novel(body: AnalyzeNovelRequest):
-    """提交分析任务，立刻返回；结果去 /api/analyze-novel/status/{id} 轮询。
+def api_analyze_novel(body: AnalyzeNovelRequest, user: Optional[dict] = Depends(get_optional_user)):
+    """提交分析任务，立刻返回；进度去 /api/analyze-novel/status/{id} 轮询。
 
     以前这里是同步返回结果，模型慢就直接把 HTTP 挂住 —— 前端表现为「一直卡在分析中」。
+    body.auto_generate=True 时，分析一成功就**在服务端**接着提交出图（用户不用再确认提示词），
+    轮询响应里会带上 batch_id；出图沿用生成中心那套 SSE/历史记录。
     """
     if not body.api_key.strip() or not body.novel_content.strip():
         raise HTTPException(status_code=400, detail="缺少 API Key 或小说内容")
     _analysis_sweep()
     aid = f"ja_{int(time.time() * 1000)}_{random.randint(1000, 9999)}"
     _analysis_set(aid, status="running", percent=5, step="任务已提交", error="", result=None)
-    _ANALYSIS_EXECUTOR.submit(run_analysis_job, body, aid)
+    _ANALYSIS_EXECUTOR.submit(run_analysis_job, body, aid, (user or {}).get("id", 0))
     return {"status": "submitted", "analysis_id": aid}
 
 
@@ -6245,7 +6334,8 @@ def api_analyze_novel_status(aid: str):
     if not job:
         raise HTTPException(status_code=404, detail="分析任务不存在或已过期（结果保留 30 分钟）")
     out = {"status": job.get("status", "running"), "percent": job.get("percent", 0),
-           "step": job.get("step", ""), "error": job.get("error", "")}
+           "step": job.get("step", ""), "error": job.get("error", ""),
+           "batch_id": job.get("batch_id")}
     if out["status"] == "success":
         out["data"] = job.get("result") or {}
     elif job.get("raw"):
