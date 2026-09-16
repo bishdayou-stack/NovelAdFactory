@@ -37,15 +37,31 @@ function el(id) {
 }
 let _dwAssets = [], _dwSelected = new Set();
 
+// 排期输入框（预览里会显示排期 + 排期相关的警告，这些是真函数，一起抠出来）
+const scheduleInputs = {};
+function schedEl(id) {
+  if (!scheduleInputs[id]) scheduleInputs[id] = { id, value: '' };
+  return scheduleInputs[id];
+}
+
 const ctx = {
-  document: { getElementById: el, querySelector: () => null, querySelectorAll: () => [] },
+  document: {
+    getElementById: id => (/^dw(Start|End)Time$/.test(id) ? schedEl(id) : el(id)),
+    querySelector: sel => (sel.indexOf('dwStatus') >= 0 ? { value: 'PAUSED' } : null),
+    querySelectorAll: () => [],
+  },
   absUrl: u => 'http://x' + u,
+  // escapeHtml 在页面里是基于 DOM 的实现（createElement + textContent），
+  // 本测试关心的是分块顺序不是转义，这里给个等价的替身
+  escapeHtml: s => String(s == null ? '' : s),
   get _dwAssets() { return _dwAssets; }, set _dwAssets(v) { _dwAssets = v; },
   get _dwSelected() { return _dwSelected; }, set _dwSelected(v) { _dwSelected = v; },
 };
 
 const fns = new Function('ctx', `with (ctx) {
   ${grab('dwThumbHtml')}
+  ${grab('dwScheduleIssues')}
+  ${grab('dwScheduleText')}
   ${grab('dwRenderPreview')}
   return { dwRenderPreview, dwThumbHtml };
 }`)(ctx);

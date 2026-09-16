@@ -535,6 +535,11 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                         attribution_spec=json.loads(params.get("attribution_spec_json") or "[]") or None,
                         bid_amount=ad_bid_amount,
                         bid_constraints=bid_constraints,
+                        # 投放排期：广告组的起止时间（Meta 原生 start_time/end_time）。
+                        # 传空串时 create_adset 不会带这两个字段（"立即开始 / 长期投放"）。
+                        # 格式由 main.py 的 _fmt_meta_time 统一成 UTC。
+                        start_time=params.get("start_time") or None,
+                        end_time=params.get("end_time") or None,
                         status=status)
                     if err:
                         failed += n3

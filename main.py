@@ -16,7 +16,7 @@ import numpy as np
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import subprocess as _subprocess
 import tempfile as _tempfile
 
@@ -7492,6 +7492,11 @@ class BatchPublishBody(BaseModel):
     attribution_spec_json: str = ""
     targeting_json: str = "{}"
     roas: float = 0  # 广告花费回报目标（LOWEST_COST_WITH_MIN_ROAS 时使用）
+    # 投放排期（广告组级的起止时间，Meta 的 start_time / end_time）。
+    # 空 = 立即开始 / 长期投放。设计文档里「排期」就是这个：
+    # .superpowers/brainstorm/*/delivery-engine-v2.html「排期 -> start_time / end_time」。
+    start_time: str = ""
+    end_time: str = ""
     advantage_audience: int = 1  # 客户生命周期策略（Advantage+ 受众），默认开启
     placements_json: str = ""  # 平台版位（手动版位时非空）
     # 广告设置
@@ -7535,6 +7540,34 @@ def _save_headline_lib(body: HeadlinesBody, user: dict = Depends(get_current_use
     return {"headlines": out}
 
 
+def _parse_meta_time(raw: str, field: str):
+    """把投放排期的时间解析成 UTC 的 datetime（空串 → None）。
+
+    前端 `datetime-local` 给的是「用户本地时间」，前端已经用 toISOString() 转成 UTC 再发；
+    这里再兜一层，兼容手工调用（curl / 脚本）的几种写法：
+      - 带 Z 或 +08:00 偏移 → 照它解析，统一换算成 UTC
+      - **不带时区**（"2026-09-20T08:00"）→ 按 UTC 解释
+    绝不猜服务器的本地时区 —— 这套服务跑在 UTC 服务器上，猜时区是这类功能最经典的坑
+    （本项目为此专门有 database.bj_now()）。
+    """
+    v = (raw or "").strip()
+    if not v:
+        return None
+    try:
+        dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail=(
+            f"{field}格式不对，要 ISO8601（例如 2026-09-20T08:00:00.000Z）"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _fmt_meta_time(dt) -> str:
+    """发给 Meta 的格式。用文档里那种不带冒号的偏移（2015-03-25T15:00:00-0700），统一给 +0000。"""
+    return dt.strftime("%Y-%m-%dT%H:%M:%S+0000") if dt else ""
+
+
 @app.post("/api/delivery/batch-publish")
 def _batch_publish(body: BatchPublishBody, user: dict = Depends(get_current_user)):
     uid = _opt_user_id(user)
@@ -7560,6 +7593,20 @@ def _batch_publish(body: BatchPublishBody, user: dict = Depends(get_current_user
     if body.budget_strategy == "campaign" and not body.campaign_daily_budget:
         return {"success": False, "message": "系列预算 (CBO) 模式下必须设置系列日预算"}
 
+    # 投放排期（广告组起止时间）。空 = 立即开始 / 长期投放。
+    try:
+        st = _parse_meta_time(body.start_time, "开始时间")
+        et = _parse_meta_time(body.end_time, "结束时间")
+    except HTTPException as e:
+        return {"success": False, "message": e.detail}
+    if st and et and et <= st:
+        return {"success": False, "message": "结束时间必须晚于开始时间"}
+    # 排了期但状态是「关闭」→ 到点也不会投，而且 Meta 不会报任何错。这里提一句，
+    # 前端也会在预览里显式警告（真正的拦截交给用户判断，不硬改他选的状态）。
+    schedule_note = ""
+    if st and st > datetime.now(timezone.utc) and body.status == "PAUSED":
+        schedule_note = "排期在未来，但投放状态是「关闭」—— 到点不会开始投放，需要手动开启。"
+
     # 解析素材本地路径
     resolved = []
     for a in body.assets:
@@ -7570,10 +7617,15 @@ def _batch_publish(body: BatchPublishBody, user: dict = Depends(get_current_user
 
     params = body.model_dump()
     params["assets"] = resolved
+    params["start_time"] = _fmt_meta_time(st)
+    params["end_time"] = _fmt_meta_time(et)
     batch_id, err = delivery.submit_batch_publish(params, uid)
     if err:
         return {"success": False, "message": err}
-    return {"success": True, "batch_id": batch_id}
+    out = {"success": True, "batch_id": batch_id}
+    if schedule_note:
+        out["warning"] = schedule_note
+    return out
 
 
 # ---- Meta 数据看板 API（独立，不混入 pingykj 看板） ----
