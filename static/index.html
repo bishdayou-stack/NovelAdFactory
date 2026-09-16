@@ -4735,11 +4735,66 @@
       // 把已选素材按顺序暂存，供预览
     }
 
+    // 小缩略图（图用 _thumb.jpg，视频用封面 + ▶），带 视频/图片 角标
+    function dwThumbHtml(a) {
+      if (!a) return '<div class="w-14 h-14 rounded-lg bg-slate-800 border border-dashed border-slate-600 flex items-center justify-center text-[9px] text-slate-500">空</div>';
+      var full = absUrl(a.image_url);
+      var isVideo = /\.mp4$/i.test(full);
+      var src;
+      if (isVideo) {
+        var p = full.split('/');
+        src = '/api/media/video-poster?batch=' + encodeURIComponent(p[p.length - 2] || '') +
+              '&file=' + encodeURIComponent(p[p.length - 1]);
+      } else {
+        src = full.replace(/\.png$/i, '_thumb.jpg');
+      }
+      var badge = isVideo
+        ? '<span class="absolute bottom-0 left-0 right-0 text-[8px] leading-tight text-center bg-black/60 text-white">视频</span>'
+        : '<span class="absolute bottom-0 left-0 right-0 text-[8px] leading-tight text-center bg-black/60 text-white">图片</span>';
+      return '<div class="relative w-14 h-14 rounded-lg overflow-hidden bg-slate-800 border border-slate-700">' +
+             '<img src="' + src + '" class="w-full h-full object-contain" loading="lazy" ' +
+             'onerror="this.style.display=\'none\'">' + badge + '</div>';
+    }
+
+    // 素材分配预览：**必须和后台的分配顺序一致**，否则界面显示的和实际投出去的会对不上。
+    // 后台（delivery.py 的 submit_batch_publish）：第 i 个系列、第 j 个广告组、第 k 个广告
+    // 用 assets[i*n2*n3 + j*n3 + k] —— 也就是**按块**：前 n2×n3 个素材给系列1，再给系列2…
     function dwRenderPreview() {
       var n1 = parseInt(document.getElementById('dwN1').value) || 1;
       var n2 = parseInt(document.getElementById('dwN2').value) || 1;
       var n3 = parseInt(document.getElementById('dwN3').value) || 1;
-      document.getElementById('dwPreview').innerHTML = n1 + ' 系列 × ' + n2 + ' 广告组 × ' + n3 + ' 广告 = <b>' + (n1*n2*n3) + '</b> 个广告，已选素材 ' + _dwSelected.size + ' 个';
+      var per = n2 * n3;
+      var total = n1 * per;
+      var sel = Array.from(_dwSelected);          // 点选顺序
+      var head = n1 + ' 系列 × ' + n2 + ' 广告组 × ' + n3 + ' 广告 = <b>' + total +
+                 '</b> 个广告，已选素材 ' + sel.length + ' 个';
+
+      if (sel.length !== total) {
+        document.getElementById('dwPreview').innerHTML = head +
+          '<div class="mt-2 text-xs text-amber-400">⚠ 素材数不对：还差 ' +
+          (total - sel.length) + ' 个（发布会被拒绝），去第 2 步补齐</div>';
+        return;
+      }
+
+      var html = head + '<div class="mt-3 space-y-3">';
+      for (var i = 0; i < n1; i++) {
+        var slice = sel.slice(i * per, (i + 1) * per);
+        var nv = slice.filter(function (x) { return /\.mp4$/i.test(absUrl((_dwAssets[x] || {}).image_url || '')); }).length;
+        html += '<div class="rounded-xl border border-slate-700 bg-slate-800/40 p-2.5">' +
+          '<div class="flex items-center gap-2 mb-2">' +
+            '<span class="text-xs font-bold text-slate-200">系列 ' + (i + 1) + '</span>' +
+            '<span class="text-[10px] text-slate-400">广告组 ' + n2 + ' × 广告 ' + n3 + '</span>' +
+            '<span class="text-[10px] ' + (nv ? 'text-emerald-400' : 'text-slate-500') + '">视频 ' + nv + ' 个</span>' +
+            '<span class="text-[10px] text-slate-500">图片 ' + (slice.length - nv) + ' 个</span>' +
+          '</div><div class="flex flex-wrap gap-1.5">';
+        for (var s = 0; s < per; s++) {
+          html += dwThumbHtml(_dwAssets[slice[s]]);
+        }
+        html += '</div></div>';
+      }
+      html += '</div><div class="mt-2 text-[10px] text-slate-500">缩略图按<b>你点选的先后顺序</b>排：前 ' + per +
+              ' 个进系列 1，再 ' + per + ' 个进系列 2，依此类推。想让每个系列都有视频，就按「视频、图、图、视频…」的顺序点。</div>';
+      document.getElementById('dwPreview').innerHTML = html;
     }
 
     function dwPublishBatch() {
@@ -4751,7 +4806,11 @@
       var n3 = parseInt(document.getElementById('dwN3').value) || 1;
       var total = n1 * n2 * n3;
       if (_dwSelected.size !== total) { alert('素材数 ' + _dwSelected.size + ' 不等于总广告数 ' + total); return; }
-      var sel = Array.from(_dwSelected).sort(function(a,b){return a-b;});
+      // **不要排序**：Set 本身就按插入顺序迭代，所以这里拿到的是你**点选的先后顺序**。
+      // 素材是按这个顺序、按块分配给各系列的（前 n2×n3 个给系列1，再给系列2…）。
+      // 原来这里有一句 .sort((a,b)=>a-b)，把点击顺序抹掉了、改成按素材池下标排 ——
+      // 那样你根本没法靠"先点视频"来控制视频落在哪个系列。
+      var sel = Array.from(_dwSelected);
       var assets = sel.map(function(i){ return _dwAssets[i]; });
       var headlines = [];
       document.querySelectorAll('#dwHeadlines input').forEach(function(inp){ var v = inp.value.trim(); if (v) headlines.push(v); });
