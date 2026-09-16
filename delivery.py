@@ -549,6 +549,19 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                         image_hash = None
                         video_id = None
                         poster_hash = None
+                        # 上传前先报一声。大素材上传期间耗时长、而且**一个进度事件都不会有**
+                        # （进度只在每个广告做完后推），前端那行「已投放 X/Y」就定住了 ——
+                        # 用户分不清「还在传」和「已经挂了」。这里用独立事件名 upload，
+                        # 别用 progress：前端 progress 处理器会渲染 d.completed/d.total，
+                        # 字段没带全会显示成「已投放 undefined/undefined」。
+                        try:
+                            _mb = round(Path(path).stat().st_size / 1048576, 1) if path else 0
+                        except OSError:
+                            _mb = 0
+                        _push_event(batch_id, "upload", {
+                            "completed": completed, "failed": failed, "total": total,
+                            "kind": "视频" if is_video else "图片", "size_mb": _mb,
+                        })
                         if is_video:
                             video_id, err = meta_api.upload_ad_video(act_id, token, path)
                         else:

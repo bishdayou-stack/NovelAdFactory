@@ -4858,6 +4858,18 @@
         if (_dwErrors.length) html += '<div class="text-xs text-red-400 mt-1 max-h-40 overflow-y-auto">' + _dwErrors.slice(-5).map(function(x){ return escapeHtml(x); }).join('<br>') + '</div>';
         prog.innerHTML = html;
       });
+      // 素材上传开始。上传期间服务端不会有别的进度事件，所以这里得让用户看到「在传什么、多大、
+      // 传到第几个」—— 否则大视频上传的几十秒里面板一动不动，像是卡死了。
+      // 单独一个事件名（不是 progress）：那边会渲染 completed/total，字段不齐会显示 undefined。
+      _dwEs.addEventListener('upload', function(e){
+        var d = JSON.parse(e.data);
+        var html = '<div class="text-xs text-amber-400">正在上传' + (d.kind || '素材') +
+          (d.size_mb ? '（' + d.size_mb + 'MB）' : '') + '… 已完成 ' +
+          (d.completed || 0) + '/' + (d.total || 0) +
+          ((d.failed || 0) ? '（失败 ' + d.failed + '）' : '') + '</div>';
+        if (_dwErrors.length) html += '<div class="text-xs text-red-400 mt-1 max-h-40 overflow-y-auto">' + _dwErrors.slice(-5).map(function(x){ return escapeHtml(x); }).join('<br>') + '</div>';
+        prog.innerHTML = html;
+      });
       _dwEs.addEventListener('complete', function(e){
         var d = JSON.parse(e.data);
         if (d.error) _dwErrors.push(d.error);

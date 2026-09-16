@@ -38,9 +38,36 @@ def _get_proxy() -> Optional[str]:
 
 
 def _http_request(method: str, url: str, params: dict = None, data: dict = None,
-                  timeout: int = 30) -> Tuple[Optional[Dict], Optional[str]]:
-    """统一的 HTTP 请求（使用 curl，可靠支持代理和远程 DNS 解析）"""
-    cmd = ["curl", "-s", "-X", method, "--connect-timeout", str(timeout),
+                  timeout: int = 30, connect_timeout: int = None) -> Tuple[Optional[Dict], Optional[str]]:
+    """统一的 HTTP 请求（使用 curl，可靠支持代理和远程 DNS 解析）。
+
+    文件上传要先把内容落到临时文件（curl -F 需要真实路径），**用完必须删**。这里统一兜底：
+    成功、失败、抛异常都会走到 finally。清理列表是**每次调用独立的**，不能用模块级全局 ——
+    投放是并发的（多线程同时在传素材），全局列表会把别的线程正在用的文件删掉。
+
+    timeout / connect_timeout 的区别见 _http_request_body。
+    """
+    tmp_files: List[str] = []
+    try:
+        return _http_request_body(method, url, params, data, timeout, connect_timeout, tmp_files)
+    finally:
+        for _p in tmp_files:
+            try:
+                os.unlink(_p)
+            except Exception:
+                pass
+
+
+def _http_request_body(method: str, url: str, params: dict, data: dict, timeout: int,
+                       connect_timeout: Optional[int], tmp_files: List[str]
+                       ) -> Tuple[Optional[Dict], Optional[str]]:
+    """真正干活的那层（拆出来是为了把临时文件清理放进 finally，而不是在 12 个 return 上各写一遍）。
+
+    connect_timeout 不传就**跟着 timeout**（所有既有调用点行为一字不变）；
+    只有大文件上传才需要把两者分开 —— 连接该快点失败（网断了别干等十分钟），
+    传输该给足预算（文件大）。
+    """
+    cmd = ["curl", "-s", "-X", method, "--connect-timeout", str(connect_timeout or timeout),
            "--max-time", str(timeout + 15),
            "-w", "\n%{http_code}"]
 
@@ -67,6 +94,9 @@ def _http_request(method: str, url: str, params: dict = None, data: dict = None,
                     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=filename)
                     tmp.write(filebytes if isinstance(filebytes, bytes) else filebytes.encode())
                     tmp.close()
+                    # 登记一下，函数返回时统一删（注意：**重试期间不能删** —— 下面那个
+                    # for attempt 循环会拿同一个 cmd 再跑两次，文件得一直在）
+                    tmp_files.append(tmp.name)
                     cmd.extend(["-F", f"{key}=@{tmp.name};filename={filename}"])
                 else:
                     cmd.extend(["-F", f"{key}={value}"])
@@ -362,12 +392,30 @@ def upload_ad_image(act_id: str, access_token: str,
         return images[k].get("hash", ""), None
     return None, "上传成功但未返回 hash"
 
+def upload_timeout_seconds(size_bytes: int) -> int:
+    """上传给多少传输预算：**按文件大小算**，不用固定值。
+
+    固定值两头都不对：给 600 秒，网断了要干等十分钟才重试；给小了，大文件传到一半被掐断
+    还得从零重传。这里按「最差也要有 0.25 MB/s」估（实测约 0.75 MB/s，留 3 倍余量），
+    最少 90 秒、最多 15 分钟（Meta 单次直传本身限 20 分钟）。
+    这三个数就是标定旋钮 —— 哪天素材涨到几百 MB 或者链路变了，改这里。
+    """
+    mb = max(1, int(size_bytes) // (1024 * 1024))
+    return min(900, max(90, mb * 4))
+
+
+# 连接阶段单独给个小预算：网断了/主机不通，20 秒就该失败去重试，
+# 不该像以前那样把 --connect-timeout 也设成 600（那是拿传输预算去当连接预算用了）。
+_UPLOAD_CONNECT_TIMEOUT = 20
+
+
 def upload_ad_video(act_id: str, access_token: str,
                     video_path: str) -> Tuple[Optional[str], Optional[str]]:
     _check_rate(act_id)
     if not video_path or not os.path.isfile(video_path):
         return None, f"素材文件不存在: {video_path}"
     filename = os.path.basename(video_path)
+    size = os.path.getsize(video_path)
     with open(video_path, "rb") as f:
         video_data = f.read()
     url = f"{GRAPH_API_BASE}/{API_VERSION}/{act_id}/advideos"
@@ -375,7 +423,7 @@ def upload_ad_video(act_id: str, access_token: str,
         "access_token": access_token,
         "title": filename,
         "source": (filename, video_data),
-    }, timeout=600)
+    }, timeout=upload_timeout_seconds(size), connect_timeout=_UPLOAD_CONNECT_TIMEOUT)
     if err:
         return None, err
     return data.get("id", ""), None
