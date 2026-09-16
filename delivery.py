@@ -496,8 +496,11 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                 if roas:
                     bid_constraints = {"roas_average_floor": int(float(roas) * 10000)}
                 ad_bid_amount = None
-            elif campaign_daily and not ad_bid_amount and bid_strategy == "LOWEST_COST_WITHOUT_CAP":
-                ad_bid_amount = 500  # CBO 模式 Meta v25 要求竞价金额（5 美元）
+            # 这里原本有一句「CBO 且没填竞价金额时补 500（5 美元）」，注释写的是
+            # 「Meta v25 要求竞价金额」。那是误判 —— 最低成本策略**不允许**竞价金额，
+            # 补上去 Meta 直接拒：100/1815858「你无法使用 LOWEST_COST_WITHOUT_CAP 竞价策略
+            # 来设置广告组的竞价上限」。现在不猜了：最低成本就老老实实不传。
+            # 兜底见 meta_api.create_adset —— 那里按策略拦一道，任何调用方都塞不进非法组合。
             # 客户生命周期策略（Advantage+ 受众）：默认开启，自动扩展受众。
             # 注意：版位必须合并进 targeting 对象（publisher_platforms / facebook_positions 等），
             # 独立的 placements 字段会被 Meta v25 忽略（已实测：传非法值都不报错）。

@@ -4763,18 +4763,22 @@
         }
       }
       var status = (document.querySelector('input[name="dwStatus"]:checked') || {}).value || 'PAUSED';
+      // 预算只发当前策略那一个。后端是「哪个预算非 0 就当哪个模式」，而切换策略只是把输入框
+      // 藏起来、**不清空值** —— 之前 ABO 模式下残留的系列预算会让后端按 CBO 建系列
+      // （系列带上日预算、广告组反而没有），和界面上选的东西对不上。
+      var _isCbo = document.getElementById('dwBudgetStrategy').value === 'campaign';
       var body = {
         ad_account_id: document.getElementById('dwAccount').value,
         n_campaigns: n1, n_adsets: n2, n_ads: n3,
         status: status,
         campaign_name_prefix: document.getElementById('dwCampaignPrefix').value,
         budget_strategy: document.getElementById('dwBudgetStrategy').value,
-        is_adset_budget_sharing_enabled: document.getElementById('dwBudgetStrategy').value === 'campaign' ? 1 : 0,
-        campaign_daily_budget: Math.round(parseFloat(document.getElementById('dwCampaignDailyBudget').value) * 100) || 0,
+        is_adset_budget_sharing_enabled: _isCbo ? 1 : 0,
+        campaign_daily_budget: _isCbo ? (Math.round(parseFloat(document.getElementById('dwCampaignDailyBudget').value) * 100) || 0) : 0,
         page_id: document.getElementById('dwPageId').value,
         link_url: document.getElementById('dwLinkUrl').value,
         adset_name_prefix: document.getElementById('dwAdsetPrefix').value,
-        adset_daily_budget: Math.round(parseFloat(document.getElementById('dwAdsetDailyBudget').value) * 100) || 0,
+        adset_daily_budget: _isCbo ? 0 : (Math.round(parseFloat(document.getElementById('dwAdsetDailyBudget').value) * 100) || 0),
         bid_strategy: document.getElementById('dwBidStrategy').value,
         bid_amount: (document.getElementById('dwBidStrategy').value === 'COST_CAP' || document.getElementById('dwBidStrategy').value === 'LOWEST_COST_WITH_BID_CAP') ? (Math.round(parseFloat(document.getElementById('dwBidAmount').value) * 100) || 0) : 0,
         roas: parseFloat(document.getElementById('dwRoas').value) || 0,

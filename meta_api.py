@@ -487,7 +487,13 @@ def create_adset(act_id: str, access_token: str,
     body["destination_type"] = destination_type
     if attribution_spec:
         body["attribution_spec"] = json.dumps(attribution_spec)
-    if bid_amount:
+    # bid_amount 只对「带竞价上限」的两种策略有意义。按策略拦一道，别的组合一律不发：
+    #   - LOWEST_COST_WITHOUT_CAP（最低成本/最高数量或价值）：传了 Meta 直接拒，
+    #     100/1815858「你无法使用 LOWEST_COST_WITHOUT_CAP 竞价策略来设置广告组的竞价上限」。
+    #   - LOWEST_COST_WITH_MIN_ROAS（广告花费回报目标）：用 bid_constraints，不用 bid_amount。
+    # 卡在 API 层而不是各个调用点，是因为至少有 3 条路会传 bid_amount 进来
+    # （批量投放向导、投放模板、按系列补投），漏一条就是同样一个错。
+    if bid_amount and bid_strategy in ("LOWEST_COST_WITH_BID_CAP", "COST_CAP"):
         body["bid_amount"] = str(bid_amount)
     if bid_constraints:
         body["bid_constraints"] = json.dumps(bid_constraints)
