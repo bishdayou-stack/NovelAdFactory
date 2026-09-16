@@ -32,6 +32,18 @@ def _get_token(act_id: str, user_id: int = None) -> Optional[str]:
     return token or None
 
 
+def _seq_name(prefix, default: str, *suffixes) -> str:
+    """前缀 + 序号拼名字：'9.16-2057723374815436802' + 3 个系列 → '-1 / -2 / -3' 接在后面。
+
+    前缀留空时退回 default。**不能写成 `params.get('campaign_name_prefix', 'Campaign')`** ——
+    params 来自 BatchPublishBody.model_dump()，那个键**总是存在**（默认空串），
+    .get 的默认值永远拿不到，结果系列名会变成光秃秃的 '-1'（实测踩过）。
+    顺手 strip：用户不小心带个尾空格，名字里就会多一个空格。
+    """
+    base = str(prefix or "").strip() or default
+    return "-".join([base] + [str(x) for x in suffixes])
+
+
 def _push_event(batch_id: str, event_type: str, data: dict = None):
     """向投放批次的事件队列推送事件"""
     if batch_id in _delivery_queues:
@@ -429,7 +441,7 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
     queue_items = []
     for i in range(n1):
         cid = database.create_delivery_campaign(
-            f"{params.get('campaign_name_prefix', 'Campaign')}-{i+1}",
+            _seq_name(params.get('campaign_name_prefix'), 'Campaign', i + 1),
             objective=params.get("objective", "OUTCOME_SALES"),
             budget_strategy=params.get("budget_strategy", "adset"),
             is_adset_budget_sharing_enabled=params.get("is_adset_budget_sharing_enabled", 0),
@@ -442,7 +454,7 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
         campaign_ids.append(cid)
         for j in range(n2):
             aid = database.create_delivery_adset(
-                cid, f"{params.get('adset_name_prefix', 'Adset')}-{i+1}-{j+1}",
+                cid, _seq_name(params.get('adset_name_prefix'), 'Adset', i + 1, j + 1),
                 ad_account_id=act_id,
                 pixel_id=params.get("pixel_id", ""),
                 audience_id=params.get("audience_id", ""),
@@ -511,7 +523,7 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                 targeting["targeting_automation"] = {"advantage_audience": 1}
             for i, cid in enumerate(campaign_ids):
                 fb_cid, err = meta_api.create_campaign(
-                    act_id, token, f"{params.get('campaign_name_prefix','Campaign')}-{i+1}",
+                    act_id, token, _seq_name(params.get('campaign_name_prefix'), 'Campaign', i + 1),
                     objective=params.get("objective", "OUTCOME_SALES"),
                     status=status, special_ad_categories=[],
                     is_adset_budget_sharing_enabled=is_sharing, daily_budget=campaign_daily,
@@ -524,7 +536,7 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                 for j in range(n2):
                     adset_id = adset_ids[i * n2 + j]
                     fb_adset_id, err = meta_api.create_adset(
-                        act_id, token, f"{params.get('adset_name_prefix','Adset')}-{i+1}-{j+1}", fb_cid,
+                        act_id, token, _seq_name(params.get('adset_name_prefix'), 'Adset', i + 1, j + 1), fb_cid,
                         targeting=targeting,
                         daily_budget=(params.get("adset_daily_budget") or None) if not campaign_daily else None,
                         bid_strategy=bid_strategy,
