@@ -10,6 +10,8 @@
   6. 预览（dry_run）不删任何东西
   7. 自动清理每天最多跑一次（靠 app_settings 时间戳节流）
   8. 接口：改天数/预览/清理都限管理员
+  9. **图片和视频分开计数**（image_files/video_files + 各自 MB）：视频含用户手动
+     「缓存到本地」的那些，体积是大头，合成一个数前端就没法把话说准
 """
 import shutil
 import sys
@@ -21,11 +23,11 @@ ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(ROOT))
 
 
-def add_creative(conn, ad_id, user_id, local_path, cached_days_ago):
+def add_creative(conn, ad_id, user_id, local_path, cached_days_ago, video_local_path=""):
     conn.execute(
-        "INSERT INTO meta_ad_creatives (ad_id, ad_account, local_path, user_id, synced_at) "
-        "VALUES (?, 'act_1', ?, ?, datetime('now', ?))",
-        (ad_id, local_path, user_id, f"-{cached_days_ago} days"))
+        "INSERT INTO meta_ad_creatives (ad_id, ad_account, local_path, video_local_path, user_id, synced_at) "
+        "VALUES (?, 'act_1', ?, ?, ?, datetime('now', ?))",
+        (ad_id, local_path, video_local_path, user_id, f"-{cached_days_ago} days"))
 
 
 def add_stat(conn, ad_id, user_id, days_ago):
@@ -49,11 +51,22 @@ def main():
     cache = tmp / "static" / "meta_creatives"
     cache.mkdir(parents=True)
     scraper._CREATIVE_CACHE_DIR = cache
+    # 视频缓存目录**也必须重定向到 tmp**：清理逻辑在 video_local_path 为空时会去
+    # _CREATIVE_VIDEO_DIR 下按 <ad_id>.mp4 兜底找文件，不重定向的话 dry_run=False
+    # 那次会伸进真仓库的 static/meta_videos 删东西（ad_id 撞上就是删用户缓存的视频）。
+    video_dir = tmp / "static" / "meta_videos"
+    video_dir.mkdir(parents=True)
+    scraper._CREATIVE_VIDEO_DIR = video_dir
 
     def img(ad_id, kb=100):
         p = cache / f"{ad_id}.jpg"
         p.write_bytes(b"x" * kb * 1024)
         return f"meta_creatives/{ad_id}.jpg"
+
+    def vid(ad_id, kb=200):
+        p = video_dir / f"{ad_id}.mp4"
+        p.write_bytes(b"v" * kb * 1024)
+        return f"meta_videos/{ad_id}.mp4"
 
     outside = tmp / "outside.jpg"          # 缓存目录之外的文件，绝不能删
     outside.write_bytes(b"y" * 1024)
@@ -76,6 +89,13 @@ def main():
         # local_path 指到缓存目录外 → 绝不删
         add_creative(conn, "weird", 1, "../outside.jpg", 100)
         add_stat(conn, "weird", 1, 100)
+        # 过期的**本地视频缓存**（用户在画廊点过「缓存到本地」的那种）→ 该清，
+        # 而且必须被算进「视频」而不是「图片」
+        add_creative(conn, "vid_stale", 1, "", 100, vid("vid_stale"))
+        add_stat(conn, "vid_stale", 1, 100)
+        # 还在投的广告，本地视频要留着
+        add_creative(conn, "vid_active", 1, "", 200, vid("vid_active"))
+        add_stat(conn, "vid_active", 1, 5)
 
     # 1) 默认保留天数
     assert scraper.gallery_retention_days() == 60, scraper.gallery_retention_days()
@@ -88,25 +108,35 @@ def main():
     before = sorted(p.name for p in cache.iterdir())
     r = scraper.cleanup_meta_creatives(60, dry_run=True)
     # stale_count 是「过期的数据库记录数」，deleted_files 是「去重后的文件数」——两个口径
-    assert r["stale_count"] == 5, r            # old_a(user=1) + old_a(user=5) + never_ran + gone + weird
-    assert r["deleted_files"] == 2, r          # old_a 那张多用户共用只算一次，加 never_ran
+    assert r["stale_count"] == 6, r            # 上面 5 条 + vid_stale（vid_active 还在投）
+    assert r["deleted_files"] == 3, r          # 2 张图 + 1 个视频（old_a 多用户共用只算一次）
+    # 图片和视频必须**分开**报：合成一个数，用户会以为删的全是缩略图，不敢下手
+    assert (r["image_files"], r["video_files"]) == (2, 1), r
+    assert r["image_mb"] > 0 and r["video_mb"] > 0, r
+    assert r["image_files"] + r["video_files"] == r["deleted_files"], r
     assert r["missing_files"] == 1, r          # gone 的文件不存在
     assert outside.exists() and sorted(p.name for p in cache.iterdir()) == before, "预览不该删文件"
+    assert (video_dir / "vid_stale.mp4").exists(), "预览不该删视频"
 
     # 3) 真删
     r = scraper.cleanup_meta_creatives(60, dry_run=False)
-    assert r["deleted_files"] == 2, r
+    assert r["deleted_files"] == 3, r
+    assert (r["image_files"], r["video_files"]) == (2, 1), r
     assert not (cache / "old_a.jpg").exists() and not (cache / "never_ran.jpg").exists()
     assert (cache / "active.jpg").exists(), "还有投放数据的图不能被删"
+    assert not (video_dir / "vid_stale.mp4").exists(), "过期的本地视频缓存应被清掉"
+    assert (video_dir / "vid_active.mp4").exists(), "还在投的广告，本地视频不能删"
     assert outside.exists(), "缓存目录之外的文件绝不能被删"
 
     with database.get_conn() as conn:
         rows = dict((r["ad_id"], r) for r in conn.execute(
-            "SELECT ad_id, local_path FROM meta_ad_creatives").fetchall())
-        assert conn.execute("SELECT COUNT(*) FROM meta_ad_creatives").fetchone()[0] == 6, \
+            "SELECT ad_id, local_path, video_local_path FROM meta_ad_creatives").fetchall())
+        assert conn.execute("SELECT COUNT(*) FROM meta_ad_creatives").fetchone()[0] == 8, \
             "数据库记录必须保留（只清 local_path）"
         assert rows["old_a"]["local_path"] == "", "被清理的应清空 local_path"
         assert rows["active"]["local_path"], "没被清理的 local_path 要留着"
+        assert rows["vid_stale"]["video_local_path"] == "", "被清理的视频要清空 video_local_path"
+        assert rows["vid_active"]["video_local_path"], "没被清理的视频路径要留着"
 
     # 4) 自动清理的节流：跑一次写时间戳，24 小时内不再跑
     database.set_app_setting(scraper._GALLERY_CLEANUP_AT_KEY, "")

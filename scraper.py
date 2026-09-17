@@ -1373,6 +1373,9 @@ def cleanup_meta_creatives(days: int = None, dry_run: bool = True) -> Dict[str, 
                 declared.add(str(target))       # 记录里声称有这个文件
 
     deleted_files, freed, missed = 0, 0.0, 0
+    # 图片和视频**分开计数**：视频（含用户在画廊手动「缓存到本地」的那些）体积是清理的
+    # 大头，只报一个合计数会让用户以为删的全是缩略图，也不敢下手。前端按这个分开写文案。
+    n_img, n_vid, mb_img, mb_vid = 0, 0, 0.0, 0.0
     for path, refs in targets.items():
         target = Path(path)
         if not target.exists():
@@ -1392,6 +1395,12 @@ def cleanup_meta_creatives(days: int = None, dry_run: bool = True) -> Dict[str, 
                 continue
         deleted_files += 1
         freed += size / 1024 / 1024
+        if target.suffix.lower() == ".mp4":
+            n_vid += 1
+            mb_vid += size / 1024 / 1024
+        else:
+            n_img += 1
+            mb_img += size / 1024 / 1024
 
     if not dry_run and stale:
         # 只清本地路径：记录留着，画廊仍能显示这些广告的消耗
@@ -1406,6 +1415,9 @@ def cleanup_meta_creatives(days: int = None, dry_run: bool = True) -> Dict[str, 
         "days": days, "cutoff": cutoff, "dry_run": dry_run,
         "stale_count": len(stale), "deleted_files": deleted_files,
         "freed_mb": round(freed, 1), "missing_files": missed,
+        # 分类型明细（前端要分开报「图片 N 张 / 视频 N 个」）
+        "image_files": n_img, "image_mb": round(mb_img, 1),
+        "video_files": n_vid, "video_mb": round(mb_vid, 1),
         "samples": stale[:50],
     }
 
@@ -1426,7 +1438,8 @@ def _auto_cleanup_gallery_creatives() -> None:
         database.set_app_setting(_GALLERY_CLEANUP_AT_KEY,
                                  database.bj_now().strftime("%Y-%m-%d %H:%M:%S"))
         if g["deleted_files"]:
-            print(f"[画廊清理] 删除 {g['deleted_files']} 张 {g['days']} 天前的缓存缩略图，"
+            print(f"[画廊清理] 删除 {g['days']} 天前的本地缓存："
+                  f"图片 {g['image_files']} 张 / 视频 {g['video_files']} 个，"
                   f"释放 {g['freed_mb']}MB")
     except Exception as e:
         print(f"[画廊清理] 跳过: {e}")

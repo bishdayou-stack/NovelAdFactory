@@ -8102,6 +8102,16 @@
       }).then(function() { btn.disabled = false; });
     });
 
+    // 清理明细文案：图片和视频**分开**报（张数 / 个数 + 各自 MB）。
+    // 视频（含用户在画廊手动「缓存到本地」的那些）体积占大头，原来只报一个合计数、
+    // 还写着「只删图片文件」，用户根本不知道自己的视频缓存会被一起清掉。
+    function galCleanupParts(d) {
+      var p = [];
+      if (d.image_files) p.push('图片 ' + d.image_files + ' 张（' + d.image_mb + ' MB）');
+      if (d.video_files) p.push('视频 ' + d.video_files + ' 个（' + d.video_mb + ' MB）');
+      return p;
+    }
+
     document.getElementById('galRetentionClean').addEventListener('click', function() {
       var days = parseInt(document.getElementById('galRetentionDays').value || '0', 10);
       if (!(days >= 1)) { galRetentionMsg('先填一个 ≥ 1 的天数', 'text-red-400'); return; }
@@ -8113,14 +8123,18 @@
           galRetentionMsg('没有可清理的（' + d.cutoff + ' 之后都还在用）', 'text-slate-400');
           return;
         }
-        if (!confirm('将删除 ' + d.deleted_files + ' 张 ' + days + ' 天内没有投放数据的缓存缩略图，释放约 ' +
-                     d.freed_mb + ' MB。\n画廊的消耗/ROI 统计不受影响，只删图片文件。\n\n继续？')) return;
+        var lines = galCleanupParts(d).map(function(x) { return '· ' + x; }).join('\n');
+        if (!confirm('将清理 ' + days + ' 天内没有投放数据的本地缓存：\n' + lines +
+                     '\n合计约 ' + d.freed_mb + ' MB。\n' +
+                     '视频里包含你在画廊点过「缓存到本地」的那些。\n' +
+                     '画廊的消耗/ROI 统计不受影响；生产中心生成的原素材不会被删。\n\n继续？')) return;
         return fetch('/api/meta/gallery/cleanup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ days: days })
         }).then(function(r) { return r.json(); }).then(function(res) {
-          galRetentionMsg('已删 ' + res.deleted_files + ' 张，释放 ' + res.freed_mb + ' MB', 'text-emerald-400');
+          galRetentionMsg('已清理 ' + galCleanupParts(res).join('、') + '，合计 ' + res.freed_mb + ' MB',
+                          'text-emerald-400');
         });
       }).catch(function(e) {
         galRetentionMsg('清理失败: ' + e.message, 'text-red-400');
