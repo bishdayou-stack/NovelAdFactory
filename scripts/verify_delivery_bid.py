@@ -85,6 +85,7 @@ def main():
         "c_adset": database.create_delivery_adset,
         "q": database.add_to_delivery_queue,
         "u_camp": database.update_delivery_campaign_fb_id,
+        "u_es": database.upsert_meta_entity_statuses,
         "u_adset": database.update_delivery_adset_fb_id,
     }
     seq = iter(range(1000, 9000))
@@ -104,6 +105,7 @@ def main():
         database.create_delivery_adset = lambda *a, **k: next(seq)
         database.add_to_delivery_queue = lambda *a, **k: None
         database.update_delivery_campaign_fb_id = lambda *a, **k: None
+        database.upsert_meta_entity_statuses = lambda *a, **k: None
         database.update_delivery_adset_fb_id = lambda *a, **k: None
 
         params = {
@@ -156,6 +158,7 @@ def main():
         database.create_delivery_adset = real["c_adset"]
         database.add_to_delivery_queue = real["q"]
         database.update_delivery_campaign_fb_id = real["u_camp"]
+        database.upsert_meta_entity_statuses = real["u_es"]
         database.update_delivery_adset_fb_id = real["u_adset"]
 
     # ---- 3) 前端：预算只发当前策略那一个 ----

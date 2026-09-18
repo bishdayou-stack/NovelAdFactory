@@ -76,7 +76,7 @@ def main():
         "cad": meta_api.create_ad, "img": meta_api.upload_ad_image,
         "db": {k: getattr(database, k) for k in (
             "create_delivery_campaign", "create_delivery_adset", "add_to_delivery_queue",
-            "update_delivery_campaign_fb_id", "update_delivery_adset_fb_id")},
+            "update_delivery_campaign_fb_id", "update_delivery_adset_fb_id", "upsert_meta_entity_statuses")},
     }
     seq = iter(range(3000, 6000))
     import tempfile
@@ -97,6 +97,7 @@ def main():
         database.create_delivery_adset = lambda *a, **k: next(seq)
         database.add_to_delivery_queue = lambda *a, **k: None
         database.update_delivery_campaign_fb_id = lambda *a, **k: None
+        database.upsert_meta_entity_statuses = lambda *a, **k: None
         database.update_delivery_adset_fb_id = lambda *a, **k: None
 
         img = tmp / "a.png"; img.write_bytes(b"x")

@@ -803,7 +803,56 @@ def meta_campaigns(account: str, start_date: str = None, end_date: str = None,
             m["initiate_checkout"] = r["initiate_checkout"] if "initiate_checkout" in r.keys() else 0
             m["user_name"] = r["user_name"] if "user_name" in r.keys() else ""
             out.append(m)
-        return out
+
+        # ---- 补上「本地建过、Meta 那边一条统计都没有」的系列 ----
+        # 上面这个列表完全由 meta_adset_stats 聚合而来，于是**刚从投放向导建出来的
+        # 系列在页面里根本不存在**：新系列（尤其 PAUSED 的）在 Meta 那边一条统计数据
+        # 都没有，永远不会进这个聚合。实测向导建过的 33 个系列 100% 落在盲区里。
+        # 名字/账户/归属人本地都有（delivery_campaigns），不用再问 Meta 一遍。
+        seen = {r["campaign_id"] for r in rows}
+        lw = ["d.fb_campaign_id != ''"]
+        if len(accts) > 1:
+            lw.append("d.ad_account_id IN (" + ",".join(["?"] * len(accts)) + ")")
+            acct_params: List = list(accts)
+        else:
+            lw.append("d.ad_account_id = ?")
+            acct_params = [accts[0] if accts else account]
+        # 只在「一条统计都没有」时补：有数据的系列上面已经出过了，不能重复出现
+        lw.append("NOT EXISTS (SELECT 1 FROM meta_adset_stats s WHERE s.campaign_id = d.fb_campaign_id)")
+        # 状态徽章的 user_id 条件必须写在 ON 里。写进 WHERE 会把这个 LEFT JOIN
+        # 变成 INNER JOIN —— 没有状态记录的系列会整行消失，正是要修的东西。
+        on_user = " AND es.user_id = ?" if user_id is not None else ""
+        # 参数顺序要跟着 ? 出现的顺序：ON 里的先，然后账户，最后 WHERE 里的 user_id
+        lparams: List = [user_id] if user_id is not None else []
+        lparams.extend(acct_params)
+        _add_user_filter(lw, lparams, user_id, prefix="d.")
+        local = conn.execute(f"""
+            SELECT d.fb_campaign_id AS campaign_id, MAX(d.name) AS campaign_name,
+                   MAX(d.ad_account_id) AS ad_account,
+                   es.effective_status, es.status, es.created_time,
+                   COALESCE(u.display_name, u.username, '') AS user_name
+            FROM delivery_campaigns d
+            LEFT JOIN meta_entity_status es ON es.entity_id = d.fb_campaign_id
+                AND es.level = 'campaign'{on_user}
+            LEFT JOIN meta_accounts ma ON d.ad_account_id = ma.act_id
+            LEFT JOIN users u ON ma.user_id = u.id
+            WHERE {' AND '.join(lw)}
+            GROUP BY d.fb_campaign_id
+        """, lparams).fetchall()
+        fresh = []
+        for r in local:
+            if r["campaign_id"] in seen:
+                continue
+            m = _row_metrics(0, 0, 0, 0, 0)          # 还没有任何投放数据 → 全 0
+            m["campaign_id"] = r["campaign_id"]
+            m["campaign_name"] = r["campaign_name"] or r["campaign_id"]
+            m["ad_account"] = r["ad_account"] or ""
+            m["effective_status"] = r["effective_status"] or ""
+            m["status"] = r["status"] or ""
+            m["user_name"] = r["user_name"] or ""
+            fresh.append(m)
+        # 新建的排最前：默认按消耗排序时它们会沉到 0 那一堆里，很难找
+        return fresh + out
 
 
 def meta_adsets(account: str, campaign_id: str = None, start_date: str = None,

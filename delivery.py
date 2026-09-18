@@ -533,6 +533,15 @@ def submit_batch_publish(params: dict, user_id: int = None) -> tuple:
                     _push_event(batch_id, "progress", {"completed": completed, "failed": failed, "total": total, "error": f"建系列失败: {err}"})
                     continue
                 database.update_delivery_campaign_fb_id(cid, fb_cid)
+                # 建完立刻把状态写进本地 meta_entity_status。广告系列页的状态徽章和
+                # 「投放中」筛选都读这张表，而 Meta 的状态同步**一小时才跑一次**
+                # （scraper._sync_meta_statuses 有 3600 秒节流）。不写的话新系列在页面上
+                # 是一行没有状态的空白，切到「投放中」还会被直接筛掉。
+                # upsert 而不是 update_entity_status_locally —— 后者只 UPDATE，新系列插不进去。
+                database.upsert_meta_entity_statuses("campaign", [{
+                    "entity_id": fb_cid, "ad_account": act_id,
+                    "effective_status": status, "status": status,
+                }], uid)
                 for j in range(n2):
                     adset_id = adset_ids[i * n2 + j]
                     fb_adset_id, err = meta_api.create_adset(

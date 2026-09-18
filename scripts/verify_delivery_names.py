@@ -16,6 +16,9 @@ params 来自 BatchPublishBody.model_dump()，那个键**总是存在**（默认
   2. 前缀留空 → 退回默认名（Campaign / Adset），不能出现裸的 "-1"
   3. 前缀带首尾空格 → trim 掉
   4. 序号规律：n1 个系列、n2 个广告组 → 系列 -1..-n1，广告组 -i-j
+  5. 建完系列立刻把状态写进本地 meta_entity_status（广告系列页的状态徽章和
+     默认「投放中」筛选都读它，而 Meta 的状态同步一小时才跑一次），
+     且写的是用户选的状态而不是写死 PAUSED
 """
 import sys
 import tempfile
@@ -47,19 +50,21 @@ def main():
 
     # ---- 走真路径：本地记录名 == 发给 Meta 的名字 ----
     local_camps, local_adsets, fb_camps, fb_adsets = [], [], [], []
+    statuses = []
     real = {
         "cc": meta_api.create_campaign, "ca": meta_api.create_adset, "cad": meta_api.create_ad,
         "img": meta_api.upload_ad_image, "push": delivery._push_event,
         "tok": delivery._get_token,
         "db": {k: getattr(database, k) for k in (
             "create_delivery_campaign", "create_delivery_adset", "add_to_delivery_queue",
-            "update_delivery_campaign_fb_id", "update_delivery_adset_fb_id")},
+            "update_delivery_campaign_fb_id", "update_delivery_adset_fb_id", "upsert_meta_entity_statuses")},
     }
     seq = iter(range(1000, 9999))
     tmp = Path(tempfile.mkdtemp(prefix="names_"))
 
-    def run(prefix, adset_prefix, n1, n2, n3):
+    def run(prefix, adset_prefix, n1, n2, n3, status="PAUSED"):
         local_camps.clear(); local_adsets.clear(); fb_camps.clear(); fb_adsets.clear()
+        statuses.clear()
         delivery._push_event = lambda *a, **k: None
         delivery._get_token = lambda a, uid=None: "tok"
         meta_api.create_campaign = lambda act, tok, name, **k: (fb_camps.append(name), ("fc", None))[1]
@@ -70,6 +75,9 @@ def main():
         database.create_delivery_adset = lambda cid, name, **k: (local_adsets.append(name), next(seq))[1]
         database.add_to_delivery_queue = lambda *a, **k: None
         database.update_delivery_campaign_fb_id = lambda *a, **k: None
+        # 建完系列要立刻把状态写进本地（前端「投放中」筛选和状态徽章读它，
+        # 而 Meta 的状态同步一小时才跑一次）—— 这里记录下来，下面断言
+        database.upsert_meta_entity_statuses = lambda lvl, rows, uid=None: statuses.append((lvl, rows))
         database.update_delivery_adset_fb_id = lambda *a, **k: None
         total = n1 * n2 * n3
         assets = []
@@ -82,7 +90,7 @@ def main():
             "assets": assets, "headlines": ["H"], "ad_name": "Ad", "budget_strategy": "adset",
             "adset_daily_budget": 1000, "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
             "optimization_goal": "OFFSITE_CONVERSIONS", "pixel_id": "1", "page_id": "p",
-            "link_url": "https://x/", "targeting_json": "{}", "status": "PAUSED",
+            "link_url": "https://x/", "targeting_json": "{}", "status": status,
             "campaign_name_prefix": prefix, "adset_name_prefix": adset_prefix,
         }, user_id=1)
         assert not err, err
@@ -96,6 +104,17 @@ def main():
         assert fa == [P + "-G-1-1", P + "-G-2-1", P + "-G-3-1"], f"广告组名不对：{fa}"
         assert (lc, la) == (fc, fa), f"本地记录名和发给 Meta 的不一致：本地 {lc} {la} / Meta {fc} {fa}"
         assert not any(str(x).startswith("-") for x in fc + fa), f"出现了裸的 '-1'：{fc + fa}"
+
+        # 1.5) 建完系列要立刻把状态写进本地 meta_entity_status
+        #      （广告系列页的状态徽章 + 默认的「投放中」筛选都读这张表，
+        #       而 Meta 的状态同步一小时才跑一次 —— 不写的话新系列是一行没状态的空白，
+        #       切到「投放中」还会被直接筛掉）
+        assert len(statuses) == 3, f"3 个系列应该各写一次状态：{statuses}"
+        assert all(lvl == "campaign" for lvl, _ in statuses), statuses
+        for lvl, rows in statuses:
+            assert len(rows) == 1 and rows[0]["ad_account"] == "act_1", rows
+            assert rows[0]["entity_id"] == "fc", rows
+            assert rows[0]["effective_status"] == "PAUSED", rows
 
         # 2) 前缀留空（用户忘了填）→ 退回默认名，不是 "-1"
         (lc, la), (fc, fa) = run("", "", 3, 1, 1)
@@ -113,6 +132,11 @@ def main():
         (lc, la), (fc, fa) = run("  " + P + "  ", " G ", 1, 1, 1)
         assert fc == [P + "-1"], f"系列前缀没 trim：{fc}"
         assert fa == ["G-1-1"], f"广告组前缀没 trim：{fa}"
+
+        # 5) 状态要按用户选的写，不能写死 PAUSED（默认筛选是「投放中」，
+        #    写死的话开了的系列反而被筛掉）
+        run(P, "G", 1, 1, 1, status="ACTIVE")
+        assert [r[0]["effective_status"] for _, r in statuses] == ["ACTIVE"], statuses
     finally:
         meta_api.create_campaign = real["cc"]
         meta_api.create_adset = real["ca"]

@@ -190,7 +190,7 @@ def main():
     import database
     real_db = {k: getattr(database, k) for k in (
         "create_delivery_campaign", "create_delivery_adset", "add_to_delivery_queue",
-        "update_delivery_campaign_fb_id", "update_delivery_adset_fb_id")}
+        "update_delivery_campaign_fb_id", "update_delivery_adset_fb_id", "upsert_meta_entity_statuses")}
     real_api = {k: getattr(meta_api, k) for k in (
         "create_campaign", "create_adset", "create_ad", "upload_ad_video")}
     seq = iter(range(5000, 9000))
@@ -205,6 +205,7 @@ def main():
         database.create_delivery_adset = lambda *a, **k: next(seq)
         database.add_to_delivery_queue = lambda *a, **k: None
         database.update_delivery_campaign_fb_id = lambda *a, **k: None
+        database.upsert_meta_entity_statuses = lambda *a, **k: None
         database.update_delivery_adset_fb_id = lambda *a, **k: None
 
         clip = Path(tempfile.mkdtemp(prefix="upbeat_")) / "clip.mp4"

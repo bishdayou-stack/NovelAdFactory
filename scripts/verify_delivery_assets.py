@@ -63,7 +63,7 @@ def main():
         "cad": meta_api.create_ad, "img": meta_api.upload_ad_image,
         "db": {k: getattr(database, k) for k in (
             "create_delivery_campaign", "create_delivery_adset", "add_to_delivery_queue",
-            "update_delivery_campaign_fb_id", "update_delivery_adset_fb_id")},
+            "update_delivery_campaign_fb_id", "update_delivery_adset_fb_id", "upsert_meta_entity_statuses")},
     }
     seq = iter(range(7000, 9999))
     ad_seen = []          # (adset_id, 素材下标)
@@ -82,6 +82,7 @@ def main():
         database.create_delivery_adset = lambda *a, **k: next(seq)
         database.add_to_delivery_queue = lambda *a, **k: None
         database.update_delivery_campaign_fb_id = lambda *a, **k: None
+        database.upsert_meta_entity_statuses = lambda *a, **k: None
         database.update_delivery_adset_fb_id = lambda *a, **k: None
 
         # 素材按**点选顺序**排好传进来（前端就是按这个顺序发的）

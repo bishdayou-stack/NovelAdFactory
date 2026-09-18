@@ -944,7 +944,7 @@
           <span class="text-[10px] text-slate-500">状态:</span>
           <select id="campStatusSelect" class="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] text-white focus:border-indigo-500 focus:outline-none">
             <option value="">全部</option>
-            <option value="ACTIVE">投放中</option>
+            <option value="ACTIVE" selected>投放中</option>
             <option value="PAUSED">已暂停</option>
             <option value="ARCHIVED">已归档</option>
             <option value="IN_REVIEW">审核中</option>
@@ -7727,7 +7727,8 @@
     var _campCollapsed = {};
     var _campCustomDate = false;
     var _campPageAccount = '', _campPageStart = '', _campPageEnd = '';
-    var _campStatusFilter = '';
+    // 默认只看「投放中」（和 #campStatusSelect 里 selected 的那一项一致，两处必须一起改）
+    var _campStatusFilter = 'ACTIVE';
 
     function loadCampPage() {
       loadCampLastSync();
@@ -7966,10 +7967,13 @@
     function applyCampStatusFilter() {
       var table = document.getElementById('campPageTable');
       if (!table) return;
+      // 每次重画都要把上一轮的提示清掉（buildCampTable 会整块重写 innerHTML）
+      var tip = document.getElementById('campFilterEmpty');
+      if (tip) tip.remove();
+      var rows = table.querySelectorAll('tr[data-eff-status]');
       if (!_campStatusFilter) {
         // 显示全部
-        var allRows = table.querySelectorAll('tr[data-eff-status]');
-        allRows.forEach(function(r) { r.style.display = ''; });
+        rows.forEach(function(r) { r.style.display = ''; });
         return;
       }
       // PAUSED 也匹配 CAMPAIGN_PAUSED / ADSET_PAUSED
@@ -7977,10 +7981,25 @@
       var matchSet = [_campStatusFilter];
       if (_campStatusFilter === 'PAUSED') matchSet = ['PAUSED', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED'];
       if (_campStatusFilter === 'IN_REVIEW') matchSet = ['IN_REVIEW', 'ADS_IN_REVIEW'];
-      var rows = table.querySelectorAll('tr[data-eff-status]');
+      var shown = 0;
       rows.forEach(function(r) {
-        r.style.display = (matchSet.indexOf(r.dataset.effStatus) >= 0) ? '' : 'none';
+        var ok = matchSet.indexOf(r.dataset.effStatus) >= 0;
+        r.style.display = ok ? '' : 'none';
+        if (ok) shown++;
       });
+      // 全被筛没了得给句话。默认筛「投放中」时最容易撞上（新系列还没数据、或者
+      // 建的时候选了「关闭」），页面一片空白会让人以为系列没建成。
+      if (rows.length && !shown) {
+        var sel = document.getElementById('campStatusSelect');
+        var label = (sel && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex].text : _campStatusFilter;
+        tip = document.createElement('div');
+        tip.id = 'campFilterEmpty';
+        tip.className = 'text-slate-500 text-center py-6 text-xs leading-relaxed';
+        tip.textContent = '当前筛选「' + label + '」下没有广告系列（' + rows.length +
+          ' 个系列被筛掉了）。把上方「状态」切到「全部」就能看到，' +
+          '新建的系列如果建的时候选的是「关闭」，也属于这一类。';
+        table.appendChild(tip);
+      }
     }
 
     function campPageToggle(rowEl, cidEnc, acctEnc) {
